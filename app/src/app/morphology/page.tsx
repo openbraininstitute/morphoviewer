@@ -5,7 +5,7 @@ import React from "react"
 // const FILE = "./GolgiCell.swc"
 // const FILE = "./AA0622.swc"
 // const FILE = "./test-2.swc"
-const FILE = "./17302_00065.swc"
+const FILE = "./aurelien.swc"
 
 export default function PageMorphology() {
     const [swc, setSwc] = React.useState("")
@@ -32,7 +32,7 @@ export default function PageMorphology() {
     return (
         <div>
             <MorphoViewer swc={swc} />
-            <NeuroMorphoViz swc={swc} />
+            {/* <NeuroMorphoViz swc={swc} /> */}
             <p>
                 Quo tenetur sed nam optio quidem. Qui asperiores nesciunt
                 soluta. Est tenetur dignissimos ut dolore ipsam.
