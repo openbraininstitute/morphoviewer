@@ -69,7 +69,6 @@ export function getDistancesTextureCanvas(
             ctx.fillRect(0, y, w, 1)
         }
     })
-    document.body.appendChild(ctx.canvas)
     return ctx.canvas
 }
 
