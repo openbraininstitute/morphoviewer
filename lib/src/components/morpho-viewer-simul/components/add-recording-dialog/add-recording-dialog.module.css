@@ -1,0 +1,107 @@
+.addRecordingDialog {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background-color: #0001;
+  z-index: 10;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s;
+
+  &.open {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  > div {
+    background-color: #3333;
+    backdrop-filter: blur(4px);
+    color: #fff;
+    padding: 1em;
+    border-radius: 0.5em;
+    border: 2px solid #fff4;
+    transition: all 0.3s;
+
+    &.top {
+      transform: translateY(-60%);
+    }
+
+    &.bottom {
+      transform: translateY(60%);
+    }
+
+    > header {
+      width: 100%;
+      display: flex;
+      flex-wrap: nowrap;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1em;
+      margin-top: -0.5em;
+
+      > h2 {
+        font-size: 150%;
+        flex: 1 1 auto;
+      }
+
+      > button {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        font: inherit;
+        font-weight: bold;
+        color: #7bf;
+        display: flex;
+        flex-wrap: nowrap;
+        flex-direction: row;
+        justify-content: flex-start;
+        align-items: center;
+        gap: 0.5em;
+
+        &:hover {
+          text-decoration: underline;
+        }
+      }
+    }
+
+    hr {
+      margin: 2em 0;
+      width: 100%;
+      height: 1px;
+      border: none;
+      background: linear-gradient(to right, transparent, currentColor, transparent);
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1em;
+
+      > button {
+        font: inherit;
+        border: none;
+        font-weight: bolder;
+        text-align: center;
+        display: grid;
+        place-items: center;
+        height: 2.5em;
+        border-radius: 99vmax;
+        background-color: #05a;
+        border: 1px solid #fff7;
+        color: #fffe;
+        padding: 0 1em;
+        box-shadow: 0 0.125em 0.25em #000;
+        transition: all 0.3s;
+
+        &:hover,
+        &:active {
+          filter: brightness(120%);
+        }
+      }
+    }
+  }
+}

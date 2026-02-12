@@ -1,22 +1,16 @@
 import {
-  TgdColor,
+  tgdActionCreateCameraInterpolation,
   TgdControllerCameraOrbitZoomRequest,
-  TgdDataset,
+  tgdEasingFunctionInOutCubic,
   TgdEvent,
+  tgdFullscreenTest,
   TgdMat3,
   TgdMaterialDiffuse,
   TgdPainterClear,
   TgdPainterDepth,
-  TgdPainterMesh,
-  TgdParserGLTransfertFormatBinary,
   TgdQuat,
   TgdVec3,
-  TgdVec4,
-  tgdActionCreateCameraInterpolation,
-  tgdEasingFunctionInOutCubic,
-  tgdFullscreenTest,
-} from "@tgd";
-import { TgdGeometry } from "@tgd/geometry";
+} from "@tolokoban/tgd";
 
 import { AbstractCanvas, CanvasOptions } from "../abstract-canvas";
 import Colors, { ColorsInterface, colorToRGBA } from "../colors";
@@ -66,8 +60,6 @@ export class MorphologyCanvas extends AbstractCanvas {
   private _radiusType: number = 0;
   private _radiusMultiplier: number = 1;
   private material: TgdMaterialDiffuse | null = null;
-  private somaPainter: TgdPainterMesh | null = null;
-  private _somaGLB: ArrayBuffer | null = null;
   private _nodes: CellNode[] = [];
 
   constructor(options: Partial<CanvasOptions> = {}) {
@@ -165,7 +157,7 @@ export class MorphologyCanvas extends AbstractCanvas {
     const { context } = this;
     if (!context) return;
 
-    context.camera.orientation = journey.from;
+    context.camera.transfo.orientation = journey.from;
     this.resetCamera(journey.to, 300);
   };
 
@@ -199,15 +191,14 @@ export class MorphologyCanvas extends AbstractCanvas {
           // We keep a margin of 5%
           spaceHeightAtTarget: height * 1.05,
           zoom: 1,
-          target: nodes.center,
-          shift: new TgdVec3(0, 0, 0),
+          position: nodes.center,
           orientation: newOrientation,
         }),
         duration: transition,
         easingFunction: tgdEasingFunctionInOutCubic,
       });
     } else {
-      camera.face("+X+Y+Z");
+      camera.transfo.orientation.face("+X+Y+Z");
     }
     context.paint();
   };
@@ -287,55 +278,6 @@ export class MorphologyCanvas extends AbstractCanvas {
     this.init();
   }
 
-  set somaGLB(data: ArrayBuffer | null) {
-    const { context } = this;
-    if (!context) return;
-
-    if (this._somaGLB === data) return;
-
-    this._somaGLB = data;
-    if (this.somaPainter) context.remove(this.somaPainter);
-    this.somaPainter = null;
-    if (data) {
-      const parser = new TgdParserGLTransfertFormatBinary(data);
-      const gltf = parser.gltf;
-      console.log("🚀 [morphology-canvas] gltf = ", gltf); // @FIXME: Remove this line written on 2024-05-02 at 15:27
-      const meshIndex = 0;
-      const primitiveIndex = 0;
-      const elements = parser.getMeshPrimitiveIndices(
-        meshIndex,
-        primitiveIndex,
-      );
-      const dataset = new TgdDataset({
-        POSITION: "vec3",
-        NORMAL: "vec3",
-      });
-      parser.setAttrib(dataset, "POSITION", meshIndex, primitiveIndex);
-      const geometry = new TgdGeometry({
-        dataset,
-        elements,
-        drawMode: "TRIANGLES",
-        computeNormalsIfMissing: true,
-      });
-      const material = new TgdMaterialDiffuse({
-        color: new TgdVec4(...colorToRGBA(this.colors.soma, 1)),
-      });
-      const painter = new TgdPainterMesh(context, {
-        geometry,
-        material,
-      });
-      this.material = material;
-      this.somaPainter = painter;
-      context.add(painter);
-      // Hide the approximate soma.
-      const color = new TgdColor(this.colors.soma);
-      color.A = 0.99;
-      this.colors.soma = color.toString();
-      if (this.painter) this.painter.somaVisible = false;
-    }
-    this.paint();
-  }
-
   public readonly paint = () => {
     const { context } = this;
     if (!context) return;
@@ -360,7 +302,7 @@ export class MorphologyCanvas extends AbstractCanvas {
     this.resetClearColor();
     if (this.material) {
       const rgba = colorToRGBA(this.colors.soma, 1);
-      this.material.color = new TgdVec4(...rgba);
+      //   this.material.texture  .color = new TgdVec4(...rgba);
     }
     this.paint();
   };
@@ -419,7 +361,10 @@ export class MorphologyCanvas extends AbstractCanvas {
     const { context } = this;
     if (!context) return false;
 
-    if (tgdFullscreenTest(context.canvas)) return true;
+    const { canvas } = context.gl;
+    if (canvas instanceof HTMLCanvasElement && tgdFullscreenTest(canvas)) {
+      return true;
+    }
 
     return evt.ctrlKey;
   };

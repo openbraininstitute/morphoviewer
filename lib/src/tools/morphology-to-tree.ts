@@ -1,0 +1,106 @@
+import { TgdVec3, ArrayNumber3 } from "@tolokoban/tgd";
+
+import { Morphology } from "@/components/morpho-viewer-simul/types/private";
+import {
+  MorphoViewerTree,
+  MorphoViewerTreeItem,
+  MorphoViewerTreeItemType,
+} from "@/components/morpho-viewer-simul/types/public";
+
+interface Segment {
+  parentKey: string;
+  item: MorphoViewerTreeItem;
+}
+
+export function morphoViewerConvertMorphologyIntoTree(
+  morphology: Morphology,
+  cellId: string,
+): MorphoViewerTree {
+  const tree: MorphoViewerTree = {
+    cellId,
+    roots: [],
+  };
+  const segments = new Map<string, Segment>();
+  let somaCounts = 0;
+  const somaCenter = new TgdVec3();
+  const sectionNames = Object.keys(morphology);
+  let hasApicalDendrites = false;
+  for (const sectionName of sectionNames) {
+    const section = morphology[sectionName];
+    const type = resolveType(sectionName);
+    if (type === MorphoViewerTreeItemType.ApicalDendrite) {
+      hasApicalDendrites = true;
+    }
+    for (let segmentIndex = 0; segmentIndex < section.nseg; segmentIndex++) {
+      const start: ArrayNumber3 = [
+        section.xstart[segmentIndex],
+        section.ystart[segmentIndex],
+        section.zstart[segmentIndex],
+      ];
+      const end: ArrayNumber3 = [
+        section.xend[segmentIndex],
+        section.yend[segmentIndex],
+        section.zend[segmentIndex],
+      ];
+      const segment: Segment = {
+        parentKey: key3D(start),
+        item: {
+          type,
+          x: end[0],
+          y: end[1],
+          z: end[2],
+          radius: section.diam[segmentIndex] / 2,
+          sectionId: `${resolveSectionIndex(sectionName)}`,
+          segmentId: `${segmentIndex}`,
+          children: [],
+        },
+      };
+      segments.set(key3D(end), segment);
+    }
+  }
+  if (!hasApicalDendrites) {
+    // If no apical dendrite, then we need to display Dendrite instead of BasalDendrite.
+    // for (const item of this.items) {
+    //   if (item.type === MorphoViewerTreeItemType.BasalDendrite) {
+    //     item.type = MorphoViewerTreeItemType.Dendrite;
+    //   }
+    // }
+  }
+  if (somaCounts > 0) somaCenter.scale(1 / somaCounts);
+
+  return tree;
+}
+
+function resolveType(sectionName: string): MorphoViewerTreeItemType {
+  const prefix = sectionName.slice(0, 4).toLowerCase();
+  switch (prefix) {
+    case "soma":
+      return MorphoViewerTreeItemType.Soma;
+    case "axon":
+      return MorphoViewerTreeItemType.Axon;
+    case "dend":
+      return MorphoViewerTreeItemType.BasalDendrite;
+    case "apic":
+      return MorphoViewerTreeItemType.ApicalDendrite;
+    case "myel":
+      return MorphoViewerTreeItemType.Myelin;
+    default:
+      return MorphoViewerTreeItemType.Unknown;
+  }
+}
+
+/**
+ * The section index is at the end of the name, surrounded by square brackets.
+ *
+ * Example: `dend[32]`
+ */
+function resolveSectionIndex(sectionName: string): number {
+  const i = sectionName.indexOf("[");
+  const suffix = sectionName.slice(i + 1);
+  return parseInt(suffix.slice(0, suffix.length - 1), 10);
+}
+
+function key3D([x, y, z]: ArrayNumber3) {
+  const PRECISION = 3;
+  return `${x.toFixed(PRECISION)}/${y.toFixed(PRECISION)}/${z.toFixed(PRECISION)}`;
+}

@@ -1,6 +1,6 @@
 import { CellNode } from "@/parser/swc";
 import { CellNodeType } from "@/types";
-import { TgdVec3 } from "@tgd";
+import { TgdVec3 } from "@tolokoban/tgd";
 
 export interface Branch {
   node: CellNode;

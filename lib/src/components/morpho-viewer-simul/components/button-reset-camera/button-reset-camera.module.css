@@ -1,0 +1,10 @@
+.buttonResetCamera {
+  transition: all 0.3s;
+  opacity: 1;
+  transform: translateY(0);
+
+  &.hide {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+}

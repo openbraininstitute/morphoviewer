@@ -1,0 +1,16 @@
+{
+    "name": "generator",
+    "version": "0.1.0",
+    "private": true,
+    "dependencies": {
+        "chokidar": "^3.5.3"
+    },
+    "scripts": {
+        "prestart": "tsc -p tsconfig.json",
+        "start": "node dist/generate.js ../../doc/src/app"
+    },
+    "devDependencies": {
+        "@types/node": "^20.4.7",
+        "typescript": "^5.1.6"
+    }
+}
