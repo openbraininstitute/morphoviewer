@@ -1,13 +1,19 @@
-import { TgdVec4, TgdCamera, TgdMat4, TgdVec2, tgdCalcClamp } from '@tolokoban/tgd';
+import {
+  type TgdCamera,
+  TgdMat4,
+  TgdVec2,
+  TgdVec4,
+  tgdCalcClamp,
+} from "@tolokoban/tgd";
 
-import { Structure, StructureItem } from './structure';
+import type { Structure, StructureItem } from "./structure";
 
 export function computeSectionOffset(
   structure: Structure,
   item: StructureItem,
   camera: TgdCamera,
   xScreen: number,
-  yScreen: number
+  yScreen: number,
 ) {
   const offsetSegment = computeSegmentOffset(item, camera, xScreen, yScreen);
   const segments = structure.getSegmentsOfSection(item.sectionName);
@@ -28,11 +34,13 @@ function computeSegmentOffset(
   item: StructureItem,
   camera: TgdCamera,
   xScreen: number,
-  yScreen: number
+  yScreen: number,
 ): number {
   const start = new TgdVec4(...item.start, 1);
   const end = new TgdVec4(...item.end, 1);
-  const matrix = new TgdMat4(camera.matrixProjection).multiply(camera.matrixModelView);
+  const matrix = new TgdMat4(camera.matrixProjection).multiply(
+    camera.matrixModelView,
+  );
   start.applyMatrix(matrix);
   start.scale(1 / start.w);
   end.applyMatrix(matrix);

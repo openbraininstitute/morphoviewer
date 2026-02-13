@@ -28,6 +28,7 @@
     "author": "Fabien PETITJEAN <fabien.petitjean@epfl.ch>",
     "license": "Apache-2.0",
     "devDependencies": {
+        "@biomejs/biome": "2.3.15",
         "prettier": "^3.6.2"
     },
     "peerDependencies": {

@@ -1,10 +1,12 @@
 import { type ArrayNumber3, TgdBoundingBox, TgdVec3 } from "@tolokoban/tgd";
+import type { NumberArray3 } from "./../../../../../node_modules/@math.gl/types/src/array-types";
 
 import {
-  MorphoViewerTree,
-  MorphoViewerTreeItem,
+  type MorphoViewerTree,
+  type MorphoViewerTreeItem,
   MorphoViewerTreeItemType,
 } from "../types/public";
+import { resolveTypeName } from "../utils";
 import { builTree, debugTree } from "./tree";
 
 export interface StructureItem {
@@ -42,37 +44,58 @@ export interface StructureBoundingBox {
 
 export class Structure {
   public readonly cellId: string;
-
   public readonly root: StructureItem;
-
-  public readonly bbox = new TgdBoundingBox();
-
   /**
-   * Bounding box of the axon
-   */
-  public readonly bboxSoma = new TgdBoundingBox();
-
-  /**
-   * Bounding box of the dendrites only (no axon nor myelin)
+   * Bounding box of the dendrites only (no axon nor myelin).
+   * That's what we want to focus at zoom 1.
    */
   public readonly bboxDendrites = new TgdBoundingBox();
+  public readonly zoomMin: number;
+  public readonly zoomMax: number;
+  public readonly center: Readonly<ArrayNumber3>;
 
+  private readonly bbox = new TgdBoundingBox();
+  /**
+   * Bounding box of the Soma
+   */
+  private readonly bboxSoma = new TgdBoundingBox();
+  private somaCenter = new TgdVec3();
+  private somaCount = 0;
   private readonly items: StructureItem[] = [];
-
   private readonly segments = new Map<string, StructureItem>();
-
   private readonly segmentsPerSection = new Map<string, StructureItem[]>();
-
   private readonly segmentsCountPerSection = new Map<string, number>();
-
   private _hasApicalDendrites: boolean = false;
 
   constructor(morphology: MorphoViewerTree) {
     this.cellId = morphology.cellId;
+    const soma = morphology.roots.find(
+      (item) => item.type === MorphoViewerTreeItemType.Soma,
+    );
+    const center: NumberArray3 = soma ? [soma.x, soma.y, soma.z] : [0, 0, 0];
     for (const root of morphology.roots) {
-      this.registerBranch(null, root);
+      const distanceFromSoma =
+        root.type === MorphoViewerTreeItemType.Soma
+          ? 0
+          : computeDistance(center, [root.x, root.y, root.z]);
+      this.registerBranch(null, root, distanceFromSoma);
     }
+    if (this.somaCount > 0) {
+      this.somaCenter.scale(1 / this.somaCount);
+      this.center = [this.somaCenter.x, this.somaCenter.y, this.somaCenter.z];
+    } else {
+      this.center = [...this.bboxDendrites.center];
+    }
+    this.zoomMin = Math.min(
+      0.75,
+      computeZoomByDividingBBoxes(this.bboxDendrites, this.bbox),
+    );
+    this.zoomMax = Math.max(
+      1.33,
+      computeZoomByDividingBBoxes(this.bboxDendrites, this.bboxSoma),
+    );
     for (const item of this.items) {
+      this.addToSection(item);
       item.segmentsCount =
         this.segmentsCountPerSection.get(item.sectionName) ?? 0;
     }
@@ -86,7 +109,25 @@ export class Structure {
   private registerBranch(
     parent: MorphoViewerTreeItem | null,
     node: MorphoViewerTreeItem,
+    distanceFromSoma: number,
   ) {
+    node.distanceFromSoma = distanceFromSoma;
+    const { type } = node;
+    if (
+      [
+        MorphoViewerTreeItemType.Soma,
+        MorphoViewerTreeItemType.Dendrite,
+        MorphoViewerTreeItemType.ApicalDendrite,
+        MorphoViewerTreeItemType.BasalDendrite,
+      ].includes(type)
+    ) {
+      this.bboxDendrites.addSphere(node.x, node.y, node.z, node.radius);
+      if (type === MorphoViewerTreeItemType.Soma) {
+        this.bboxSoma.addSphere(node.x, node.y, node.z, node.radius);
+        this.somaCenter.add([node.x, node.y, node.z]);
+        this.somaCount++;
+      }
+    }
     if (parent) {
       if (node.type === MorphoViewerTreeItemType.ApicalDendrite) {
         this._hasApicalDendrites = true;
@@ -94,8 +135,11 @@ export class Structure {
       const item: StructureItem = {
         children: [],
         index: this.items.length,
-        distanceFromSoma: 0,
-        length: 0,
+        distanceFromSoma,
+        length: computeDistance(
+          [parent.x, parent.y, parent.z],
+          [node.x, node.y, node.z],
+        ),
         name: `${resolveTypeName(node.type)}[${node.sectionId}][${node.segmentId}]`,
         sectionName: node.sectionId,
         sectionIndex: parseInt(node.sectionId, 10),
@@ -118,7 +162,17 @@ export class Structure {
       );
     }
     for (const child of node.children ?? []) {
-      this.registerBranch(node, child);
+      this.registerBranch(
+        node,
+        child,
+        distanceFromSoma +
+          (parent
+            ? computeDistance(
+                [parent.x, parent.y, parent.z],
+                [node.x, node.y, node.z],
+              )
+            : 0),
+      );
     }
   }
 
@@ -224,27 +278,20 @@ function createInitialBBox(): StructureBoundingBox {
   };
 }
 
-function copyBBoxInto(from: StructureBoundingBox, to: StructureBoundingBox) {
-  to.center = [...from.center];
-  to.max = [...from.max];
-  to.min = [...from.min];
+function computeZoomByDividingBBoxes(
+  bbox1: TgdBoundingBox,
+  bbox2: TgdBoundingBox,
+): number {
+  const width1 = bbox1.max[0] - bbox1.min[0];
+  const height1 = bbox1.max[1] - bbox1.min[1];
+  const width2 = bbox2.max[0] - bbox2.min[0];
+  const height2 = bbox2.max[1] - bbox2.min[1];
+  return Math.min(width1 / width2, height1 / height2);
 }
 
-function resolveTypeName(type: MorphoViewerTreeItemType) {
-  switch (type) {
-    case MorphoViewerTreeItemType.Soma:
-      return "soma";
-    case MorphoViewerTreeItemType.Axon:
-      return "axon";
-    case MorphoViewerTreeItemType.Dendrite:
-      return "dend";
-    case MorphoViewerTreeItemType.ApicalDendrite:
-      return "dend";
-    case MorphoViewerTreeItemType.BasalDendrite:
-      return "dend";
-    case MorphoViewerTreeItemType.Myelin:
-      return "myel";
-    default:
-      return "unknown";
-  }
+function computeDistance(
+  [x1, y1, z1]: NumberArray3,
+  [x2, y2, z2]: NumberArray3,
+) {
+  return Math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2 + (z1 - z2) ** 2);
 }

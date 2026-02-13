@@ -1,0 +1,145 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.3.10/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": false
+  },
+  "formatter": {
+    "enabled": true,
+    "formatWithErrors": false,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineEnding": "lf",
+    "lineWidth": 100,
+    "attributePosition": "auto",
+    "bracketSameLine": false,
+    "expand": "auto",
+    "useEditorconfig": true
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "a11y": {
+        "useButtonType": "error"
+      },
+      "correctness": {
+        "noUnusedVariables": "error"
+      },
+      "style": {
+        "noParameterAssign": "error",
+        "useConsistentArrayType": "off",
+        "useConst": "error",
+        "useExportType": "error",
+        "useImportType": "error",
+        "noNonNullAssertion": "warn"
+      },
+      "suspicious": {
+        "noArrayIndexKey": "warn",
+        "noConsole": "warn",
+        "noVar": "error",
+        "noExplicitAny": "info",
+        "noImplicitAnyLet": "warn",
+        "useIterableCallbackReturn": "warn",
+        "noNonNullAssertedOptionalChain": "info"
+      }
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "semicolons": "always",
+      "bracketSameLine": false,
+      "quoteStyle": "single",
+      "trailingCommas": "es5"
+    }
+  },
+  "css": {
+    "parser": {
+      "cssModules": true,
+      "tailwindDirectives": true
+    },
+    "formatter": {
+      "enabled": true
+    },
+    "linter": {
+      "enabled": true
+    },
+    "assist": null
+  },
+  "html": {
+    "formatter": {
+      "indentScriptAndStyle": false,
+      "selfCloseVoidElements": "always"
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": {
+          "level": "on",
+          "options": {
+            "groups": [
+              {
+                "type": false,
+                "source": [":PACKAGE:"]
+              },
+              ":BLANK_LINE:",
+              {
+                "type": false,
+                "source": [
+                  "@/**",
+                  "!**/*.css",
+                  "!**/*.module.css",
+                  "!**/*.scss",
+                  "!**/*.module.scss",
+                  "!**/*.less"
+                ]
+              },
+              ":BLANK_LINE:",
+              {
+                "type": false,
+                "source": [
+                  ":PATH:",
+                  "!**/*.css",
+                  "!**/*.module.css",
+                  "!**/*.scss",
+                  "!**/*.module.scss",
+                  "!**/*.less"
+                ]
+              },
+              ":BLANK_LINE:",
+              {
+                "type": true,
+                "source": [":PACKAGE:"]
+              },
+              {
+                "type": true,
+                "source": [
+                  "@/**",
+                  "!**/*.css",
+                  "!**/*.module.css",
+                  "!**/*.scss",
+                  "!**/*.module.scss",
+                  "!**/*.less"
+                ]
+              },
+              {
+                "type": true,
+                "source": [":PATH:"]
+              },
+              ":BLANK_LINE:",
+              "*.css",
+              "*.scss",
+              "*.less"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

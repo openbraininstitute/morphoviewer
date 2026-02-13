@@ -3,9 +3,8 @@ import {
   type ArrayNumber3,
   TgdPainterSegmentsData,
 } from "@tolokoban/tgd";
-
-import { type Structure, type StructureItem } from "./structure";
 import { MorphoViewerTreeItemType } from "../types/public";
+import type { Structure, StructureItem } from "./structure";
 
 const HIGHLIGHT_RADIUS_MULTIPLIER = 1.5;
 
@@ -25,7 +24,9 @@ export function makeSegmentsDendrogram(
   structure: Structure,
   map: Map<number, TgdPainterSegmentsData>,
 ) {
-  const width = Math.abs(structure.bbox.max[0] - structure.bbox.min[0]);
+  const width = Math.abs(
+    structure.bboxDendrites.max[0] - structure.bboxDendrites.min[0],
+  );
   const height = Math.abs(
     structure.bboxDendrites.max[1] - structure.bboxDendrites.min[1],
   );

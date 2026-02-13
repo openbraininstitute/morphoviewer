@@ -1,6 +1,6 @@
-import { MorphoViewerSimul, MorphoViewerTree } from "@bbp/morphoviewer";
-import { useMorphologyTree } from "./hook";
+import { MorphoViewerSimul } from "@bbp/morphoviewer";
 import { ViewSpinner } from "@tolokoban/ui";
+import { useMorphologyTree } from "./hook";
 
 import styles from "./page.module.css";
 
@@ -13,8 +13,9 @@ export default function Page() {
             <div>
                 <h1>&lt;MorphoViewerSimul /&gt;</h1>
                 <div className={styles.viewer}>
-                    {tree && typeof tree !== "string" &&
-                        <MorphoViewerSimul morphology={tree} />}
+                    {tree && typeof tree !== "string" && (
+                        <MorphoViewerSimul morphology={tree} />
+                    )}
                     {tree === undefined && (
                         <div className={styles.grid}>
                             <ViewSpinner />

@@ -1,9 +1,9 @@
-import { TgdVec3, ArrayNumber3 } from "@tolokoban/tgd";
+import { type ArrayNumber3, TgdVec3 } from "@tolokoban/tgd";
 
-import { Morphology } from "@/components/morpho-viewer-simul/types/private";
+import type { Morphology } from "@/components/morpho-viewer-simul/types/private";
 import {
-  MorphoViewerTree,
-  MorphoViewerTreeItem,
+  type MorphoViewerTree,
+  type MorphoViewerTreeItem,
   MorphoViewerTreeItemType,
 } from "@/components/morpho-viewer-simul/types/public";
 
@@ -52,19 +52,37 @@ export function morphoViewerConvertMorphologyIntoTree(
           radius: section.diam[segmentIndex] / 2,
           sectionId: `${resolveSectionIndex(sectionName)}`,
           segmentId: `${segmentIndex}`,
+          distanceFromSoma: 0,
           children: [],
         },
       };
       segments.set(key3D(end), segment);
     }
   }
+
+  for (const { parentKey, item } of segments.values()) {
+    const parent = segments.get(parentKey);
+    if (parent) {
+      if (!parent.item.children) parent.item.children = [];
+      parent.item.children.push(item);
+    } else {
+      console.log("No parent:", item.sectionId, item.segmentId);
+      if (item.type === MorphoViewerTreeItemType.Soma) {
+        somaCenter.add([item.x, item.y, item.z]);
+        somaCounts++;
+      }
+      tree.roots.push(item);
+    }
+  }
+
   if (!hasApicalDendrites) {
     // If no apical dendrite, then we need to display Dendrite instead of BasalDendrite.
-    // for (const item of this.items) {
-    //   if (item.type === MorphoViewerTreeItemType.BasalDendrite) {
-    //     item.type = MorphoViewerTreeItemType.Dendrite;
-    //   }
-    // }
+    for (const segment of segments.values()) {
+      const { item } = segment;
+      if (item.type === MorphoViewerTreeItemType.BasalDendrite) {
+        item.type = MorphoViewerTreeItemType.Dendrite;
+      }
+    }
   }
   if (somaCounts > 0) somaCenter.scale(1 / somaCounts);
 

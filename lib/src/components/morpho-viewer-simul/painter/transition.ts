@@ -13,20 +13,16 @@ import type { Painter } from "./painters";
  * Manage the transition between views.
  */
 export class TransitionManager {
+  public widthAtTarget = 1;
+  public heightAtTarget = 1;
   public readonly eventResetCamera = new TgdEvent();
-
   public painter: Painter | null = null;
-
   public offscreen: OffscreenPainter | null = null;
 
   private readonly logic: TgdPainterLogic;
-
   private _context: TgdContext | null = null;
-
   private _mode: MorphoViewerMode = "3d";
-
   private _mix = 0;
-
   private ongoingAnimations: TgdAnimation[] = [];
 
   constructor(public readonly duration = 1) {
@@ -84,7 +80,15 @@ export class TransitionManager {
   }
 
   private readonly actualPaint = (time: number, delta: number) => {
-    const { painter, offscreen } = this;
+    const { painter, offscreen, context, widthAtTarget, heightAtTarget } = this;
+    if (context) {
+      console.log(
+        "🐞 [transition@85] widthAtTarget, heightAtTarget =",
+        widthAtTarget,
+        heightAtTarget,
+      ); // @FIXME: Remove this line written on 2026-02-13 at 18:30
+      context.camera.fitSpaceAtTarget(widthAtTarget, heightAtTarget);
+    }
     if (painter) {
       painter.mix = this.mix;
       painter.paint(time, delta);

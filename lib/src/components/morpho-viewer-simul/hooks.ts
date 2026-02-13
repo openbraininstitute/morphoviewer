@@ -1,6 +1,6 @@
 import { getColorFromGeneratedPalette } from "./colors";
-import { MorphoViewerSimulContentProps } from "./types/private";
-import { MorphoViewerElectrodeRecording } from "./types/public";
+import type { MorphoViewerSimulContentProps } from "./types/private";
+import type { MorphoViewerElectrodeRecording } from "./types/public";
 
 export function useRecordingsAndInjection(
   props: MorphoViewerSimulContentProps,

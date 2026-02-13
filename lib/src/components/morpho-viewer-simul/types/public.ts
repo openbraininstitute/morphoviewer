@@ -63,6 +63,7 @@ export interface MorphoViewerTreeItem {
   type: MorphoViewerTreeItemType;
   sectionId: string;
   segmentId: string;
+  distanceFromSoma: number;
   children?: MorphoViewerTreeItem[];
 }
 

@@ -1,11 +1,11 @@
-div.styles {
+div.page {
   padding: 1em;
 }
 
 div.viewer {
   position: relative;
-  width: 800px;
-  height: 600px;
+  width: 1000px;
+  height: 750px;
   border: 1px solid #000;
 
   > .grid {

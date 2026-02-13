@@ -7,11 +7,13 @@ import {
   TgdControllerCameraOrbit,
   TgdEvent,
   TgdMat4,
+  TgdPainterLogic,
   type TgdPainterSegmentsData,
   TgdVec3,
   tgdCalcMapRange,
 } from "@tolokoban/tgd";
 import React from "react";
+import type { MorphoViewerSimulContentProps } from "../types/private";
 import type { MorphoViewerMode, MorphoViewerSimulProps } from "../types/public";
 import { makeCamera } from "./camera";
 import { Initializer } from "./initializer";
@@ -21,7 +23,6 @@ import { OffscreenPainter } from "./offscreen-painter";
 import { Painter } from "./painters";
 import type { StructureItem } from "./structure";
 import { TransitionManager } from "./transition";
-import { MorphoViewerSimulContentProps } from "../types/private";
 
 interface SelectedItem {
   x: number;
@@ -275,6 +276,24 @@ export class PainterManager extends Initializer {
     painter.synapses = synapses;
   }
 
+  private fitCamera() {
+    const { data } = this;
+    if (!data) return;
+
+    const { context } = this.view;
+    if (!context) return;
+
+    const { structure } = data;
+    const [xc, yc] = structure.center;
+    const bbox = structure.bboxDendrites;
+    const width =
+      2.1 * Math.max(Math.abs(bbox.max[0] - xc), Math.abs(bbox.min[0] - xc));
+    const height =
+      2.1 * Math.max(Math.abs(bbox.max[1] - yc), Math.abs(bbox.min[1] - yc));
+    this.view.widthAtTarget = width;
+    this.view.heightAtTarget = height;
+  }
+
   protected initialize(canvas: HTMLCanvasElement, data: MorphologyData) {
     this.data = data;
     const context = this.initContext(canvas, data);
@@ -282,6 +301,7 @@ export class PainterManager extends Initializer {
     context.eventPaint.addListener(this.handlePaint);
     this.initOffscreen(context, data);
     this.eventHintVisible.dispatch(false);
+    this.fitCamera();
   }
 
   private initContext(canvas: HTMLCanvasElement, data: MorphologyData) {
@@ -305,6 +325,7 @@ export class PainterManager extends Initializer {
     }
     context.inputs.pointer.eventTapMultiple.addListener(() => {
       console.log(context.camera.toCode());
+      context.debugHierarchy();
     });
     return context;
   }
@@ -370,20 +391,21 @@ export class PainterManager extends Initializer {
 
       const { x, y } = evt;
       const item = view.offscreen?.getItemAt(x, y) ?? null;
+      console.log("🐞 [manager@373] item, x, y =", item, x, y); // @FIXME: Remove this line written on 2026-02-13 at 17:41
       if (item) {
-        const segment = computeSectionOffset(
+        const offset = computeSectionOffset(
           data.structure,
           item,
           view.context.camera,
           x,
           y,
         );
-        this.hoverItem = { x, y, offset: segment, item: item ?? null };
+        this.hoverItem = { x, y, offset, item: item ?? null };
         this.eventTap.dispatch({
           x,
           y,
           item: this.hoverItem.item,
-          offset: segment,
+          offset,
         });
         this.eventHintVisible.dispatch(false);
       }
