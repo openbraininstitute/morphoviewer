@@ -52,6 +52,7 @@ export default function (env, argv) {
 			enforceExtension: false,
 			alias: {
 				"@": Path.resolve(__dirname, "src/"),
+				react: Path.resolve(__dirname, "node_modules/react"),
 			},
 		},
 		devtool: isProdMode ? false : "inline-source-map",

@@ -8,6 +8,7 @@ import {
   TgdMaterialDiffuse,
   TgdPainterClear,
   TgdPainterDepth,
+  TgdPainterLogic,
   TgdQuat,
   TgdVec3,
 } from "@tolokoban/tgd";
@@ -61,14 +62,16 @@ export class MorphologyCanvas extends AbstractCanvas {
   private _radiusMultiplier: number = 1;
   private material: TgdMaterialDiffuse | null = null;
   private _nodes: CellNode[] = [];
+  private morphoWidthAtTarget = 1;
+  private morphoHeightAtTarget = 1;
 
   constructor(options: Partial<CanvasOptions> = {}) {
     super({
       name: "MorphologyCanvas",
       cameraController: {
-        minZoom: 0.1,
+        minZoom: 0.5,
         maxZoom: 100,
-        inertiaOrbit: 500,
+        inertiaOrbit: 20,
         fixedTarget: true,
       },
       ...options,
@@ -176,20 +179,14 @@ export class MorphologyCanvas extends AbstractCanvas {
         nodes,
         newOrientation ?? new TgdQuat(),
       );
-      const morphoWidth = Math.max(1e-6, 2 * Math.abs(sx));
-      const morphoHeight = Math.max(1e-6, 2 * Math.abs(sy));
-      const morphoRatio = morphoWidth / morphoHeight;
-      const canvasWidth = camera.screenWidth;
-      const canvasHeight = camera.screenHeight;
-      const canvasRatio = canvasWidth / canvasHeight;
-      const height =
-        canvasRatio > morphoRatio
-          ? morphoHeight
-          : (morphoHeight * morphoRatio) / canvasRatio;
+      const morphoWidth = Math.max(1e-6, Math.abs(sx));
+      const morphoHeight = Math.max(1e-6, Math.abs(sy));
+      this.morphoWidthAtTarget = morphoWidth;
+      this.morphoHeightAtTarget = morphoHeight;
+      camera.fitSpaceAtTarget(morphoWidth, morphoHeight);
+      camera.zoom = 0.1;
       context.animSchedule({
         action: tgdActionCreateCameraInterpolation(camera, {
-          // We keep a margin of 5%
-          spaceHeightAtTarget: height * 1.05,
           zoom: 1,
           position: nodes.center,
           orientation: newOrientation,
@@ -346,7 +343,22 @@ export class MorphologyCanvas extends AbstractCanvas {
         this.customColorsForDistance,
       );
     this.painter = segments;
-    context.add(clear, depth, this.painter);
+    context.add(
+      new TgdPainterLogic(() => {
+        console.log(
+          "🐞 [morphology-canvas@348] this.morphoWidthAtTarget, this.morphoHeightAtTarget =",
+          this.morphoWidthAtTarget,
+          this.morphoHeightAtTarget,
+        ); // @FIXME: Remove this line written on 2026-02-13 at 08:38
+        context.camera.fitSpaceAtTarget(
+          this.morphoWidthAtTarget,
+          this.morphoHeightAtTarget,
+        );
+      }),
+      clear,
+      depth,
+      this.painter,
+    );
     const { orbiter } = this;
     if (orbiter) orbiter.onZoomRequest = this.handleZoomRequest;
   }

@@ -1,0 +1,31 @@
+div.styles {
+  padding: 1em;
+}
+
+div.viewer {
+  position: relative;
+  width: 800px;
+  height: 600px;
+  border: 1px solid #000;
+
+  > .grid {
+    display: grid;
+    place-items: center;
+
+    .error {
+      background-color: #e30;
+      color: #fffd;
+      font-weight: bold;
+      padding: 2em;
+      border-radius: 2em;
+    }
+  }
+
+  > * {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+  }
+}

@@ -1,0 +1,33 @@
+.main {
+  border: 1px solid var(--custom-color-border);
+  border-radius: 0.25em;
+  font: inherit;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1em;
+  background: none;
+  width: auto;
+  color: inherit;
+  padding: 0.25em;
+}
+
+.main > button {
+  cursor: pointer;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.main > input[type='color'] {
+  display: none;
+}
+
+.main .color {
+  content: '';
+  border-radius: 0.25em;
+  width: 1em;
+  height: 1em;
+  border: 1px solid currentColor;
+}

@@ -1,1 +1,2 @@
-export * from "./morpho-viewer-simul";
+export { MorphoViewerSimul } from "./morpho-viewer-simul";
+export * from "./types/public";

@@ -6,7 +6,7 @@ import { classNames } from '@/util/utils';
 
 import styles from './scalebar.module.css';
 
-export interface VerticalScalebarProps {
+interface VerticalScalebarProps {
   className?: string;
   painter: MorphologyCanvas;
 }

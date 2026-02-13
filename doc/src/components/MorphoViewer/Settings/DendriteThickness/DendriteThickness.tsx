@@ -6,7 +6,7 @@ import { Slider } from '@/components/common/Slider';
 
 import styles from './dendrite-thickness.module.css';
 
-export interface DendriteThicknessProps {
+interface DendriteThicknessProps {
   className?: string;
   painter: MorphologyCanvas;
 }

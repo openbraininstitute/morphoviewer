@@ -1,4 +1,9 @@
-import { TgdContext, TgdPainterSegments } from "@tolokoban/tgd";
+import {
+  TgdContext,
+  TgdMaterialDiffuse,
+  TgdPainterSegments,
+  TgdTexture2D,
+} from "@tolokoban/tgd";
 
 import { ColorsInterface } from "@/colors";
 import { CellNodes } from "./nodes";
@@ -6,12 +11,11 @@ import { getDistancesTextureCanvas, getRegionsTextureCanvas } from "./textures";
 import { makeData } from "./factory";
 
 export class SwcPainter extends TgdPainterSegments {
-  public minRadius = 1.5;
-
   private colors: ColorsInterface | undefined;
   private _colorBy: "section" | "distance" = "section";
   private textureIsOutOfDate = true;
   private _somaVisible = true;
+  private readonly texture: TgdTexture2D;
 
   private customColorsForSection: string[] | null = null;
   private customColorsForDistance: string[] | null = null;
@@ -20,10 +24,18 @@ export class SwcPainter extends TgdPainterSegments {
     public readonly context: TgdContext,
     nodes: CellNodes,
   ) {
+    const texture = new TgdTexture2D(context);
+    const material = new TgdMaterialDiffuse({
+      color: texture,
+      lockLightsToCamera: true,
+    });
     super(context, {
       dataset: makeData(nodes).makeDataset,
+      minRadius: 2,
       roundness: 24,
+      material,
     });
+    this.texture = texture;
   }
 
   get somaVisible() {
@@ -62,14 +74,14 @@ export class SwcPainter extends TgdPainterSegments {
 
   private updateTextureIfNeeded() {
     const {
-      colorTexture,
+      texture,
       colorBy,
       textureIsOutOfDate,
       customColorsForSection,
       customColorsForDistance,
     } = this;
     if (textureIsOutOfDate) {
-      colorTexture.loadBitmap(
+      texture.loadBitmap(
         colorBy === "section"
           ? getRegionsTextureCanvas(
               this.somaVisible,

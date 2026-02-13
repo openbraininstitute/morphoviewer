@@ -6,7 +6,7 @@ import { classNames } from '@/util/utils';
 
 import styles from './thickness-mode.module.css';
 
-export interface ThicknessModeProps {
+interface ThicknessModeProps {
   className?: string;
   painter: MorphologyCanvas;
 }

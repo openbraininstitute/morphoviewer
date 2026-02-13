@@ -2,7 +2,7 @@ import { classNames } from '@/util/utils';
 
 import styles from './warning.module.css';
 
-export interface WarningProps {
+interface WarningProps {
   className?: string;
   visible: boolean;
 }

@@ -1,33 +1,33 @@
-import { MorphologyCanvas } from "@bbp/morphoviewer"
-import { useState } from "react"
+import { MorphologyCanvas } from "@bbp/morphoviewer";
+import { useState } from "react";
 
-import CloseIcon from "@/components/icons/CloseIcon"
-import SettingsIcon from "@/components/icons/SettingsIcons"
-import { classNames } from "@/util/utils"
-import { ColorMode } from "./ColorMode"
-import { ColorsLegend } from "./ColorsLegend"
-import { DendriteThickness } from "./DendriteThickness"
-import { ThicknessMode } from "./ThicknessMode"
+import { ColorMode } from "./ColorMode";
+import { ColorsLegend } from "./ColorsLegend";
+import { DendriteThickness } from "./DendriteThickness";
+import { ThicknessMode } from "./ThicknessMode";
 
-import styles from "./settings.module.css"
+import { classNames } from "@/util/utils";
 
-export interface SettingsProps {
-    className?: string
-    painter: MorphologyCanvas
+import styles from "./settings.module.css";
+import { IconClose, IconGear } from "@tolokoban/ui";
+
+interface SettingsProps {
+    className?: string;
+    painter: MorphologyCanvas;
 }
 
 export function Settings({ className, painter }: SettingsProps) {
-    const [expand, setExpand] = useState(false)
+    const [expand, setExpand] = useState(false);
     return (
         <div
             className={classNames(
                 styles.main,
                 className,
-                expand ? styles.expand : styles.collapse
+                expand ? styles.expand : styles.collapse,
             )}
         >
             <button type="button" onClick={() => setExpand(true)}>
-                <SettingsIcon />
+                <IconGear />
                 <div>Settings</div>
             </button>
             <div>
@@ -37,7 +37,7 @@ export function Settings({ className, painter }: SettingsProps) {
                         onClick={() => setExpand(false)}
                         aria-label="Close settings"
                     >
-                        <CloseIcon />
+                        <IconClose />
                     </button>
                 </div>
                 <ColorsLegend className={styles.legend} painter={painter} />
@@ -46,5 +46,5 @@ export function Settings({ className, painter }: SettingsProps) {
                 <ColorMode painter={painter} />
             </div>
         </div>
-    )
+    );
 }

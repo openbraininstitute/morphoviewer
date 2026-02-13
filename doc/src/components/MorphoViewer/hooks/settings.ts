@@ -2,6 +2,7 @@
 
 /* eslint-disable no-param-reassign */
 import { ColoringType, MorphologyCanvas } from "@bbp/morphoviewer";
+import { atom, useAtom } from "jotai";
 import { useEffect, useMemo } from "react";
 
 import {
@@ -16,10 +17,28 @@ import {
   LIGHT_BASAL_DENDRITE,
   LIGHT_SOMA,
 } from "../constants";
-import { TypeDef, assertType } from "@/util/type-guards";
-import AtomicState from "@tolokoban/react-state";
 
-const STORAGE_KEY = "MorphoViewer/settings";
+const DEFAULT_SETTINGS: ExtendedMorphoViewerSettings = {
+  darkMode: false,
+  darkColors: {
+    soma: DARK_SOMA,
+    basalDendrite: DARK_BASAL_DENDRITE,
+    apicalDendrite: DARK_APICAL_DENDRITE,
+    axon: DARK_AXON,
+  },
+  lightColors: {
+    soma: LIGHT_SOMA,
+    basalDendrite: LIGHT_BASAL_DENDRITE,
+    apicalDendrite: LIGHT_APICAL_DENDRITE,
+    axon: LIGHT_AXON,
+  },
+  radiusType: 0,
+  colorBy: "section",
+};
+
+export function getDefaultSettings() {
+  return structuredClone(DEFAULT_SETTINGS);
+}
 
 export interface MorphoViewerSettings {
   isDarkMode: boolean;
@@ -45,6 +64,8 @@ export interface MorphoViewerSettings {
   colorBy: ColoringType;
 }
 
+const extendedSettingsAtom = atom(getDefaultSettings());
+
 /**
  * Internally, we store two color palettes: one for dark mode,
  * and one for light mode.
@@ -58,39 +79,36 @@ export function useMorphoViewerSettings(
   update: (settings: Partial<MorphoViewerSettings>) => void,
   reset: (darkMode?: boolean) => void,
 ] {
-  const [persistentSettings, setPersistentSettings] =
-    persistentSettingsState.useState();
+  const [extendedSettings, setExtendedSettings] = useAtom(extendedSettingsAtom);
   const settings = useMemo(
-    () => readSettings(persistentSettings),
-    [persistentSettings],
+    () => readSettings(extendedSettings),
+    [extendedSettings],
   );
 
   useEffect(
-    () => applySettingsToMorphologyCanvas(painter, persistentSettings),
-    [persistentSettings, painter],
+    () => applySettingsToMorphologyCanvas(painter, extendedSettings),
+    [extendedSettings, painter],
   );
   const update = (value: Partial<MorphoViewerSettings>) => {
-    const darkMode = value.isDarkMode ?? persistentSettings.darkMode;
-    const newPersistentSettings =
-      darkMode === persistentSettings.darkMode
+    const darkMode = value.isDarkMode ?? extendedSettings.darkMode;
+    const newExtendedSettings =
+      darkMode === extendedSettings.darkMode
         ? writeSettings({
             ...settings,
             ...value,
           })
         : {
-            ...persistentSettings,
+            ...extendedSettings,
             darkMode,
           };
-    saveSettings(newPersistentSettings);
-    setPersistentSettings(newPersistentSettings);
+    setExtendedSettings(newExtendedSettings);
   };
   const reset = (darkMode?: boolean) => {
-    const defaultSettings = makeDefaultSettings();
+    const defaultSettings = getDefaultSettings();
     if (typeof darkMode === "boolean") {
       defaultSettings.darkMode = darkMode;
     }
-    saveSettings(defaultSettings);
-    setPersistentSettings(defaultSettings);
+    setExtendedSettings(defaultSettings);
   };
 
   return [settings, update, reset];
@@ -103,7 +121,7 @@ interface Palette {
   axon: string;
 }
 
-interface PersistentMorphoViewerSettings {
+interface ExtendedMorphoViewerSettings {
   darkMode: boolean;
   darkColors: Palette;
   lightColors: Palette;
@@ -122,7 +140,7 @@ interface PersistentMorphoViewerSettings {
 }
 
 function readSettings(
-  settings: PersistentMorphoViewerSettings,
+  settings: ExtendedMorphoViewerSettings,
 ): MorphoViewerSettings {
   const { darkMode, darkColors, lightColors } = settings;
   const palette: Palette = darkMode ? darkColors : lightColors;
@@ -144,8 +162,8 @@ function writeSettings({
   colorAxon,
   radiusType,
   colorBy,
-}: MorphoViewerSettings): PersistentMorphoViewerSettings {
-  const output = loadSettings();
+}: MorphoViewerSettings): ExtendedMorphoViewerSettings {
+  const output = getDefaultSettings();
   output.colorBy = colorBy;
   output.radiusType = radiusType;
   output.darkMode = isDarkMode;
@@ -157,64 +175,6 @@ function writeSettings({
   return output;
 }
 
-const persistentSettingsState = new AtomicState(loadSettings());
-
-function makeDefaultSettings(): PersistentMorphoViewerSettings {
-  return {
-    darkMode: false,
-    darkColors: {
-      soma: DARK_SOMA,
-      basalDendrite: DARK_BASAL_DENDRITE,
-      apicalDendrite: DARK_APICAL_DENDRITE,
-      axon: DARK_AXON,
-    },
-    lightColors: {
-      soma: LIGHT_SOMA,
-      basalDendrite: LIGHT_BASAL_DENDRITE,
-      apicalDendrite: LIGHT_APICAL_DENDRITE,
-      axon: LIGHT_AXON,
-    },
-    radiusType: 0,
-    colorBy: "section",
-  };
-}
-
-function assertPersistentMorphoViewerSettings(
-  data: unknown,
-): asserts data is PersistentMorphoViewerSettings {
-  const colorsType: TypeDef = {
-    soma: "string",
-    basalDendrite: "string",
-    apicalDendrite: "string",
-    axon: "string",
-  };
-  assertType(data, {
-    darkMode: "boolean",
-    darkColors: colorsType,
-    lightColors: colorsType,
-    radiusType: "number",
-    colorBy: ["literal", "section", "distance"],
-  });
-}
-
-function loadSettings(): PersistentMorphoViewerSettings {
-  try {
-    const item = window.localStorage.getItem(STORAGE_KEY) ?? "";
-    const data = JSON.parse(item);
-    assertPersistentMorphoViewerSettings(data);
-    return data;
-  } catch (ex) {
-    const defaultValue = makeDefaultSettings();
-    saveSettings(defaultValue);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultValue));
-    return defaultValue;
-  }
-}
-
-function saveSettings(data: PersistentMorphoViewerSettings) {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-}
-
 function applySettingsToMorphologyCanvas(
   painter: MorphologyCanvas,
   {
@@ -223,7 +183,7 @@ function applySettingsToMorphologyCanvas(
     lightColors,
     radiusType,
     colorBy,
-  }: PersistentMorphoViewerSettings,
+  }: ExtendedMorphoViewerSettings,
 ) {
   const { soma, basalDendrite, apicalDendrite, axon }: Palette = darkMode
     ? darkColors

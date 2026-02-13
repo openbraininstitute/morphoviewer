@@ -6,7 +6,7 @@ import { classNames } from '@/util/utils';
 
 import styles from './color-ramp.module.css';
 
-export interface ColorRampProps {
+interface ColorRampProps {
   className?: string;
   painter: MorphologyCanvas;
 }
