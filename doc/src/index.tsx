@@ -1,11 +1,17 @@
+import { Theme } from "@tolokoban/ui";
 import { createRoot } from "react-dom/client";
-
 import App from "./app";
 
 function start() {
     const root = document.getElementById("root");
     if (!root) throw Error(`Missing element with id "root"!`);
 
+    Theme.apply({
+        colors: {
+            neutral: ["#999", "#fff"],
+            primary: ["rgb(0, 101, 135)", "#9cd"],
+        },
+    });
     createRoot(root).render(<App />);
     window.setTimeout(removeSplash, 500);
 }

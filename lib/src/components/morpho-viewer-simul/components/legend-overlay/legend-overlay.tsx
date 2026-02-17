@@ -1,13 +1,15 @@
 import React from "react";
 
-import { useRecordingsAndInjection } from "../../hooks";
-import { LegendTarget, useLegendPainter } from "./legend-painter";
-
 import { classNames } from "@/utils";
 
+import { useRecordingsAndInjection } from "../../hooks";
+import type { MorphoViewerSimulContentProps } from "../../types/private";
 import styles from "./legend-overlay.module.css";
-import { MorphoViewerSimulContentProps } from "../../types/private";
+import { type LegendTarget, useLegendPainter } from "./legend-painter";
 
+/**
+ * Display injection and rcordings for electrodes.
+ */
 export default function LegendOverlay(
     props: MorphoViewerSimulContentProps & { className?: string },
 ) {
@@ -47,14 +49,12 @@ function resolveLegendTargets(data: {
             }) satisfies LegendTarget,
     );
     if (data.injection) {
-        targets.push(
-            {
-                section: data.injection.inject_to,
-                origin: "injection",
-                offset: 0.5,
-                color: "#fff",
-            },
-        );
+        targets.push({
+            section: data.injection.inject_to,
+            origin: "injection",
+            offset: 0.5,
+            color: "#fff",
+        });
     }
     return targets;
 }

@@ -29,7 +29,9 @@ export interface MorphoViewerSimulProps extends MorphoViewerElectrodesProps {
     color: string;
     data: Float32Array;
   }>;
+  spikes?: MorphoViewerSpikeRecord[]
   disableClick?: boolean;
+  onClose?(): void
 }
 
 export type MorphoViewerMode = "3d" | "dendrogram";
@@ -70,4 +72,21 @@ export interface MorphoViewerTreeItem {
 export interface MorphoViewerTree {
   cellId: string;
   roots: MorphoViewerTreeItem[];
+}
+
+export interface MorphoViewerSpikeRecord {
+    label: string,
+    color: string,
+    /**
+     * List of spiking times (in seconds).
+     */
+    spikesInSeconds: number[]
+    /**
+     * Duration of the simulation in seconds.
+     */
+    durationInSeconds: number
+    /**
+     * Number of seconds in the simulation time to pass every one second in visualization timne.
+     */
+    speed: number
 }

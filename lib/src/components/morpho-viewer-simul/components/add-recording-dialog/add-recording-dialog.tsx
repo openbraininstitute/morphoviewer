@@ -41,11 +41,20 @@ export default function AddRecordingDialog(props: AddRecordingDialogProps) {
     const handleClose = () => setOpen(false);
     const handleMoveInjection = () => {
         handleClose();
-        if (item) data.moveInjection(item.sectionName);
+        if (item) {
+            data.moveInjection(
+                `${resolveTypeName(item.type)}[${item.sectionName}]`,
+            );
+        }
     };
     const handleAddRecording = () => {
         handleClose();
-        if (item) data.addRecording(item.sectionName, offset);
+        if (item) {
+            data.addRecording(
+                `${resolveTypeName(item.type)}[${item.sectionName}]`,
+                offset,
+            );
+        }
     };
     useEscapeHandler(handleClose);
     if (!item) return null;

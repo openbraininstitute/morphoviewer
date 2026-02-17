@@ -5,20 +5,19 @@ import { GizmoCanvas, MorphologyCanvas } from "@bbp/morphoviewer";
 import { useEffect, useRef } from "react";
 
 import { ColorRamp } from "./ColorRamp";
+import { useMorphoViewerSettings } from "./hooks/settings";
+import { useSignal } from "./hooks/signal";
 import { Scalebar } from "./Scalebar";
 import { Settings } from "./Settings";
 import { Warning } from "./Warning";
-import { useMorphoViewerSettings } from "./hooks/settings";
-import { useSignal } from "./hooks/signal";
 
 // We disable enhanced somas until they are fixed on the backend.
 // import { WaitingForSomaEnhancement } from './WaitingForSomaEnhancement';
 // import { useEnhancedSomaService } from './hooks/neuro-morpho-viz-service';
 
-import { classNames } from "@/util/utils";
-
-import styles from "./morpho-viewer.module.css";
 import { IconFullscreen } from "@tolokoban/ui";
+import { classNames } from "@/util/utils";
+import styles from "./morpho-viewer.module.css";
 
 interface MorphoViewerProps {
     className?: string;
@@ -103,20 +102,19 @@ function MorphoViewer({ className, swc, mode }: MorphoViewerProps) {
             >
                 <IconFullscreen />
             </button>
-            {SHOW_GIZMO &&
-                (
-                    <div className={styles.rightPanel}>
-                        <canvas
-                            className={styles.gizmo}
-                            ref={(canvas) => {
-                                gizmoCanvas.canvas = canvas;
-                            }}
-                        >
-                            GizmoViewer
-                        </canvas>
-                        <ColorRamp painter={morphoCanvas} />
-                    </div>
-                )}
+            {SHOW_GIZMO && (
+                <div className={styles.rightPanel}>
+                    <canvas
+                        className={styles.gizmo}
+                        ref={(canvas) => {
+                            gizmoCanvas.canvas = canvas;
+                        }}
+                    >
+                        GizmoViewer
+                    </canvas>
+                    <ColorRamp painter={morphoCanvas} />
+                </div>
+            )}
             <Scalebar painter={morphoCanvas} />
             <Warning visible={warning} />
             {

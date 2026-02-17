@@ -1,10 +1,12 @@
+import { IconImport, ViewInputFile } from "@tolokoban/ui";
 import React from "react";
-
 import { MorphoViewer } from "@/components/MorphoViewer";
-
 import styles from "./page.module.css";
 
-const FILE = "./GolgiCell.swc";
+const FILE = "./marwan_wo_soma.swc";
+// const FILE = "./marwan_with_soma.swc"
+// const FILE = "./GolgiCell.swc";
+// const FILE = "./missing-soma.swc";
 // const FILE = "./AA0622.swc";
 // const FILE = "./test-2.swc";
 // const FILE = "./aurelien.swc"
@@ -19,6 +21,13 @@ export default function PageMorphology() {
         };
         void action();
     }, []);
+    const handleLoad = async (files: File[]) => {
+        const [file] = files;
+        if (!file) return;
+
+        const text = await file.text();
+        setSwc(text);
+    };
     if (!swc) {
         return (
             <div
@@ -37,6 +46,12 @@ export default function PageMorphology() {
                 <MorphoViewer swc={swc} />
             </div>
             <div>
+                <ViewInputFile
+                    accept=".swc"
+                    onLoad={handleLoad}
+                    icon={IconImport}
+                    label="Upload SWC file"
+                />
                 <p>
                     Use <code>Ctrl-MouseWheel</code> to zoom in/out.
                 </p>
