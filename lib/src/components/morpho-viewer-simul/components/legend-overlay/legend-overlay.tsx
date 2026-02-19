@@ -3,9 +3,11 @@ import React from "react";
 import { classNames } from "@/utils";
 
 import { useRecordingsAndInjection } from "../../hooks";
-import type { MorphoViewerSimulContentProps } from "../../types/private";
-import styles from "./legend-overlay.module.css";
 import { type LegendTarget, useLegendPainter } from "./legend-painter";
+
+import type { MorphoViewerSimulContentProps } from "../../types/private";
+
+import styles from "./legend-overlay.module.css";
 
 /**
  * Display injection and rcordings for electrodes.
@@ -29,6 +31,9 @@ export default function LegendOverlay(
     );
 }
 
+/**
+ * Combine recordings and injection in one array.
+ */
 function resolveLegendTargets(data: {
     recordings: {
         section: string;

@@ -1,5 +1,5 @@
 {
-    "entryPoints": ["src/index.ts"],
-    "includeVersion": true,
-    "out": "../app/public/docs"
+  "entryPoints": ["src/index.ts"],
+  "includeVersion": true,
+  "out": "../doc/public/docs"
 }

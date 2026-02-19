@@ -17,7 +17,13 @@ import { useMorphologyTree } from "./hook";
 
 import styles from "./page.module.css";
 
-const recordingsState = new AtomicState<MorphoViewerElectrodeRecording[]>([], {
+const recordingsState = new AtomicState<MorphoViewerElectrodeRecording[]>([{
+    section: "soma[0]",
+    offset: 0.5,
+    color: "#32c14e",
+    record_currents: true,
+    origin: "recording",
+}], {
     storage: {
         id: "MorphoViewerElectrodeRecording[]",
         guard: isMorphoViewerElectrodeRecordingArray,
@@ -47,6 +53,7 @@ export default function Page() {
                 <div className={styles.viewer}>
                     {tree && typeof tree !== "string" && (
                         <MorphoViewerSimul
+                            backgroundColor="#000922    "
                             morphology={tree}
                             recordings={recordings}
                             onRecordingsChange={setRecordings}

@@ -1,11 +1,14 @@
 import { type ArrayNumber3, TgdVec3 } from "@tolokoban/tgd";
 
-import type { Morphology } from "@/components/morpho-viewer-simul/types/private";
 import {
   type MorphoViewerTree,
   type MorphoViewerTreeItem,
   MorphoViewerTreeItemType,
 } from "@/components/morpho-viewer-simul/types/public";
+
+import { name } from "./../../node_modules/ci-info/index.d";
+
+import type { Morphology } from "@/components/morpho-viewer-simul/types/private";
 
 interface Segment {
   parentKey: string;
@@ -50,7 +53,7 @@ export function morphoViewerConvertMorphologyIntoTree(
           y: end[1],
           z: end[2],
           radius: section.diam[segmentIndex] / 2,
-          sectionId: `${resolveSectionIndex(sectionName)}`,
+          sectionId: sectionName,
           segmentId: `${segmentIndex}`,
           distanceFromSoma: 0,
           children: [],
@@ -85,7 +88,6 @@ export function morphoViewerConvertMorphologyIntoTree(
     }
   }
   if (somaCounts > 0) somaCenter.scale(1 / somaCounts);
-
   return tree;
 }
 
@@ -105,17 +107,6 @@ function resolveType(sectionName: string): MorphoViewerTreeItemType {
     default:
       return MorphoViewerTreeItemType.Unknown;
   }
-}
-
-/**
- * The section index is at the end of the name, surrounded by square brackets.
- *
- * Example: `dend[32]`
- */
-function resolveSectionIndex(sectionName: string): number {
-  const i = sectionName.indexOf("[");
-  const suffix = sectionName.slice(i + 1);
-  return parseInt(suffix.slice(0, suffix.length - 1), 10);
 }
 
 function key3D([x, y, z]: ArrayNumber3) {

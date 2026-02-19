@@ -1,41 +1,71 @@
+/** biome-ignore-all lint/suspicious/noAssignInExpressions: <explanation> */
 import {
-  TgdContext,
+  type TgdContext,
   TgdMaterialDiffuse,
+  TgdPainterGroup,
   TgdPainterSegments,
   TgdTexture2D,
 } from "@tolokoban/tgd";
 
-import { ColorsInterface } from "@/colors";
-import { CellNodes } from "./nodes";
-import { getDistancesTextureCanvas, getRegionsTextureCanvas } from "./textures";
 import { makeData } from "./factory";
+import { getDistancesTextureCanvas, getRegionsTextureCanvas } from "./textures";
 
-export class SwcPainter extends TgdPainterSegments {
+import type { ColorsInterface } from "@/colors";
+import type { CellNodes } from "./nodes";
+
+export class SwcPainter extends TgdPainterGroup {
   private colors: ColorsInterface | undefined;
   private _colorBy: "section" | "distance" = "section";
   private textureIsOutOfDate = true;
   private _somaVisible = true;
   private readonly texture: TgdTexture2D;
-
+  private radiusSwitch = 0;
   private customColorsForSection: string[] | null = null;
   private customColorsForDistance: string[] | null = null;
+  private readonly painterNeurites: TgdPainterSegments;
 
   constructor(
     public readonly context: TgdContext,
     nodes: CellNodes,
   ) {
-    const texture = new TgdTexture2D(context);
+    super();
+    const texture = (this.texture = new TgdTexture2D(context));
     const material = new TgdMaterialDiffuse({
       color: texture,
       lockLightsToCamera: true,
     });
-    super(context, {
-      dataset: makeData(nodes).makeDataset,
+    const { neurites, soma } = makeData(nodes);
+    const painterNeurites = (this.painterNeurites = new TgdPainterSegments(
+      context,
+      {
+        dataset: neurites.makeDataset,
+        minRadius: 2,
+        roundness: 8,
+        material,
+      },
+    ));
+    const painterSoma = new TgdPainterSegments(context, {
+      dataset: soma.makeDataset,
       minRadius: 2,
-      roundness: 24,
+      roundness: 48,
       material,
     });
-    this.texture = texture;
+    this.add(painterNeurites, painterSoma);
+  }
+
+  get minRadius() {
+    return this.painterNeurites.minRadius;
+  }
+  set minRadius(radius: number) {
+    this.painterNeurites.minRadius = radius;
+  }
+
+  get radiusMultiplier() {
+    return this.painterNeurites.radiusMultiplier;
+  }
+  set radiusMultiplier(radius: number) {
+    console.log("🐞 [painter@67] radius =", radius); // @FIXME: Remove this line written on 2026-02-18 at 10:09
+    this.painterNeurites.radiusMultiplier = radius;
   }
 
   get somaVisible() {

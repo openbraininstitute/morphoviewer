@@ -20,11 +20,11 @@ export function computeSectionOffset(
   let distance = 0;
   let totalDistance = 0;
   for (const segment of segments) {
-    totalDistance += segment.length;
+    totalDistance += segment.segmentLength;
     if (segment.segmentIndex === item.segmentIndex) {
-      distance += segment.length * offsetSegment;
+      distance += segment.segmentLength * offsetSegment;
     } else if (segment.segmentIndex < item.segmentIndex) {
-      distance += segment.length;
+      distance += segment.segmentLength;
     }
   }
   return totalDistance > 0 ? distance / totalDistance : 0;

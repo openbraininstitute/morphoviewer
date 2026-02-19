@@ -1,7 +1,8 @@
 import { TgdPainterSegmentsData } from "@tolokoban/tgd";
 
 import { CellNodeType } from "@/types";
-import { CellNodes } from "./nodes";
+
+import type { CellNodes } from "./nodes";
 
 export class Segments {
   private _data: TgdPainterSegmentsData | null = null;

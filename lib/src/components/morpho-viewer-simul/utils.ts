@@ -18,3 +18,14 @@ export function resolveTypeName(type: MorphoViewerTreeItemType) {
       return "unknown";
   }
 }
+
+/**
+ * The section index is at the end of the name, surrounded by square brackets.
+ *
+ * Example: `dend[32]`
+ */
+export function resolveSectionIndex(sectionName: string): number {
+  const i = sectionName.indexOf("[");
+  const suffix = sectionName.slice(i + 1);
+  return parseInt(suffix.slice(0, suffix.length - 1), 10);
+}

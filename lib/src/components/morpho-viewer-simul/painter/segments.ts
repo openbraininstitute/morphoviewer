@@ -3,7 +3,9 @@ import {
   type ArrayNumber3,
   TgdPainterSegmentsData,
 } from "@tolokoban/tgd";
+
 import { MorphoViewerTreeItemType } from "../types/public";
+
 import type { Structure, StructureItem } from "./structure";
 
 const HIGHLIGHT_RADIUS_MULTIPLIER = 1.5;
@@ -64,7 +66,7 @@ function processSegment(
   }
 }
 
-const DENDROGRAM_CENTER_Y = .4
+const DENDROGRAM_CENTER_Y = 0.4;
 
 function computeDendrogramStart(
   item: StructureItem,
@@ -75,7 +77,7 @@ function computeDendrogramStart(
     return computeDendrogramEnd(item.parent ?? item, width, height);
   }
   const x = item.rank * width;
-  const y = item.distanceFromSoma - height* DENDROGRAM_CENTER_Y;
+  const y = item.distanceFromSoma - height * DENDROGRAM_CENTER_Y;
   const z = 0;
   return [x, y, z];
 }
@@ -90,7 +92,8 @@ function computeDendrogramEnd(
     return computeDendrogramStart(child ?? item, width, height);
   }
   const x = item.rank * width;
-  const y = item.distanceFromSoma + item.length - height *DENDROGRAM_CENTER_Y;
+  const y =
+    item.distanceFromSoma + item.segmentLength - height * DENDROGRAM_CENTER_Y;
   const z = 0;
   return [x, y, z];
 }

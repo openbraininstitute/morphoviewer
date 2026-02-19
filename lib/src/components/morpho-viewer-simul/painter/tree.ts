@@ -1,8 +1,13 @@
-import type { ArrayNumber3 } from "@tolokoban/tgd";
-import { type StructureItem } from "./structure";
+import { type ArrayNumber3, TgdVec3 } from "@tolokoban/tgd";
+
 import { MorphoViewerTreeItemType } from "../types/public";
 
-export function builTree(items: StructureItem[]): StructureItem {
+import type { StructureItem } from "./structure";
+
+export function builTree(
+  items: StructureItem[],
+  soma: StructureItem | null,
+): StructureItem {
   const map = new Map<string, StructureItem>();
   for (const item of items) map.set(key3D(item.end), item);
   for (const item of items) {
@@ -31,10 +36,13 @@ export function builTree(items: StructureItem[]): StructureItem {
 
 export function debugTree(item: StructureItem, depth = 0) {
   try {
+    // biome-ignore lint/suspicious/noConsole: this function is here for debugging
     console.debug(`${"| ".repeat(depth)}${item.name}`);
     for (const child of item.children) debugTree(child, depth + 1);
   } catch (ex) {
+    // biome-ignore lint/suspicious/noConsole: this function is here for debugging
     console.error(ex);
+    // biome-ignore lint/suspicious/noConsole: this function is here for debugging
     console.error(item);
   }
 }
@@ -44,11 +52,11 @@ function key3D([x, y, z]: ArrayNumber3) {
   return `${x.toFixed(PRECISION)}/${y.toFixed(PRECISION)}/${z.toFixed(PRECISION)}`;
 }
 
-function populateTree(item: StructureItem, distance = 0) {
+export function populateTree(item: StructureItem, distance = 0) {
   if (!item) return;
 
   item.distanceFromSoma = distance;
-  const newDistance = distance + item.length;
+  const newDistance = distance + item.segmentLength;
   item.leavesCount = item.children.length > 0 ? 0 : 1;
   item.maxLength = 0;
   for (const child of item.children) {
@@ -56,10 +64,10 @@ function populateTree(item: StructureItem, distance = 0) {
     item.leavesCount += child.leavesCount;
     item.maxLength = Math.max(item.maxLength, child.maxLength);
   }
-  item.maxLength += item.length;
+  item.maxLength += item.segmentLength;
 }
 
-function computeRanks(item: StructureItem, rankMin = -1, rankMax = +1) {
+export function computeRanks(item: StructureItem, rankMin = -1, rankMax = +1) {
   if (!item) return;
 
   item.rank = (rankMin + rankMax) / 2;
@@ -78,7 +86,7 @@ function computeRanks(item: StructureItem, rankMin = -1, rankMax = +1) {
  * The `liaisons` are non-interactive horizontal segments, that will ony have a non-null length
  * in dendrogram mode.
  */
-function addLiaisons(root: StructureItem, items: StructureItem[]) {
+export function addLiaisons(root: StructureItem, items: StructureItem[]) {
   if (!root) return;
 
   if (root.children.length > 1) {
@@ -95,6 +103,15 @@ function addLiaisons(root: StructureItem, items: StructureItem[]) {
         radiusEnd: 1e-3,
         children: [child],
       };
+      const [x1, y1, z1] = liaison.start;
+      const [x2, y2, z2] = liaison.end;
+      const x = x2 - x1;
+      const y = y2 - y1;
+      const z = z2 - z1;
+      const distance = x * x + y * y + z * z;
+      if (distance > 1e-12) {
+        console.log(root.name, "->", child.name, Math.sqrt(distance), liaison);
+      }
       items.push(liaison);
       root.children[index] = liaison;
       addLiaisons(child, items);

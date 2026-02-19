@@ -1,12 +1,12 @@
-import React from "react";
-
-import { PainterManager } from "../../painter";
-import { StructureItem } from "../../painter/structure";
-
 import { classNames, useEventValue } from "@/utils";
 
-import styles from "./hint.module.css";
 import { MorphoViewerTreeItemType } from "../../types/public";
+
+import type React from "react";
+import type { PainterManager } from "../../painter";
+import type { StructureItem } from "../../painter/structure";
+
+import styles from "./hint.module.css";
 
 export interface HintProps {
     className?: string;
@@ -41,21 +41,26 @@ export function HintContent({ className, painterManager }: HintProps) {
     if (!hovered.item) {
         return null;
     }
+    const { item, offset } = hovered;
 
     return (
         <div className={classNames(className, styles.hintContent)}>
             <div>Section:</div>
             <div>{resolveName(hovered.item)}</div>
             <div>Section index:</div>
-            <div>{hovered.item.sectionIndex}</div>
+            <div>{item.sectionIndex}</div>
             <div>Segment index:</div>
-            <div>{hovered.item.segmentIndex}</div>
+            <div>{item.segmentIndex}</div>
             <div>Number of segments:</div>
-            <div>{hovered.item.segmentsCount}</div>
+            <div>{item.segmentsCount}</div>
             <div>Offset:</div>
-            <div>{hovered.offset.toFixed(3)}</div>
+            <div>{offset.toFixed(3)}</div>
             <div>Distance from soma:</div>
-            <div>{hovered.item.distanceFromSoma.toFixed(2)} µm</div>
+            <div>
+                {(item.distanceFromSoma + offset * item.sectionLength).toFixed(
+                    2,
+                )} µm
+            </div>
         </div>
     );
 }

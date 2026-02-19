@@ -1,15 +1,15 @@
 import {
-  TgdCamera,
+  type TgdCamera,
   TgdCameraOrthographic,
   TgdContext,
   TgdControllerCameraOrbit,
-  TgdControllerCameraOrbitOptions,
+  type TgdControllerCameraOrbitOptions,
   TgdEvent,
   tgdFullscreenTest,
   tgdFullscreenToggle,
 } from "@tolokoban/tgd";
 
-import { ScalebarOptions, computeScalebarAttributes } from "./scalebar";
+import { computeScalebarAttributes, type ScalebarOptions } from "./scalebar";
 
 export interface CanvasOptions extends WebGLContextAttributes {
   /**

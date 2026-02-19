@@ -1,8 +1,7 @@
-import { MorphologyData } from "../morphology-data";
 /* eslint-disable no-bitwise */
 import {
   TgdContext,
-  TgdDataset,
+  type TgdDataset,
   TgdPainterClear,
   TgdPainterGroup,
   TgdPainterLogic,
@@ -11,8 +10,10 @@ import {
   webglPresetDepth,
 } from "@tolokoban/tgd";
 
-import { StructureItem } from "../structure";
 import { MaterialIndex } from "./material-index";
+
+import type { MorphologyData } from "../morphology-data";
+import type { StructureItem } from "../structure";
 
 export class OffscreenPainter {
   public mix = 0;
@@ -55,7 +56,7 @@ export class OffscreenPainter {
     ];
     const painter = new TgdPainterSegmentsMorphing(context, {
       roundness: 3,
-      minRadius: 3,
+      minRadius: 2,
       datasetsPairs,
       material: new MaterialIndex(),
     });
