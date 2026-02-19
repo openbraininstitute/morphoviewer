@@ -26,6 +26,7 @@ import type {
   MorphoViewerMode,
   MorphoViewerSimulProps,
   MorphoViewerSpikeRecord,
+  MorphoViewerSynapsesGroup,
 } from "../types/public";
 import type { MorphologyData } from "./morphology-data";
 import type { StructureItem } from "./structure";
@@ -75,7 +76,7 @@ export class PainterManager extends Initializer {
   private _hoverItem: SelectedItem = { x: 0, y: 0, offset: 0, item: null };
   private readonly initialPosition = new TgdVec3();
   private cameraController: TgdControllerCameraOrbit | null = null;
-  private synapses: Array<{ color: string; data: Float32Array }> = [];
+  private synapses: MorphoViewerSynapsesGroup[] = [];
   private data: MorphologyData | null = null;
   /**
    * When is the last time the camera moved?
@@ -296,7 +297,7 @@ export class PainterManager extends Initializer {
     return null;
   }
 
-  showSynapses(synapses: Array<{ color: string; data: Float32Array }>) {
+  showSynapses(synapses: MorphoViewerSynapsesGroup[]) {
     this.synapses = synapses;
     const { context, painter } = this.view;
     if (!context || !painter) return;

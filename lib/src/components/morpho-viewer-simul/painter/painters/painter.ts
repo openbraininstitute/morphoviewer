@@ -1,33 +1,32 @@
+/** biome-ignore-all lint/suspicious/noAssignInExpressions: <explanation> */
 import {
-  TgdColor,
+  type TgdColor,
   type TgdContext,
   TgdLight,
   TgdMaterialDiffuse,
-  TgdPainter,
   TgdPainterClear,
-  TgdPainterFilter,
   TgdPainterFramebuffer,
-  TgdPainterFramebufferWithAntiAliasing,
   TgdPainterGroup,
-  TgdPainterLogic,
   TgdPainterMix,
   type TgdPainterSegmentsData,
   TgdPainterSegmentsMorphing,
   TgdPainterState,
   TgdTexture2D,
   TgdVec3,
-  tgdCalcMapRange,
-  tgdCalcModulo,
   tgdCanvasCreatePalette,
-  webglPresetBlend,
   webglPresetDepth,
 } from "@tolokoban/tgd";
-import type { MorphoViewerSpikeRecord } from "../../types/public";
-import type { MorphologyData } from "../morphology-data";
+
 import { PALETTE } from "./contants";
 import { PainterHover as PainterHighlight } from "./highlight";
 import { PainterSpiking } from "./spiking";
 import { PainterSynapses } from "./synapses";
+
+import type {
+  MorphoViewerSpikeRecord,
+  MorphoViewerSynapsesGroup,
+} from "../../types/public";
+import type { MorphologyData } from "../morphology-data";
 
 export class Painter extends TgdPainterGroup {
   private readonly groupSegments = new TgdPainterGroup({
@@ -45,14 +44,14 @@ export class Painter extends TgdPainterGroup {
    * For instance, 0.0 for 3D and 1.0 for Dendrogram.
    */
   private _mix = 0;
-  private _synapses: Array<{ color: string; data: Float32Array }> | null = null;
+  private _synapses: MorphoViewerSynapsesGroup[] = [];
   private _spike: MorphoViewerSpikeRecord | undefined = undefined;
   private textureRender: TgdTexture2D;
   private readonly clear: TgdPainterClear;
 
   constructor(
     private readonly context: TgdContext,
-    data: MorphologyData,
+    private readonly data: MorphologyData,
   ) {
     super();
     this.palette = new TgdTexture2D(context)
@@ -159,12 +158,14 @@ export class Painter extends TgdPainterGroup {
     return this._synapses;
   }
 
-  set synapses(synapses: Array<{ color: string; data: Float32Array }> | null) {
+  set synapses(synapses: MorphoViewerSynapsesGroup[]) {
     this._synapses = synapses;
     const { context, groupSynapses } = this;
     groupSynapses.delete();
     if (synapses && synapses.length > 0) {
-      groupSynapses.add(new PainterSynapses(context, synapses));
+      for (const group of synapses) {
+        groupSynapses.add(new PainterSynapses(context, group, this.data));
+      }
     }
     this.context.paint();
   }

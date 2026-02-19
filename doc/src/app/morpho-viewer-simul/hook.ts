@@ -1,10 +1,9 @@
-import React from "react";
-
 import {
+  type MorphoViewerTree,
   morphoViewerConvertMorphologyIntoTree,
-  MorphoViewerTree,
 } from "@bbp/morphoviewer";
 import { assertType$ } from "@tolokoban/type-guards";
+import React from "react";
 
 export function useMorphologyTree(): MorphoViewerTree | undefined | string {
   const [tree, setTree] = React.useState<MorphoViewerTree | undefined | string>(

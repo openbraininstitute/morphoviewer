@@ -13,22 +13,28 @@ import {
     ViewSpinner,
 } from "@tolokoban/ui";
 
+import { SYNAPSES } from "./data";
 import { useMorphologyTree } from "./hook";
 
 import styles from "./page.module.css";
 
-const recordingsState = new AtomicState<MorphoViewerElectrodeRecording[]>([{
-    section: "soma[0]",
-    offset: 0.5,
-    color: "#32c14e",
-    record_currents: true,
-    origin: "recording",
-}], {
-    storage: {
-        id: "MorphoViewerElectrodeRecording[]",
-        guard: isMorphoViewerElectrodeRecordingArray,
+const recordingsState = new AtomicState<MorphoViewerElectrodeRecording[]>(
+    [
+        {
+            section: "soma[0]",
+            offset: 0.5,
+            color: "#32c14e",
+            record_currents: true,
+            origin: "recording",
+        },
+    ],
+    {
+        storage: {
+            id: "MorphoViewerElectrodeRecording[]",
+            guard: isMorphoViewerElectrodeRecordingArray,
+        },
     },
-});
+);
 const injectionState = new AtomicState<
     MorphoViewerElectrodeInjection | undefined
 >(undefined, {
@@ -55,6 +61,7 @@ export default function Page() {
                         <MorphoViewerSimul
                             backgroundColor="#000922    "
                             morphology={tree}
+                            synapses={SYNAPSES}
                             recordings={recordings}
                             onRecordingsChange={setRecordings}
                             injection={injection}
@@ -114,10 +121,11 @@ export default function Page() {
                                     value={rec.offset}
                                     onChange={(offset) => {
                                         setRecordings(
-                                            recordings.map((item) =>
-                                                item === rec
-                                                    ? { ...item, offset }
-                                                    : item
+                                            recordings.map((
+                                                item,
+                                            ) => (item === rec
+                                                ? { ...item, offset }
+                                                : item)
                                             ),
                                         );
                                     }}

@@ -1,7 +1,8 @@
-import type { TgdDataset, TgdPainterSegmentsData } from "@tolokoban/tgd";
-import type { MorphoViewerTree } from "../types/public";
 import { makeSegments3D, makeSegmentsDendrogram } from "./segments";
 import { Structure } from "./structure";
+
+import type { TgdDataset, TgdPainterSegmentsData } from "@tolokoban/tgd";
+import type { MorphoViewerTree } from "../types/public";
 
 export class MorphologyData {
   public readonly structure: Structure;
@@ -19,7 +20,6 @@ export class MorphologyData {
 
   constructor(morphology: MorphoViewerTree) {
     this.structure = new Structure(morphology);
-    console.log("🐞 [morphology-data@22] this.structure =", this.structure); // @FIXME: Remove this line written on 2026-02-13 at 15:56
     const segments3D = makeSegments3D(this.structure, this.segments3D);
     this.dataset3D = segments3D.makeDataset();
     const segmentsDendrogram = makeSegmentsDendrogram(

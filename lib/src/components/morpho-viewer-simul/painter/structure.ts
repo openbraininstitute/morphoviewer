@@ -174,6 +174,36 @@ export class Structure {
     return this.segmentsPerSection.get(sectionName) ?? [];
   }
 
+  getSegmentOfSectionAtOffset(
+    sectionName: string,
+    offset: number,
+  ): { segment: StructureItem; offset: number } {
+    const segments = this.getSegmentsOfSection(sectionName);
+    const length = segments.length;
+    if (length === 0) {
+      throw new Error(`Section "${sectionName}" not found.`);
+    }
+    const sectionLengthAtOffset = offset * segments[0].sectionLength;
+    let lengthBeforeCurrentSegment = 0;
+    for (const segment of segments) {
+      const { segmentLength } = segment;
+      if (lengthBeforeCurrentSegment + segmentLength >= sectionLengthAtOffset) {
+        // We found it!
+        return {
+          segment,
+          offset:
+            (sectionLengthAtOffset - lengthBeforeCurrentSegment) /
+            segmentLength,
+        };
+      }
+      lengthBeforeCurrentSegment += segmentLength;
+    }
+    return {
+      offset: 1,
+      segment: segments[segments.length - 1],
+    };
+  }
+
   get length() {
     return this.items.length;
   }
