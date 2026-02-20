@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkextended_swc_viewer=self.webpackChunkextended_swc_viewer||[]).push([["219"],{582(e,t,s){s.r(t),s.d(t,{default:()=>n});var r=s(848);function n(){return(0,r.jsx)("iframe",{style:{position:"absolute",left:0,top:0,width:"100%",height:"100%",border:"none"},src:"./docs/"})}}}]);
