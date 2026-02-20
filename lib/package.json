@@ -11,7 +11,7 @@
     ],
     "scripts": {
         "doc": "typedoc --watch",
-        "prebuild": "npm run doc",
+        "prebuild": "typedoc",
         "build": "build-typescript-library .",
         "start": "build-typescript-library --watch .",
         "lint": "oxlint src/",
