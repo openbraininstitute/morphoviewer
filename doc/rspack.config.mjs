@@ -93,10 +93,10 @@ export default function (env, argv) {
 			new Rspack.CopyRspackPlugin({
 				patterns: [
 					{
-						from: "public/*",
+						from: "**/*",
 						context: Path.resolve(__dirname, "public"),
 						globOptions: {
-							ignore: ["index.html"],
+							ignore: ["**/index.html"],
 						},
 					},
 				],
