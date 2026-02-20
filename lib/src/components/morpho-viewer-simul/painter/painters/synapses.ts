@@ -18,6 +18,7 @@ import type { Structure } from "../structure";
 
 export class PainterSynapses extends TgdPainterGroup {
   private readonly textures: TgdTexture2D[] = [];
+  private readonly cloud: TgdPainterPointsCloudMorphing;
 
   constructor(
     context: TgdContext,
@@ -46,7 +47,15 @@ export class PainterSynapses extends TgdPainterGroup {
       radiusMultiplier: 0.5,
       texture,
     });
+    this.cloud = cloud;
     this.add(cloud);
+  }
+
+  get mix() {
+    return this.cloud.mix;
+  }
+  set mix(mix: number) {
+    this.cloud.mix = mix;
   }
 
   delete(): void {

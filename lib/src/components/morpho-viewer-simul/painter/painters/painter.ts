@@ -143,6 +143,11 @@ export class Painter extends TgdPainterGroup {
       this._painterSegments.mix = value;
       this.painterSpiking.mix = value;
     }
+    this.groupSynapses.forEachChild((painter) => {
+      if (painter instanceof PainterSynapses) {
+        painter.mix = value;
+      }
+    });
   }
 
   get synapsesEnabled() {

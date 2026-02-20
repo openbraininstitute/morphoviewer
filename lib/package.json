@@ -1,6 +1,6 @@
 {
     "name": "@bbp/morphoviewer",
-    "version": "0.22.0",
+    "version": "0.22.1",
     "description": "Class to display SWC files in 3D on a canvas",
     "main": "./dist/index.js",
     "module": "./dist/index.js",
@@ -11,6 +11,7 @@
     ],
     "scripts": {
         "doc": "typedoc --watch",
+        "prebuild": "npm run doc",
         "build": "build-typescript-library .",
         "start": "build-typescript-library --watch .",
         "lint": "oxlint src/",

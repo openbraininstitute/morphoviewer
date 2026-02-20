@@ -29,7 +29,13 @@ export class SwcPainter extends TgdPainterGroup {
     nodes: CellNodes,
   ) {
     super();
-    const texture = (this.texture = new TgdTexture2D(context));
+    const texture = (this.texture = new TgdTexture2D(context, {
+      params: {
+        wrapR: "CLAMP_TO_EDGE",
+        wrapS: "CLAMP_TO_EDGE",
+        wrapT: "CLAMP_TO_EDGE",
+      },
+    }));
     const material = new TgdMaterialDiffuse({
       color: texture,
       lockLightsToCamera: true,
