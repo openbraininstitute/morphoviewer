@@ -24,9 +24,7 @@ export function morphoViewerConvertMorphologyIntoTree(
     roots: [],
   };
   const segments = new Map<string, Segment>();
-  let somaCounts = 0;
-  const somaCenter = new TgdVec3();
-  const sectionNames = Object.keys(morphology);
+  const sectionNames = Object.keys(morphology).filter(isAcceptedSectionName);
   let hasApicalDendrites = false;
   for (const sectionName of sectionNames) {
     const section = morphology[sectionName];
@@ -69,11 +67,6 @@ export function morphoViewerConvertMorphologyIntoTree(
       if (!parent.item.children) parent.item.children = [];
       parent.item.children.push(item);
     } else {
-      console.log("No parent:", item.sectionId, item.segmentId);
-      if (item.type === MorphoViewerTreeItemType.Soma) {
-        somaCenter.add([item.x, item.y, item.z]);
-        somaCounts++;
-      }
       tree.roots.push(item);
     }
   }
@@ -87,7 +80,6 @@ export function morphoViewerConvertMorphologyIntoTree(
       }
     }
   }
-  if (somaCounts > 0) somaCenter.scale(1 / somaCounts);
   return tree;
 }
 
@@ -112,4 +104,8 @@ function resolveType(sectionName: string): MorphoViewerTreeItemType {
 function key3D([x, y, z]: ArrayNumber3) {
   const PRECISION = 3;
   return `${x.toFixed(PRECISION)}/${y.toFixed(PRECISION)}/${z.toFixed(PRECISION)}`;
+}
+
+function isAcceptedSectionName(sectionName: string): boolean {
+  return sectionName.charAt(sectionName.length - 1) === "]";
 }

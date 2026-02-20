@@ -30,7 +30,7 @@ export function useMorphologyTree(): MorphoViewerTree | undefined | string {
 }
 
 async function loadMorphology() {
-  const url = "assets/morpho-01.json";
+  const url = "assets/morpho-02.json";
   const resp = await fetch(url);
   if (!resp || !resp.ok)
     throw new Error(

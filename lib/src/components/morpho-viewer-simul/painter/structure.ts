@@ -177,11 +177,13 @@ export class Structure {
   getSegmentOfSectionAtOffset(
     sectionName: string,
     offset: number,
-  ): { segment: StructureItem; offset: number } {
+  ): { segment: StructureItem; offset: number } | null {
     const segments = this.getSegmentsOfSection(sectionName);
     const length = segments.length;
     if (length === 0) {
-      throw new Error(`Section "${sectionName}" not found.`);
+      // biome-ignore lint/suspicious/noConsole: semi-important error to report
+      console.error(`Section "${sectionName}" not found.`);
+      return null;
     }
     const sectionLengthAtOffset = offset * segments[0].sectionLength;
     let lengthBeforeCurrentSegment = 0;

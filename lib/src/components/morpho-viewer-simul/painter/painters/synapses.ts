@@ -73,10 +73,13 @@ function makeDataPoint(
   const dataPoint: number[] = [];
   for (const [sectionName, offsets] of Object.entries(sections)) {
     for (const offsetInSection of offsets) {
-      const { segment, offset } = structure.getSegmentOfSectionAtOffset(
+      const item = structure.getSegmentOfSectionAtOffset(
         sectionName,
         offsetInSection,
       );
+      if (!item) continue;
+
+      const { segment, offset } = item;
       const targetSegment = segments.get(segment.index);
       if (!targetSegment) continue;
 

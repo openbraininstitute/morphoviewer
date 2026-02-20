@@ -1,5 +1,6 @@
-import { MorphoViewerTree } from "../types/public";
 import { MorphologyData } from "./morphology-data";
+
+import type { MorphoViewerTree } from "../types/public";
 
 /**
  * To be able to initialize the viewer, we need a `canvas`
@@ -29,7 +30,7 @@ export abstract class Initializer {
     return this._morphology;
   }
   set morphology(value: MorphoViewerTree | null) {
-    if (JSON.stringify(this._morphology) === JSON.stringify(value)) return;
+    if (this._morphology === value) return;
 
     this._morphology = value;
     this.initializeWhenReady();
