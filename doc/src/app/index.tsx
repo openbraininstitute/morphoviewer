@@ -20,7 +20,8 @@ export * from "./types"
 import Layout0 from "./layout"
 const Page0 = React.lazy(() => import("./page"))
 const Page1 = React.lazy(() => import("./morpho-viewer-simul/page"))
-const Page2 = React.lazy(() => import("./morphology/page"))
+const Page2 = React.lazy(() => import("./morpho-viewer-small-circuit/page"))
+const Page3 = React.lazy(() => import("./morphology/page"))
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function App({ lang }: { lang?: string }) {
@@ -30,10 +31,12 @@ export default function App({ lang }: { lang?: string }) {
     const pg0 = Page0
     const pg1 = Page1
     const pg2 = Page2
+    const pg3 = Page3
     return (
         <Route path="/" Page={pg0} Layout={ly0} fallback={fb} context={context}>
             <Route path="/morpho-viewer-simul" Page={pg1} fallback={fb} context={context}/>
-            <Route path="/morphology" Page={pg2} fallback={fb} context={context}/>
+            <Route path="/morpho-viewer-small-circuit" Page={pg2} fallback={fb} context={context}/>
+            <Route path="/morphology" Page={pg3} fallback={fb} context={context}/>
         </Route>
     )
 }

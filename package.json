@@ -1,6 +1,6 @@
 {
     "name": "@bbp/morphoviewer",
-    "version": "0.22.2",
+    "version": "0.23.0",
     "description": "Class to display SWC morphology files in 3D",
     "main": "./dist/index.js",
     "module": "./dist/index.js",
@@ -27,9 +27,6 @@
     },
     "author": "Fabien PETITJEAN <fabien.petitjean@openbraininstitute.org>",
     "license": "Apache-2.0",
-    "devDependencies": {
-        "@biomejs/biome": "2.4.2"
-    },
     "peerDependencies": {
         "react": "^19.2.4"
     },

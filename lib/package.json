@@ -1,6 +1,6 @@
 {
     "name": "@bbp/morphoviewer",
-    "version": "0.22.2",
+    "version": "0.23.0",
     "description": "Class to display SWC files in 3D on a canvas",
     "main": "./dist/index.js",
     "module": "./dist/index.js",
@@ -28,6 +28,7 @@
     "author": "Fabien PETITJEAN <fabien.petitjean@epfl.ch>",
     "license": "ISC",
     "devDependencies": {
+        "@biomejs/biome": "^2.4.4",
         "@types/jest": "^30.0.0",
         "@types/react": "^19.2.14",
         "@typescript-eslint/eslint-plugin": "^8.55.0",
