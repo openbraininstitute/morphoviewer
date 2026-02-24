@@ -15,6 +15,7 @@ export function createCellFromTree(
 	context: TgdContext,
 	material: TgdMaterial,
 	tree: MorphoViewerTree,
+	forSelection: boolean,
 ): TgdPainterNode {
 	const segmentsSoma = new TgdPainterSegmentsData();
 	const segmentsNeurites = new TgdPainterSegmentsData();
@@ -24,12 +25,14 @@ export function createCellFromTree(
 	return new TgdPainterNode({
 		children: [
 			new TgdPainterSegments(context, {
-				roundness: 24,
+				roundness: forSelection ? 6 : 24,
+				radiusMultiplier: forSelection ? 1.1 : 1,
 				material,
 				dataset: segmentsSoma.makeDataset(),
 			}),
 			new TgdPainterSegments(context, {
-				roundness: 5,
+				roundness: forSelection ? 3 : 5,
+				radiusMultiplier: forSelection ? 1.5 : 1,
 				material,
 				dataset: segmentsNeurites.makeDataset(),
 			}),

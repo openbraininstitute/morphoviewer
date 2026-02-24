@@ -41,7 +41,7 @@ export class PainterManager {
 	 * Used for the highlights, because we don't want to render at full resolution
 	 * something that will be blurry anyway,
 	 */
-	private readonly viewportMatchingScale = 0.25;
+	private readonly viewportMatchingScale = 0.2;
 	private _canvas: HTMLCanvasElement | null = null;
 	private _background = "#000";
 	private readonly backgroundColor = new TgdColor(0, 0, 0, 1);
@@ -133,10 +133,10 @@ export class PainterManager {
 	public get highlightedCellIds() {
 		return this._highlightedCellIds;
 	}
-	public set highlightedCellIds(value: string[]) {
+	public set highlightedCellIds(value: string[] | undefined) {
 		if (value === this._highlightedCellIds) return;
 
-		this._highlightedCellIds = value;
+		this._highlightedCellIds = value ?? [];
 		this.updateHightedCells();
 	}
 
@@ -155,12 +155,13 @@ export class PainterManager {
 				groupHighlithedCells.add(painter);
 			}
 		}
-		for (const id of highlightedCellIds) {
+		for (const id of highlightedCellIds ?? []) {
 			const painter = highlightingCells.get(id);
 			if (painter) {
 				painter.black = false;
 			}
 		}
+		this.context?.paint();
 	}
 
 	get background() {
@@ -307,7 +308,7 @@ export class PainterManager {
 				new TgdPainterMix(context, {
 					texture1: framebufferCircuit.textureColor0,
 					texture2: framebufferBlur.textureColor0,
-					strength: 1,
+					strength: 1.5,
 				}),
 			],
 		});
@@ -355,6 +356,7 @@ export function usePainterManager({
 	circuit,
 	loadCell,
 	onCellHover,
+	highlightedCellIds,
 }: MorphoViewerSmallCircuitProps) {
 	const ref = React.useRef<PainterManager | null>(null);
 	if (!ref.current) {
@@ -367,6 +369,9 @@ export function usePainterManager({
 	React.useEffect(() => {
 		manager.setCircuit(circuit, loadCell);
 	}, [circuit, loadCell]);
+	React.useEffect(() => {
+		manager.highlightedCellIds = highlightedCellIds;
+	}, [highlightedCellIds]);
 	React.useEffect(() => {
 		if (!onCellHover) return;
 

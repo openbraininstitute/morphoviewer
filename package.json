@@ -2,11 +2,11 @@
     "name": "@bbp/morphoviewer",
     "version": "0.23.0",
     "description": "Class to display SWC morphology files in 3D",
-    "main": "./dist/index.js",
-    "module": "./dist/index.js",
-    "types": "./dist",
+    "main": "./dist/lib/index.js",
+    "module": "./dist/lib/index.js",
+    "types": "./dist/lib",
     "files": [
-        "./dist"
+        "./dist/lib"
     ],
     "repository": {
         "type": "git",
@@ -20,9 +20,9 @@
         "webgl2"
     ],
     "scripts": {
+        "clean": "rm -rf dist node_modules package-lock.json lib/node_modules lib/package-lock.json doc/node_modules doc/package-lock.json && npm run version",
         "prebuild": "npm run version",
-        "preinstall": "npm run version",
-        "build": "rm -rf ./dist && cd lib && npm install && npm run build && cd .. && npm pack",
+        "build": "cd lib && npm install && npm run build && cd .. && npm pack",
         "minor": "npm version minor -no-git-tag-version --force && cd lib && npm version minor -no-git-tag-version --force && cd ../app && npm version minor -no-git-tag-version --force",
         "patch": "npm version patch -no-git-tag-version --force && cd lib && npm version patch -no-git-tag-version --force && cd ../app && npm version patch -no-git-tag-version --force",
         "test": "cd lib && npm test",

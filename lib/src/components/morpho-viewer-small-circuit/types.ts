@@ -17,7 +17,7 @@ export interface MorphoViewerSmallCircuitProps {
 	className?: string;
 	backgroundColor?: string;
 	circuit: MorphoViewerSmallCircuitCell[];
-	highlightedCellId?: string;
+	highlightedCellIds?: string[];
 	onCellHover?(cell: MorphoViewerSmallCircuitCell | undefined): void;
 	onCellClick?(cell: MorphoViewerSmallCircuitCell | undefined): void;
 	onClose?(): void;

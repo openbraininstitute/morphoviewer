@@ -6,9 +6,11 @@ import {
 	type TgdMaterial,
 	TgdMaterialDiffuse,
 	TgdMaterialFlat,
+	TgdMaterialSolid,
 	TgdPainterGroup,
 	TgdPainterMesh,
 	TgdQuat,
+	TgdVec4,
 } from "@tolokoban/tgd";
 import type { MorphoViewerTree } from "@/components/morpho-viewer-simul";
 import { int16ToVec3 } from "@/utils";
@@ -53,7 +55,7 @@ export class PainterCell extends TgdPainterGroup {
 				});
 				break;
 			case "flat":
-				this.material = new TgdMaterialFlat({ color });
+				this.material = new TgdMaterialSolid({ color });
 				break;
 			default:
 				this.material = new TgdMaterialFlat({
@@ -77,8 +79,10 @@ export class PainterCell extends TgdPainterGroup {
 
 		this._black = value;
 		const { material } = this;
-		if (material instanceof TgdMaterialFlat) {
-			material.color = value ? [0, 0, 0, 1] : this.options.cell.color;
+		if (material instanceof TgdMaterialSolid) {
+			material.color = value
+				? new TgdVec4(0, 0, 0, 1)
+				: TgdColor.fromString(this.options.cell.color ?? "#f90").toVec4();
 		}
 	}
 
@@ -89,7 +93,12 @@ export class PainterCell extends TgdPainterGroup {
 			const data = await loadCell(cell.id);
 			console.log("🐞 [painter-cell@55] data =", data); // @FIXME: Remove this line written on 2026-02-23 at 15:55
 			if (isCellAsTree(data)) {
-				const mesh = createCellFromTree(context, material, data.data);
+				const mesh = createCellFromTree(
+					context,
+					material,
+					data.data,
+					typeof this.options.matrerial === "number",
+				);
 				const [x, y, z] = cell.center;
 				const quat = new TgdQuat(cell.orientation);
 				mesh.transfo.setPosition(x, y, z);

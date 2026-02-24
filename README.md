@@ -29,7 +29,6 @@ export default functon MyCellViewer({ swc }: { swc: string }) {
 ```ts
 git clone git@github.com:openbraininstitute/morphoviewer.git
 cd morphoviewer
-npm install
 ```
 
 Then, you will need two terminals:
