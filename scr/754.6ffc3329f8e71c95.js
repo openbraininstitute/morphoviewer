@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkextended_swc_viewer=self.webpackChunkextended_swc_viewer||[]).push([["754"],{545(e,s,c){c.r(s),c.d(s,{default:()=>d});var r=c(848);function d(){return(0,r.jsx)("iframe",{src:"./docs/index.html",className:"ImVZRDjoAYgHxqXF"})}}}]);
