@@ -1,15 +1,19 @@
 import { ViewPanel } from "@tolokoban/ui";
 
+import styles from "./page.module.css";
+
 export default function Page() {
 	return (
 		<ViewPanel
+			className={styles.page}
 			fullwidth
 			position="absolute"
 			display="flex"
 			justifyContent="center"
-			alignItems="center"
+			alignItems="start"
 			gap="L"
 			color="neutral-5"
+			fullsize
 		>
 			<a href="#/morpho-viewer-simul">
 				<Comp name="MorphoViewerSimul" />

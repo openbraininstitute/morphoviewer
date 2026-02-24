@@ -15,6 +15,7 @@ import { RoutePath, RouteMatch } from "./types"
 
 export const ROUTES: Record<RoutePath, string[]> = {
     "/": ["/"],
+    "/api": ["/api"],
     "/morpho-viewer-simul": ["/morpho-viewer-simul"],
     "/morpho-viewer-small-circuit": ["/morpho-viewer-small-circuit"],
     "/morphology": ["/morphology"],

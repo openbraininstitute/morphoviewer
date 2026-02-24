@@ -9,12 +9,13 @@
  */
 export type RoutePath =
     | "/"
+    | "/api"
     | "/morpho-viewer-simul"
     | "/morpho-viewer-small-circuit"
     | "/morphology"
 
 export function isRoutePath(path: string): path is RoutePath {
-    return ["/","/morpho-viewer-simul","/morpho-viewer-small-circuit","/morphology"].includes(path)
+    return ["/","/api","/morpho-viewer-simul","/morpho-viewer-small-circuit","/morphology"].includes(path)
 }
 
 export interface RouteMatch {

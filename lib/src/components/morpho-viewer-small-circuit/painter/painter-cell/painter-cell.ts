@@ -5,11 +5,13 @@ import {
 	TgdGeometrySphereIco,
 	type TgdMaterial,
 	TgdMaterialDiffuse,
+	TgdMaterialFlat,
 	TgdPainterGroup,
 	TgdPainterMesh,
 	TgdQuat,
 } from "@tolokoban/tgd";
 import type { MorphoViewerTree } from "@/components/morpho-viewer-simul";
+import { int16ToVec3 } from "@/utils";
 import type {
 	MorphoViewerSmallCircuitCell,
 	MorphoViewerSmallCircuitCellData,
@@ -17,12 +19,16 @@ import type {
 import { createCellFromTree } from "./factory/tree";
 
 export interface PainterCellOptions {
+	matrerial?: PainterCellMaterialName;
 	cell: MorphoViewerSmallCircuitCell;
 	loadCell(id: string): Promise<MorphoViewerSmallCircuitCellData | null>;
 }
 
+export type PainterCellMaterialName = "full" | "flat" | number;
+
 export class PainterCell extends TgdPainterGroup {
 	private readonly material: TgdMaterial;
+	private _black = false;
 
 	constructor(
 		private readonly context: TgdContext,
@@ -38,14 +44,42 @@ export class PainterCell extends TgdPainterGroup {
 			subdivisions: 2,
 		});
 		const color = ensureCellHasColor(cell);
-		console.log("🐞 [painter-cell@32] color =", color); // @FIXME: Remove this line written on 2026-02-23 at 14:42
-		const material = (this.material = new TgdMaterialDiffuse({
-			color,
-			lockLightsToCamera: true,
-		}));
-		const mesh = new TgdPainterMesh(context, { geometry, material });
+		const materialType = options.matrerial ?? "full";
+		switch (materialType) {
+			case "full":
+				this.material = new TgdMaterialDiffuse({
+					color,
+					lockLightsToCamera: true,
+				});
+				break;
+			case "flat":
+				this.material = new TgdMaterialFlat({ color });
+				break;
+			default:
+				this.material = new TgdMaterialFlat({
+					color: [...int16ToVec3(materialType), 1],
+				});
+				break;
+		}
+		const mesh = new TgdPainterMesh(context, {
+			geometry,
+			material: this.material,
+		});
 		this.add(mesh);
-		void this.loadCell();
+		this.loadCell();
+	}
+
+	get black() {
+		return this._black;
+	}
+	set black(value: boolean) {
+		if (this._black === value) return;
+
+		this._black = value;
+		const { material } = this;
+		if (material instanceof TgdMaterialFlat) {
+			material.color = value ? [0, 0, 0, 1] : this.options.cell.color;
+		}
 	}
 
 	private async loadCell() {

@@ -1,0 +1,11 @@
+div.page {
+	a {
+		display: inline-block;
+		margin: 1em;
+		padding: 1em;
+		border-radius: 1em;
+		background: var(--theme-color-neutral-6);
+		color: var(--theme-color-on-neutral-6);
+		box-shadow: 0 0.25em 0.5em #0008;
+	}
+}

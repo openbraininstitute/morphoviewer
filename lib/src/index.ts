@@ -11,6 +11,7 @@ export * from "./components/morpho-viewer-simul";
 export * from "./components/morpho-viewer-small-circuit";
 export * from "./gizmo";
 export { MorphologyCanvas } from "./morphology/morphology-canvas";
+export { version } from "./package.json";
 export { morphoViewerConvertMorphologyIntoTree } from "./tools/morphology-to-tree";
 export type { ColoringType } from "./types";
 export { CellNodeType } from "./types";

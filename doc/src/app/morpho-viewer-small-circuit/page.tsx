@@ -1,22 +1,33 @@
 import {
 	MorphoViewerSmallCircuit,
+	type MorphoViewerSmallCircuitCell,
 	type MorphoViewerSmallCircuitCellData,
 	morphoViewerConvertMorphologyIntoTree,
 } from "@bbp/morphoviewer";
-
+import React from "react";
 import { CIRCUIT } from "./data";
-
 import styles from "./page.module.css";
 
 export default function Page() {
+	const [highlightedCellId, setHighlightedCellId] = React.useState("");
+
+	const handleCellHover = (
+		cell: MorphoViewerSmallCircuitCell | undefined,
+	): void => {
+		console.log("Cell:", cell?.id);
+		setHighlightedCellId(cell?.id ?? "");
+	};
+
 	return (
 		<div className={styles.page}>
 			<div>
 				<MorphoViewerSmallCircuit
 					className={styles.viewer}
-					backgroundColor="#001244"
+					backgroundColor="#333"
 					circuit={CIRCUIT}
 					loadCell={loadCell}
+					highlightedCellId={highlightedCellId}
+					onCellHover={handleCellHover}
 				/>
 			</div>
 			<div>
