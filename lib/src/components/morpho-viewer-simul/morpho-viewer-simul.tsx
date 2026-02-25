@@ -1,7 +1,9 @@
 import { tgdFullscreenToggle } from "@tolokoban/tgd";
 import React from "react";
+import { useDebugMode } from "@/utils";
 import { ButtonResetCamera } from "../button-reset-camera";
 import { IconClose } from "../icons/close";
+import { IconCopy } from "../icons/copy";
 import { IconFullscreen } from "../icons/fullscreen";
 import AddRecordingDialog from "./components/add-recording-dialog";
 import { HintPanel } from "./components/hint";
@@ -24,6 +26,11 @@ export function MorphoViewerSimul(props: MorphoViewerSimulProps) {
 	const ref = React.useRef<HTMLDivElement | null>(null);
 	const handleFullscreen = () => {
 		void tgdFullscreenToggle(ref.current);
+	};
+	const debugMode = useDebugMode();
+	const handleCopyMorphologyToClipboard = () => {
+		console.debug("props:", props);
+		navigator.clipboard.writeText(JSON.stringify(props.morphology));
 	};
 
 	return (
@@ -48,6 +55,13 @@ export function MorphoViewerSimul(props: MorphoViewerSimulProps) {
 					)}
 				</div>
 			</header>
+			{debugMode && (
+				<footer>
+					<button type="button" onClick={handleCopyMorphologyToClipboard}>
+						<IconCopy />
+					</button>
+				</footer>
+			)}
 			<LegendOverlay {...extraProps} />
 			<AddRecordingDialog {...extraProps} />
 		</div>

@@ -9,13 +9,13 @@ import {
 	IconDelete,
 	ViewButton,
 	ViewInputNumber,
+	ViewOptions,
 	ViewPanel,
 	ViewSpinner,
 } from "@tolokoban/ui";
-
+import React from "react";
 import { SYNAPSES } from "./data";
 import { useMorphologyTree } from "./hook";
-
 import styles from "./page.module.css";
 
 const recordingsState = new AtomicState<MorphoViewerElectrodeRecording[]>(
@@ -46,7 +46,8 @@ const injectionState = new AtomicState<
 
 export default function Page() {
 	const [recordings, setRecordings] = recordingsState.useState();
-	const tree = useMorphologyTree();
+	const [example, setExample] = React.useState("01");
+	const tree = useMorphologyTree(example);
 	const [injection, setInjection] = injectionState.useState();
 
 	const handleRemove = (rec: MorphoViewerElectrodeRecording): void => {
@@ -83,6 +84,11 @@ export default function Page() {
 			</div>
 			<div>
 				<h1>&lt;MorphoViewerSimul /&gt;</h1>
+				<ViewOptions value={example} onChange={setExample}>
+					<div key="01">Cell #1</div>
+					<div key="02">Cell #2</div>
+					<div key="03">Cell #3</div>
+				</ViewOptions>
 				<p>You can hover and click the segments.</p>
 				{injection && (
 					<ViewPanel margin={["M", 0]} padding={"M"} backColor="neutral-1">

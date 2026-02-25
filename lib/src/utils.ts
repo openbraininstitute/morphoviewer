@@ -70,3 +70,12 @@ function vec3ToFloat01([r, g, b]: ArrayNumber3): number {
 export function vec3ToInt16(vec3: ArrayNumber3) {
 	return Math.round(vec3ToFloat01(vec3) * 32768);
 }
+
+export function useDebugMode(): boolean {
+	const [debugMode, setDebugMode] = React.useState(false);
+	React.useEffect(() => {
+		const item = globalThis.localStorage.getItem("@bbp/morphoviewer:debug");
+		setDebugMode(!!item && item.length > 0);
+	}, []);
+	return debugMode;
+}
