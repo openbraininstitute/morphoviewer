@@ -2,11 +2,11 @@
     "name": "@bbp/morphoviewer",
     "version": "0.23.0",
     "description": "Class to display SWC morphology files in 3D",
-    "main": "./dist/lib/index.js",
-    "module": "./dist/lib/index.js",
-    "types": "./dist/lib",
+    "main": "./lib/dist/index.js",
+    "module": "./lib/dist/index.js",
+    "types": "./lib/dist",
     "files": [
-        "./dist/lib"
+        "./lib/dist"
     ],
     "repository": {
         "type": "git",
