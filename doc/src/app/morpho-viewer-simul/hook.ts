@@ -65,7 +65,7 @@ async function loadMorphology(example) {
 			length: ["array", "number"],
 			distance: ["array", "number"],
 			neuron_segments_offset: ["array", "number"],
-			neuron_section_id: "number",
+			neuron_section_id: ["|", "number", "null"],
 			segment_distance_from_soma: ["array", "number"],
 		},
 	]);

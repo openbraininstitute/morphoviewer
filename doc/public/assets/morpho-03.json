@@ -13046,7 +13046,7 @@
     "axon[0]": {
         "index": 138,
         "name": "axon[0]",
-        "neuron_section_id": null,
+        "neuron_section_id": 0,
         "nseg": 1,
         "xstart": [
             6.627639388754254

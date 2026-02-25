@@ -12,7 +12,7 @@ export const SYNAPSES: MorphoViewerSynapsesGroup[] = [
 				0.4020216318730734, 0.42632677014265585, 0.343665232475586,
 			],
 		},
-	},
+	} /*
 	{
 		color: "#09f",
 		sections: {
@@ -686,5 +686,5 @@ export const SYNAPSES: MorphoViewerSynapsesGroup[] = [
 				0.23712027600488017,
 			],
 		},
-	},
+	},*/,
 ];
