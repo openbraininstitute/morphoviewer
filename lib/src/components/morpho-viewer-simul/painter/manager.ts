@@ -1,4 +1,4 @@
-"use client";
+'use client';
 /* eslint-disable no-param-reassign */
 
 import {
@@ -11,25 +11,25 @@ import {
   type TgdPainterSegmentsData,
   TgdVec3,
   tgdCalcMapRange,
-} from "@tolokoban/tgd";
-import React from "react";
+} from '@tolokoban/tgd';
+import React from 'react';
 
-import { makeCamera } from "./camera";
-import { Initializer } from "./initializer";
-import { computeSectionOffset } from "./math";
-import { OffscreenPainter } from "./offscreen-painter";
-import { Painter } from "./painters";
-import { TransitionManager } from "./transition";
+import { makeCamera } from './camera';
+import { Initializer } from './initializer';
+import { computeSectionOffset } from './math';
+import { OffscreenPainter } from './offscreen-painter';
+import { Painter } from './painters';
+import { TransitionManager } from './transition';
 
-import type { MorphoViewerSimulContentProps } from "../types/private";
+import type { MorphoViewerSimulContentProps } from '../types/private';
 import type {
   MorphoViewerMode,
   MorphoViewerSimulProps,
   MorphoViewerSpikeRecord,
   MorphoViewerSynapsesGroup,
-} from "../types/public";
-import type { MorphologyData } from "./morphology-data";
-import type { StructureItem } from "./structure";
+} from '../types/public';
+import type { MorphologyData } from './morphology-data';
+import type { StructureItem } from './structure';
 
 interface SelectedItem {
   x: number;
@@ -94,7 +94,7 @@ export class PainterManager extends Initializer {
   private _spikes: MorphoViewerSpikeRecord[] = [];
   private _spikesIndex = 0;
   private _clickable = true;
-  private _backgroundColor = "#000000";
+  private _backgroundColor = '#000000';
   private clearColor = new TgdColor(0, 0, 0);
   private readonly view = new TransitionManager(this.clearColor);
 
@@ -204,9 +204,7 @@ export class PainterManager extends Initializer {
     if (!context) return new TgdMat4();
 
     const { camera } = context;
-    return new TgdMat4(camera.matrixProjection).multiply(
-      camera.matrixModelView,
-    );
+    return new TgdMat4(camera.matrixProjection).multiply(camera.matrixModelView);
   }
 
   readonly resetCamera = () => {
@@ -238,10 +236,7 @@ export class PainterManager extends Initializer {
     if (!structure) return new TgdVec3();
 
     const segments = structure.getSegmentsOfSection(sectionName) ?? [];
-    const totalDistance = segments.reduce(
-      (dist, item) => dist + item.segmentLength,
-      0,
-    );
+    const totalDistance = segments.reduce((dist, item) => dist + item.segmentLength, 0);
     const targetDistance = totalDistance * offset;
     let distance = 0;
     for (const segment of segments) {
@@ -259,17 +254,13 @@ export class PainterManager extends Initializer {
         const start: TgdVec3 = TgdVec3.newFromMix(
           seg1.getXYZR0(0),
           seg2.getXYZR0(0),
-          this.view.mix,
+          this.view.mix
         );
-        const end: TgdVec3 = TgdVec3.newFromMix(
-          seg1.getXYZR1(0),
-          seg2.getXYZR1(0),
-          this.view.mix,
-        );
+        const end: TgdVec3 = TgdVec3.newFromMix(seg1.getXYZR1(0), seg2.getXYZR1(0), this.view.mix);
         const point = TgdVec3.newFromMix(
           start, // segment.start,
           end, // segment.end,
-          segmentOffset,
+          segmentOffset
         );
         return point;
       }
@@ -284,10 +275,7 @@ export class PainterManager extends Initializer {
     const segments = structure.getSegmentsOfSection(sectionName);
     if (!segments) return null;
 
-    const totalDistance = segments.reduce(
-      (dist, item) => dist + item.segmentLength,
-      0,
-    );
+    const totalDistance = segments.reduce((dist, item) => dist + item.segmentLength, 0);
     const targetDistance = totalDistance * sectionOffset;
     let distance = 0;
     for (const segment of segments) {
@@ -315,10 +303,8 @@ export class PainterManager extends Initializer {
     const { structure } = data;
     const [xc, yc] = structure.center;
     const bbox = structure.bboxDendrites;
-    const width =
-      2.1 * Math.max(Math.abs(bbox.max[0] - xc), Math.abs(bbox.min[0] - xc));
-    const height =
-      2.1 * Math.max(Math.abs(bbox.max[1] - yc), Math.abs(bbox.min[1] - yc));
+    const width = 2.1 * Math.max(Math.abs(bbox.max[0] - xc), Math.abs(bbox.min[0] - xc));
+    const height = 2.1 * Math.max(Math.abs(bbox.max[1] - yc), Math.abs(bbox.min[1] - yc));
     this.view.widthAtTarget = width;
     this.view.heightAtTarget = height;
   }
@@ -363,7 +349,6 @@ export class PainterManager extends Initializer {
     const painter = new Painter(context, data);
     this.view.painter = painter;
     painter.synapses = this.synapses;
-    this.view.painter = painter;
     return painter;
   }
 
@@ -388,13 +373,7 @@ export class PainterManager extends Initializer {
       if (item) {
         const segment = this.segments.get(item.index);
         painter.highlight(segment);
-        offset = computeSectionOffset(
-          data.structure,
-          item,
-          context.camera,
-          x,
-          y,
-        );
+        offset = computeSectionOffset(data.structure, item, context.camera, x, y);
       } else {
         painter.highlight(null);
       }
@@ -419,13 +398,7 @@ export class PainterManager extends Initializer {
       const { x, y } = evt;
       const item = view.offscreen?.getItemAt(x, y) ?? null;
       if (item) {
-        const offset = computeSectionOffset(
-          data.structure,
-          item,
-          view.context.camera,
-          x,
-          y,
-        );
+        const offset = computeSectionOffset(data.structure, item, view.context.camera, x, y);
         this.hoverItem = { x, y, offset, item: item ?? null };
         this.eventTap.dispatch({
           x,
@@ -438,11 +411,7 @@ export class PainterManager extends Initializer {
     });
   }
 
-  private initCameraController(
-    context: TgdContext,
-    minZoom: number,
-    maxZoom: number,
-  ) {
+  private initCameraController(context: TgdContext, minZoom: number, maxZoom: number) {
     if (this.cameraController) this.cameraController.detach();
     const cameraController = new TgdControllerCameraOrbit(context, {
       inertiaOrbit: 1000,
@@ -467,7 +436,7 @@ export class PainterManager extends Initializer {
     const { data } = this;
     if (!data) return EMPTY_SEGMENTS;
 
-    if (this.mode === "3d") return data.segments3D;
+    if (this.mode === '3d') return data.segments3D;
     else return data.segmentsDendrogram;
   }
 
@@ -510,10 +479,7 @@ export class PainterManager extends Initializer {
   }
 }
 
-export function useWebglNeuronSelector({
-  morphology,
-  spikes,
-}: MorphoViewerSimulProps) {
+export function useWebglNeuronSelector({ morphology, spikes }: MorphoViewerSimulProps) {
   const refPainter = React.useRef<PainterManager | null>(null);
   if (!refPainter.current) {
     const manager = new PainterManager();
@@ -542,16 +508,11 @@ export function useWebglNeuronSelector({
 }
 
 export function usePainterController(props: MorphoViewerSimulContentProps) {
-  const {
-    painterManager: painter,
-    synapses,
-    disableClick,
-    backgroundColor,
-  } = props;
+  const { painterManager: painter, synapses, disableClick, backgroundColor } = props;
   React.useEffect(() => {
     const action = () => {
       painter.eventError.dispatch(
-        "You cannot add recordings nor move injection while a simulation is running!",
+        'You cannot add recordings nor move injection while a simulation is running!'
       );
     };
     painter.eventForbiddenClick.addListener(action);
@@ -569,6 +530,6 @@ export function usePainterController(props: MorphoViewerSimulContentProps) {
   }, [synapses, painter]);
 
   React.useEffect(() => {
-    painter.backgroundColor = backgroundColor ?? "#000000";
+    painter.backgroundColor = backgroundColor ?? '#000000';
   }, [backgroundColor, painter]);
 }

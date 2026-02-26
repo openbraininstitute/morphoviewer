@@ -15,25 +15,22 @@ import {
   TgdVec3,
   tgdCanvasCreatePalette,
   webglPresetDepth,
-} from "@tolokoban/tgd";
+} from '@tolokoban/tgd';
 
-import { PALETTE } from "./contants";
-import { PainterHover as PainterHighlight } from "./highlight";
-import { PainterSpiking } from "./spiking";
-import { PainterSynapses } from "./synapses";
+import { PALETTE } from './contants';
+import { PainterHover as PainterHighlight } from './highlight';
+import { PainterSpiking } from './spiking';
+import { PainterSynapses } from './synapses';
 
-import type {
-  MorphoViewerSpikeRecord,
-  MorphoViewerSynapsesGroup,
-} from "../../types/public";
-import type { MorphologyData } from "../morphology-data";
+import type { MorphoViewerSpikeRecord, MorphoViewerSynapsesGroup } from '../../types/public';
+import type { MorphologyData } from '../morphology-data';
 
 export class Painter extends TgdPainterGroup {
   private readonly groupSegments = new TgdPainterGroup({
-    name: "GroupSegments",
+    name: 'GroupSegments',
   });
   private readonly groupSynapses = new TgdPainterGroup({
-    name: "GroupSynapses",
+    name: 'GroupSynapses',
   });
   private readonly groupHover = new TgdPainterGroup();
   private readonly painterSpiking: PainterSpiking;
@@ -51,20 +48,18 @@ export class Painter extends TgdPainterGroup {
 
   constructor(
     private readonly context: TgdContext,
-    private readonly data: MorphologyData,
+    private readonly data: MorphologyData
   ) {
     super();
-    this.palette = new TgdTexture2D(context)
-      .loadBitmap(tgdCanvasCreatePalette(PALETTE))
-      .setParams({
-        magFilter: "NEAREST",
-        minFilter: "NEAREST",
-      });
+    this.palette = new TgdTexture2D(context).loadBitmap(tgdCanvasCreatePalette(PALETTE)).setParams({
+      magFilter: 'NEAREST',
+      minFilter: 'NEAREST',
+    });
     this.add(
       new TgdPainterState(context, {
         depth: webglPresetDepth.less,
-        children: [this.groupSegments, this.groupSynapses, this.groupHover],
-      }),
+        children: [this.groupSegments, this.groupHover],
+      })
     );
     const { dataset3D, datasetDendrogram } = data;
     const painterSegments = new TgdPainterSegmentsMorphing(context, {
@@ -85,8 +80,8 @@ export class Painter extends TgdPainterGroup {
     this._painterSegments = painterSegments;
     this.textureRender = new TgdTexture2D(context, {
       params: {
-        minFilter: "LINEAR",
-        magFilter: "LINEAR",
+        minFilter: 'LINEAR',
+        magFilter: 'LINEAR',
       },
     });
     const clear = (this.clear = new TgdPainterClear(context, {
@@ -94,8 +89,8 @@ export class Painter extends TgdPainterGroup {
       depth: 1,
     }));
     const framebuffer1 = new TgdPainterFramebuffer(context, {
-      name: "FramebufferSegments",
-      children: [clear, painterSegments],
+      name: 'FramebufferSegments',
+      children: [clear, painterSegments, this.groupSynapses],
       textureColor0: this.textureRender,
     });
     const painterSpiking = new PainterSpiking(context, data);
@@ -114,7 +109,7 @@ export class Painter extends TgdPainterGroup {
       //     const d = Math.abs(t - 1);
       //     mixer.strength = 1.5 * tgdCalcMapRange(d, 0.3, 0, 0, 1, true) ** 3;
       //   }),
-      mixer,
+      mixer
     );
     context.paint();
   }

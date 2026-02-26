@@ -1,17 +1,13 @@
-import {
-  type ArrayNumber3,
-  TgdBoundingBox,
-  type TgdVec3,
-} from "@tolokoban/tgd";
+import { type ArrayNumber3, TgdBoundingBox, type TgdVec3 } from '@tolokoban/tgd';
 
 import {
   type MorphoViewerTree,
   type MorphoViewerTreeItem,
   MorphoViewerTreeItemType,
-} from "../types/public";
-import { resolveSectionIndex } from "../utils";
-import { findSoma, parentOrphansToSoma } from "./soma";
-import { addLiaisons, computeRanks, debugTree, populateTree } from "./tree";
+} from '../types/public';
+import { resolveSectionIndex } from '../utils';
+import { findSoma, parentOrphansToSoma } from './soma';
+import { addLiaisons, computeRanks, populateTree } from './tree';
 
 export interface StructureItem {
   parent?: StructureItem;
@@ -72,24 +68,14 @@ export class Structure {
     this.cellId = morphology.cellId;
     const { somaTreeItem } = findSoma(morphology);
     const treeRoot = parentOrphansToSoma(morphology, somaTreeItem);
-    if (!treeRoot) throw new Error("No root found in morphology!");
+    if (!treeRoot) throw new Error('No root found in morphology!');
 
     this.computeDistancesFromSoma(treeRoot);
     const root: StructureItem = this.createAllSegments(treeRoot);
     this.root = root;
-    this.center = [
-      treeRoot.x,
-      treeRoot.y,
-      treeRoot.z,
-    ] as Readonly<ArrayNumber3>;
-    this.zoomMin = Math.min(
-      0.75,
-      computeZoomByDividingBBoxes(this.bboxDendrites, this.bbox),
-    );
-    this.zoomMax = Math.max(
-      1.33,
-      computeZoomByDividingBBoxes(this.bboxDendrites, this.bboxSoma),
-    );
+    this.center = [treeRoot.x, treeRoot.y, treeRoot.z] as Readonly<ArrayNumber3>;
+    this.zoomMin = Math.min(0.75, computeZoomByDividingBBoxes(this.bboxDendrites, this.bbox));
+    this.zoomMax = Math.max(1.33, computeZoomByDividingBBoxes(this.bboxDendrites, this.bboxSoma));
     this.computeSectionsLengths();
     populateTree(root);
     computeRanks(root);
@@ -98,10 +84,7 @@ export class Structure {
 
   private computeSectionsLengths() {
     for (const segments of this.segmentsPerSection.values()) {
-      const sectionLength = segments.reduce(
-        (length, segment) => length + segment.segmentLength,
-        0,
-      );
+      const sectionLength = segments.reduce((length, segment) => length + segment.segmentLength, 0);
       for (const segment of segments) {
         segment.sectionLength = sectionLength;
       }
@@ -110,7 +93,7 @@ export class Structure {
 
   private createAllSegments(
     node: MorphoViewerTreeItem,
-    parent?: MorphoViewerTreeItem,
+    parent?: MorphoViewerTreeItem
   ): StructureItem {
     const segment = this.createSegment(parent ?? node, node);
     for (const child of node.children ?? []) {
@@ -133,7 +116,7 @@ export class Structure {
   private registerBranch(
     parent: MorphoViewerTreeItem | null,
     node: MorphoViewerTreeItem,
-    distanceFromSoma: number,
+    distanceFromSoma: number
   ) {
     node.distanceFromSoma = distanceFromSoma;
     const { type } = node;
@@ -160,12 +143,7 @@ export class Structure {
         node,
         child,
         distanceFromSoma +
-          (parent
-            ? computeDistance(
-                [parent.x, parent.y, parent.z],
-                [node.x, node.y, node.z],
-              )
-            : 0),
+          (parent ? computeDistance([parent.x, parent.y, parent.z], [node.x, node.y, node.z]) : 0)
       );
     }
   }
@@ -176,7 +154,7 @@ export class Structure {
 
   getSegmentOfSectionAtOffset(
     sectionName: string,
-    offset: number,
+    offset: number
   ): { segment: StructureItem; offset: number } | null {
     const segments = this.getSegmentsOfSection(sectionName);
     const length = segments.length;
@@ -194,8 +172,9 @@ export class Structure {
         return {
           segment,
           offset:
-            (sectionLengthAtOffset - lengthBeforeCurrentSegment) /
-            segmentLength,
+            segmentLength > 0
+              ? (sectionLengthAtOffset - lengthBeforeCurrentSegment) / segmentLength
+              : 0.5,
         };
       }
       lengthBeforeCurrentSegment += segmentLength;
@@ -212,10 +191,7 @@ export class Structure {
 
   get(index: number): StructureItem {
     const item = this.items[index];
-    if (!item)
-      throw Error(
-        `Index (${index}) out of bounds! Items available: ${this.length}.`,
-      );
+    if (!item) throw Error(`Index (${index}) out of bounds! Items available: ${this.length}.`);
 
     return item;
   }
@@ -224,19 +200,13 @@ export class Structure {
     this.items.forEach(callback);
   }
 
-  private createSegment(
-    parent: MorphoViewerTreeItem,
-    node: MorphoViewerTreeItem,
-  ) {
+  private createSegment(parent: MorphoViewerTreeItem, node: MorphoViewerTreeItem) {
     const index = this.items.length;
     const item: StructureItem = {
       children: [],
       index,
       distanceFromSoma: node.distanceFromSoma,
-      segmentLength: computeDistance(
-        [parent.x, parent.y, parent.z],
-        [node.x, node.y, node.z],
-      ),
+      segmentLength: computeDistance([parent.x, parent.y, parent.z], [node.x, node.y, node.z]),
       sectionLength: 0,
       name: `${node.sectionId}[${node.segmentId}]`,
       sectionName: node.sectionId,
@@ -264,10 +234,7 @@ export class Structure {
   }
 }
 
-function computeZoomByDividingBBoxes(
-  bbox1: TgdBoundingBox,
-  bbox2: TgdBoundingBox,
-): number {
+function computeZoomByDividingBBoxes(bbox1: TgdBoundingBox, bbox2: TgdBoundingBox): number {
   const width1 = bbox1.max[0] - bbox1.min[0];
   const height1 = bbox1.max[1] - bbox1.min[1];
   const width2 = bbox2.max[0] - bbox2.min[0];
@@ -275,10 +242,7 @@ function computeZoomByDividingBBoxes(
   return Math.min(width1 / width2, height1 / height2);
 }
 
-function computeDistance(
-  [x1, y1, z1]: ArrayNumber3 | TgdVec3,
-  [x2, y2, z2]: ArrayNumber3,
-) {
+function computeDistance([x1, y1, z1]: ArrayNumber3 | TgdVec3, [x2, y2, z2]: ArrayNumber3) {
   return Math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2 + (z1 - z2) ** 2);
 }
 
@@ -287,10 +251,7 @@ function computeDistance(
  * attached to soma.
  * It should be half of the radius of the soma.
  */
-function adjustParentRadius(
-  parent: MorphoViewerTreeItem,
-  node: MorphoViewerTreeItem,
-): number {
+function adjustParentRadius(parent: MorphoViewerTreeItem, node: MorphoViewerTreeItem): number {
   if (
     parent.type !== MorphoViewerTreeItemType.Soma ||
     node.type === MorphoViewerTreeItemType.Soma
