@@ -1,14 +1,11 @@
-import { type ArrayNumber3, TgdVec3 } from "@tolokoban/tgd";
-
 import {
   type MorphoViewerTree,
   type MorphoViewerTreeItem,
   MorphoViewerTreeItemType,
-} from "@/components/morpho-viewer-simul/types/public";
+} from '@/components/morpho-viewer-simul/types/public';
 
-import { name } from "./../../node_modules/ci-info/index.d";
-
-import type { Morphology } from "@/components/morpho-viewer-simul/types/private";
+import type { ArrayNumber3 } from '@tolokoban/tgd';
+import type { Morphology } from '@/components/morpho-viewer-simul/types/private';
 
 interface Segment {
   parentKey: string;
@@ -17,7 +14,7 @@ interface Segment {
 
 export function morphoViewerConvertMorphologyIntoTree(
   morphology: Morphology,
-  cellId: string,
+  cellId: string
 ): MorphoViewerTree {
   const tree: MorphoViewerTree = {
     cellId,
@@ -86,15 +83,15 @@ export function morphoViewerConvertMorphologyIntoTree(
 function resolveType(sectionName: string): MorphoViewerTreeItemType {
   const prefix = sectionName.slice(0, 4).toLowerCase();
   switch (prefix) {
-    case "soma":
+    case 'soma':
       return MorphoViewerTreeItemType.Soma;
-    case "axon":
+    case 'axon':
       return MorphoViewerTreeItemType.Axon;
-    case "dend":
+    case 'dend':
       return MorphoViewerTreeItemType.BasalDendrite;
-    case "apic":
+    case 'apic':
       return MorphoViewerTreeItemType.ApicalDendrite;
-    case "myel":
+    case 'myel':
       return MorphoViewerTreeItemType.Myelin;
     default:
       return MorphoViewerTreeItemType.Unknown;
@@ -107,5 +104,5 @@ function key3D([x, y, z]: ArrayNumber3) {
 }
 
 function isAcceptedSectionName(sectionName: string): boolean {
-  return sectionName.charAt(sectionName.length - 1) === "]";
+  return sectionName.charAt(sectionName.length - 1) === ']';
 }

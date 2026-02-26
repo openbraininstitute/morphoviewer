@@ -2,11 +2,14 @@
 import {
   type TgdColor,
   type TgdContext,
+  TgdGeometrySphereIco,
   TgdLight,
   TgdMaterialDiffuse,
+  TgdMaterialGhost,
   TgdPainterClear,
   TgdPainterFramebuffer,
   TgdPainterGroup,
+  TgdPainterMesh,
   TgdPainterMix,
   type TgdPainterSegmentsData,
   TgdPainterSegmentsMorphing,
@@ -14,6 +17,7 @@ import {
   TgdTexture2D,
   TgdVec3,
   tgdCanvasCreatePalette,
+  webglPresetBlend,
   webglPresetDepth,
 } from '@tolokoban/tgd';
 
@@ -110,6 +114,7 @@ export class Painter extends TgdPainterGroup {
       //     mixer.strength = 1.5 * tgdCalcMapRange(d, 0.3, 0, 0, 1, true) ** 3;
       //   }),
       mixer
+      //   makeDebugPainter(context)
     );
     context.paint();
   }
@@ -186,4 +191,24 @@ export class Painter extends TgdPainterGroup {
     this.groupSynapses.delete();
     this.textureRender.delete();
   }
+}
+
+function makeDebugPainter(context: TgdContext) {
+  const geometry = new TgdGeometrySphereIco({
+    center: [6.627639388754254, 14.459156076113382, 1.7206141365071137],
+    radius: 10.124441881874594,
+  });
+  const material = new TgdMaterialGhost({
+    color: [0.5, 1, 0.5, 1],
+  });
+  return new TgdPainterState(context, {
+    depth: webglPresetDepth.less,
+    blend: webglPresetBlend.alpha,
+    children: [
+      new TgdPainterMesh(context, {
+        geometry,
+        material,
+      }),
+    ],
+  });
 }

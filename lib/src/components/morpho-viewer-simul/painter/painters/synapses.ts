@@ -96,6 +96,7 @@ function computePositionOnSegmentSurface(
   const vecZ = new TgdVec3(x1, y1, z1).subtract([x0, y0, z0]);
   const lengthZ = vecZ.size;
   if (lengthZ < 1e-6) {
+    console.log('🐞 [synapses@99] [x0, y0, z0, r0] =', [x0, y0, z0, r0]); // @FIXME: Remove this line written on 2026-02-26 at 10:19
     return computePositionOnSphereSurface(x0, y0, z0, r0, randomSeed);
   }
   const x = tgdCalcMix(x0, x1, offset);
@@ -123,11 +124,10 @@ function computePositionOnSphereSurface(
   const lng = randomSeed * 7.4656519;
   const Z = Math.sin(lat);
   const R = Math.cos(lat);
-  const result: ArrayNumber3 = [
-    x + r * 0.5 * R * Math.cos(lng),
-    y + r * 0.5 * R * Math.sin(lng),
-    z + r * 0.5 * Z,
-  ];
+  const xx = r * R * Math.cos(lng);
+  const yy = r * R * Math.sin(lng);
+  const zz = r * Z;
+  const result: ArrayNumber3 = [x + xx, y + yy, z + zz];
   return result;
 }
 
