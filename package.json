@@ -1,6 +1,6 @@
 {
     "name": "@bbp/morphoviewer",
-    "version": "0.23.1",
+    "version": "0.23.2",
     "description": "Class to display SWC morphology files in 3D",
     "main": "./lib/dist/index.js",
     "module": "./lib/dist/index.js",
@@ -34,7 +34,7 @@
         "react": "^19.2.4"
     },
     "dependencies": {
-        "@tolokoban/tgd": "file:../../github/game/tgd2",
+        "@tolokoban/tgd": "^2.0.94",
         "fflate": "^0.8.2",
         "tslib": "^2.8.1"
     }
