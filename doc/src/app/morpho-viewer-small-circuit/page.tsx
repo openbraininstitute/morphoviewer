@@ -3,24 +3,30 @@ import {
   type MorphoViewerSmallCircuitCell,
   type MorphoViewerSmallCircuitCellData,
   morphoViewerConvertMorphologyIntoTree,
-} from '@bbp/morphoviewer';
-import React from 'react';
+} from "@bbp/morphoviewer";
+import React from "react";
 
-import { CIRCUIT } from './data';
+import { useCircuit } from "./data";
 
-import styles from './page.module.css';
+import styles from "./page.module.css";
 
 export default function Page() {
+  const circuit = useCircuit();
+  console.log("🐞 [page@15] circuit =", circuit); // @FIXME: Remove this line written on 2026-02-27 at 14:31
   const [selectedCells, setSelectedCells] = React.useState<string[]>([]);
-  const [highlightedCellId, setHighlightedCellId] = React.useState('');
+  const [highlightedCellId, setHighlightedCellId] = React.useState("");
   const highlightedCellIds = React.useMemo(
     () => [...selectedCells, highlightedCellId],
-    [selectedCells, highlightedCellId]
+    [selectedCells, highlightedCellId],
   );
-  const handleCellHover = (cell: MorphoViewerSmallCircuitCell | undefined): void => {
-    setHighlightedCellId(cell?.id ?? '');
+  const handleCellHover = (
+    cell: MorphoViewerSmallCircuitCell | undefined,
+  ): void => {
+    setHighlightedCellId(cell?.id ?? "");
   };
-  const handleCellClick = (cell: MorphoViewerSmallCircuitCell | undefined): void => {
+  const handleCellClick = (
+    cell: MorphoViewerSmallCircuitCell | undefined,
+  ): void => {
     if (!cell) return;
 
     if (selectedCells.includes(cell.id)) {
@@ -36,7 +42,7 @@ export default function Page() {
         <MorphoViewerSmallCircuit
           className={styles.viewer}
           backgroundColor="#000"
-          circuit={CIRCUIT}
+          circuit={circuit}
           loadCell={loadCell}
           onCellHover={handleCellHover}
           onCellClick={handleCellClick}
@@ -50,12 +56,15 @@ export default function Page() {
   );
 }
 
-async function loadCell(id: string): Promise<MorphoViewerSmallCircuitCellData | null> {
+async function loadCell(
+  id: string,
+): Promise<MorphoViewerSmallCircuitCellData | null> {
   try {
-    const resp = await fetch('./assets/morpho-02.json');
+    console.log("loadCell:", id);
+    const resp = await fetch(`./assets/${id}.json`);
     const morphology = await resp.json();
     return {
-      type: 'tree',
+      type: "tree",
       data: morphoViewerConvertMorphologyIntoTree(morphology, id),
     };
   } catch (error) {
