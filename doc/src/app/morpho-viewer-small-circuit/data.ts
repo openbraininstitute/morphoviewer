@@ -1,5 +1,5 @@
 import type { MorphoViewerSmallCircuitCell } from "@bbp/morphoviewer";
-import { isType, isType$ } from "@tolokoban/type-guards";
+import { assertType$, isType, isType$ } from "@tolokoban/type-guards";
 import React from "react";
 
 export function useCircuit() {
@@ -10,7 +10,8 @@ export function useCircuit() {
     const action = async () => {
       try {
         const resp = await fetch("./assets/nodes.json");
-        const circuit = await resp.json();
+        const content = await resp.text()
+        const circuit = JSON.parse(content);
         setCircuit(
           circuit
             .map(convertNode)
@@ -26,30 +27,41 @@ export function useCircuit() {
 }
 
 function convertNode(item: unknown): null | MorphoViewerSmallCircuitCell {
-  if (
-    !isType$<{
-      color: string;
+  try {
+    assertType$<{
+      color?: string;
       morphology_path: string;
       orientation: [number, number, number, number];
       position: [number, number, number];
       soma_radius: number;
     }>(item, {
-      color: "string",
+      color: ["?", "string"],
       morphology_path: "string",
       orientation: ["array", "number", { min: 4, max: 4 }],
       position: ["array", "number", { min: 3, max: 3 }],
       soma_radius: "number",
-    })
-  )
-    return null;
+    });
 
-  return {
-    id: item.morphology_path,
-    center: item.position,
-    orientation: item.orientation,
-    somaRadius: item.soma_radius,
-    color: item.color,
-  };
+    return {
+      id: item.morphology_path,
+      center: item.position,
+      orientation: item.orientation,
+      somaRadius: item.soma_radius,
+      color: item.color ?? nextColor(),
+    };
+  } catch (error) {
+    console.error("Invalid node item:", item, error);
+    return null;
+  }
+}
+
+const COLORS = ["#28f", "#e82", "#3f4", "##f53"];
+let colorIndex = 0;
+
+function nextColor() {
+  const color = COLORS[colorIndex];
+  colorIndex = (colorIndex + 1) % COLORS.length;
+  return color;
 }
 
 export const CIRCUIT: MorphoViewerSmallCircuitCell[] = [

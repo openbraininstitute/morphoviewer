@@ -61,8 +61,15 @@ async function loadCell(
 ): Promise<MorphoViewerSmallCircuitCellData | null> {
   try {
     console.log("loadCell:", id);
-    const resp = await fetch(`./assets/${id}.json`);
-    const morphology = await resp.json();
+    const url = `./assets/${id}.json`;
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      console.error(
+        `Unable to load ${url}\nError ${resp.status}: ${resp.statusText}`,
+      );
+    }
+    const content = await resp.text();
+    const morphology = JSON.parse(content);
     return {
       type: "tree",
       data: morphoViewerConvertMorphologyIntoTree(morphology, id),

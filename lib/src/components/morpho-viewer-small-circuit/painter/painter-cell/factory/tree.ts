@@ -32,6 +32,7 @@ export function createCellFromTree(
 			}),
 			new TgdPainterSegments(context, {
 				roundness: forSelection ? 3 : 5,
+                minRadius: 2,
 				radiusMultiplier: forSelection ? 1.5 : 1,
 				material,
 				dataset: segmentsNeurites.makeDataset(),

@@ -1,6 +1,6 @@
 {
     "name": "@bbp/morphoviewer",
-    "version": "0.23.4",
+    "version": "0.23.5",
     "description": "Class to display SWC morphology files in 3D",
     "main": "./lib/dist/index.js",
     "module": "./lib/dist/index.js",
@@ -23,8 +23,8 @@
         "clean": "rm -rf dist node_modules package-lock.json lib/node_modules lib/package-lock.json doc/node_modules doc/package-lock.json && npm run version",
         "prebuild": "npm run version",
         "build": "cd lib && npm install && npm run build && cd .. && npm pack",
-        "minor": "npm version minor -no-git-tag-version --force && cd lib && npm version minor -no-git-tag-version --force && cd ../app && npm version minor -no-git-tag-version --force",
-        "patch": "npm version patch -no-git-tag-version --force && cd lib && npm version patch -no-git-tag-version --force && cd ../app && npm version patch -no-git-tag-version --force",
+        "minor": "npm version minor -no-git-tag-version --force && cd lib && npm version minor -no-git-tag-version --force && cd ../doc && npm version minor -no-git-tag-version --force",
+        "patch": "npm version patch -no-git-tag-version --force && cd lib && npm version patch -no-git-tag-version --force && cd ../doc && npm version patch -no-git-tag-version --force",
         "test": "cd lib && npm test",
         "version": "node version.mjs"
     },
@@ -34,7 +34,7 @@
         "react": "^19.2.4"
     },
     "dependencies": {
-        "@tolokoban/tgd": "^2.0.94",
+        "@tolokoban/tgd": "^2.0.95",
         "fflate": "^0.8.2",
         "tslib": "^2.8.1"
     }
