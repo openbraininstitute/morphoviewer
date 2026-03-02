@@ -8,7 +8,7 @@ function start() {
 
     Theme.apply({
         colors: {
-            neutral: ["#999", "#fff"],
+            neutral: ["#111", "#555"],
             primary: ["rgb(0, 101, 135)", "#9cd"],
         },
     });

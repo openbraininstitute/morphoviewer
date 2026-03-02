@@ -7,6 +7,7 @@ export {
 export type { CanvasOptions } from "./abstract-canvas";
 export type { ColorsInterface } from "./colors";
 export { colorContrast, colorLuminance, colorToRGBA } from "./colors";
+export * from "./components/morpho-viewer-octree";
 export * from "./components/morpho-viewer-simul";
 export * from "./components/morpho-viewer-small-circuit";
 export * from "./gizmo";

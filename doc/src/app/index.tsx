@@ -20,9 +20,10 @@ export * from "./types"
 import Layout0 from "./layout"
 const Page0 = React.lazy(() => import("./page"))
 const Page1 = React.lazy(() => import("./api/page"))
-const Page2 = React.lazy(() => import("./morpho-viewer-simul/page"))
-const Page3 = React.lazy(() => import("./morpho-viewer-small-circuit/page"))
-const Page4 = React.lazy(() => import("./morphology/page"))
+const Page2 = React.lazy(() => import("./morpho-viewer-octree/page"))
+const Page3 = React.lazy(() => import("./morpho-viewer-simul/page"))
+const Page4 = React.lazy(() => import("./morpho-viewer-small-circuit/page"))
+const Page5 = React.lazy(() => import("./morphology/page"))
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function App({ lang }: { lang?: string }) {
@@ -34,12 +35,14 @@ export default function App({ lang }: { lang?: string }) {
     const pg2 = Page2
     const pg3 = Page3
     const pg4 = Page4
+    const pg5 = Page5
     return (
         <Route path="/" Page={pg0} Layout={ly0} fallback={fb} context={context}>
             <Route path="/api" Page={pg1} fallback={fb} context={context}/>
-            <Route path="/morpho-viewer-simul" Page={pg2} fallback={fb} context={context}/>
-            <Route path="/morpho-viewer-small-circuit" Page={pg3} fallback={fb} context={context}/>
-            <Route path="/morphology" Page={pg4} fallback={fb} context={context}/>
+            <Route path="/morpho-viewer-octree" Page={pg2} fallback={fb} context={context}/>
+            <Route path="/morpho-viewer-simul" Page={pg3} fallback={fb} context={context}/>
+            <Route path="/morpho-viewer-small-circuit" Page={pg4} fallback={fb} context={context}/>
+            <Route path="/morphology" Page={pg5} fallback={fb} context={context}/>
         </Route>
     )
 }
