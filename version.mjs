@@ -28,6 +28,9 @@ async function start() {
 	lib.version = version;
 	await saveJSON("./lib/package.json", lib);
 	await saveJSON("./lib/src/package.json", lib);
+	const doc = await loadJSON("./doc/package.json");
+	doc.version = version;
+	await saveJSON("./doc/package.json", doc);
 }
 
 start();

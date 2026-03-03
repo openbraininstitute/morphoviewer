@@ -61,6 +61,7 @@ export default function Page() {
 					{tree && typeof tree !== "string" && (
 						<MorphoViewerSimul
 							backgroundColor="#000922"
+							minRadius={2}
 							morphology={tree}
 							synapses={SYNAPSES}
 							recordings={recordings}

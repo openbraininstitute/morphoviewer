@@ -2,6 +2,7 @@ import { ViewPanel } from "@tolokoban/ui";
 
 import ApiURL from "./api.webp";
 import MorphologyURL from "./morphology.webp";
+import OctreeURL from "./octree.webp";
 import styles from "./page.module.css";
 import SimulURL from "./simul.webp";
 import SmallCircuitURL from "./small-circuit.webp";
@@ -25,7 +26,7 @@ export default function Page() {
 			<Button href="#/morpho-viewer-small-circuit" image={SmallCircuitURL}>
 				MorphoViewerSmallCircuit
 			</Button>
-			<Button href="#/morpho-viewer-octree" image={SmallCircuitURL}>
+			<Button href="#/morpho-viewer-octree" image={OctreeURL}>
 				MorphoViewerOctree
 			</Button>
 			<Button href="#/morphology" image={MorphologyURL}>

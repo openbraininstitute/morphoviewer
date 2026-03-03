@@ -16,13 +16,12 @@ import { MaterialIndex } from "./material-index";
 export class OffscreenPainter {
 	public mix = 0;
 
+	private _minRadius = 2;
 	private readonly offscreenCanvas = new OffscreenCanvas(1, 1);
-
 	private readonly offscreenContext: TgdContext;
-
 	private _data: MorphologyData | undefined = undefined;
-
 	private readonly group = new TgdPainterGroup();
+	private _painterSegments: TgdPainterSegmentsMorphing | null = null;
 
 	constructor(private readonly onscreenContext: TgdContext) {
 		onscreenContext.eventPaint.addListener(this.paint);
@@ -35,6 +34,14 @@ export class OffscreenPainter {
 		this.offscreenContext = context;
 		context.add(this.group);
 		this.paint();
+	}
+
+	get minRadius(): number {
+		return this._minRadius;
+	}
+	set minRadius(minRadius: number) {
+		this._minRadius = minRadius;
+		if (this._painterSegments) this._painterSegments.minRadius = minRadius;
 	}
 
 	get data() {

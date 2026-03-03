@@ -74,7 +74,7 @@ export class OctreeManager {
 			}),
 			new TgdPainterState(context, {
 				depth: webglPresetDepth.less,
-				cull: webglPresetCull.off,
+				cull: webglPresetCull.back,
 				children: [this.group],
 			}),
 		);
@@ -115,7 +115,7 @@ export class OctreeManager {
 
 				const blockId = morphoViewerOctreeBlockToId(x, y, z, level);
 				if (!this.availableBlocks.has(blockId)) {
-					console.log("Not found!");
+					console.log(`Block "${blockId}" is not available!`);
 					return null;
 				}
 
