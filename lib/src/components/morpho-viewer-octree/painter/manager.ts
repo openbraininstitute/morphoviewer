@@ -1,5 +1,7 @@
 import {
 	type ArrayNumber3,
+	type TgdAnimation,
+	type TgdCameraState,
 	TgdContext,
 	TgdControllerCameraOrbit,
 	TgdDataGlb,
@@ -13,7 +15,10 @@ import {
 	TgdPainterMesh,
 	TgdPainterMeshGltf,
 	TgdPainterState,
+	TgdQuat,
 	TgdVec3,
+	tgdActionCreateCameraInterpolation,
+	tgdEasingFunctionInOutQuad,
 	webglPresetCull,
 	webglPresetDepth,
 } from "@tolokoban/tgd";
@@ -39,6 +44,30 @@ export class OctreeManager {
 	// 	color: [1, 0.667, 0.1, 1],
 	// });
 	private orbit: TgdControllerCameraOrbit | null = null;
+	private initialCameraState: {
+		width: number;
+		height: number;
+		near: number;
+		far: number;
+		position: Readonly<TgdVec3>;
+	} = { width: 1, height: 1, near: 1, far: 10, position: new TgdVec3() };
+	private animations: TgdAnimation[] = [];
+
+	resetCamera() {
+		const { context } = this;
+		if (!context) return;
+
+		context.animCancelArray(this.animations);
+		this.animations = context.animSchedule({
+			duration: 0.3,
+			easingFunction: tgdEasingFunctionInOutQuad,
+			action: tgdActionCreateCameraInterpolation(context.camera, {
+				zoom: 1,
+				position: this.initialCameraState.position,
+				orientation: new TgdQuat(),
+			}),
+		});
+	}
 
 	get meshId() {
 		return this._meshId;
@@ -67,14 +96,19 @@ export class OctreeManager {
 			alpha: false,
 			depth: true,
 		}));
+		context.inputs.pointer.eventTapMultiple.addListener(() => {
+			const zoom = context.camera.zoom;
+			console.log("🐞 [manager@102] zoom =", zoom); // @FIXME: Remove this line written on 2026-03-03 at 15:54
+			context.paint();
+		});
 		context.add(
 			new TgdPainterClear(context, {
 				color: [0, 0, 0, 1],
 				depth: 1,
 			}),
 			new TgdPainterState(context, {
-				depth: webglPresetDepth.less,
-				cull: webglPresetCull.back,
+				depth: "less",
+				cull: "off",
 				children: [this.group],
 			}),
 		);
@@ -95,11 +129,30 @@ export class OctreeManager {
 		const info = await promisedInfo;
 		if (!info) return;
 
-		const camera = makeCamera(info.bbox);
+		const { camera, width, height } = makeCamera(info.bbox);
+		console.log(
+			"🐞 [manager@128] camera.near, camera.far =",
+			camera.near,
+			camera.far,
+		); // @FIXME: Remove this line written on 2026-03-03 at 15:52
 		context.camera = camera;
+		this.initialCameraState = {
+			width,
+			height,
+			position: new TgdVec3(camera.transfo.position),
+			near: camera.near,
+			far: camera.far,
+		};
 		this.orbit?.detach();
 		this.orbit = new TgdControllerCameraOrbit(context, {
 			inertiaOrbit: 1000,
+			// minZoom: 0.1,
+			// maxZoom: 100,
+			onZoomRequest: (event) => {
+				console.log("🐞 [manager@142] event.zoom =", event.zoom); // @FIXME: Remove this line written on 2026-03-03 at 15:48
+				console.log("🐞 [manager@143] camera.zoom =", camera.zoom); // @FIXME: Remove this line written on 2026-03-03 at 15:51
+				return true;
+			},
 		});
 		this.availableBlocks.clear();
 		for (const blockId of info.blockIds) {

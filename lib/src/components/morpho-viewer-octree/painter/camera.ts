@@ -7,22 +7,6 @@ import {
 type BBox = { min: ArrayNumber3; max: ArrayNumber3 };
 
 export function makeCamera(bbox: BBox) {
-	// const vecMin = new TgdVec3(bbox.min);
-	// const vecMax = new TgdVec3(bbox.max);
-	// const vecDim = new TgdVec3(vecMax).subtract(vecMin);
-	// const center = new TgdVec3(vecMax).add(vecMin).scale(0.5);
-	// const camera = new TgdCameraPerspective({
-	// 	near: 1,
-	// 	transfo: {
-	// 		position: center,
-	// 	},
-	// 	zoom: 1,
-	// });
-	// camera.fitSpaceAtTarget(vecDim.x, vecDim.y);
-	// camera.far = camera.transfo.distance * 2;
-	// camera.zoom = 0.5;
-	// camera.debug();
-
 	const camera = new TgdCameraPerspective({
 		transfo: { distance: 10 },
 		far: 100,
@@ -32,13 +16,16 @@ export function makeCamera(bbox: BBox) {
 	});
 	const vecMin = new TgdVec3(bbox.min);
 	const vecMax = new TgdVec3(bbox.max);
+	const diameter = TgdVec3.distance(vecMin, vecMax);
 	const vecDim = new TgdVec3(vecMax).subtract(vecMin);
 	const center = new TgdVec3(vecMax).add(vecMin).scale(0.5);
 	camera.transfo.position = center;
-	// context.camera.transfo.setPosition(0, 0, 0)
-	camera.transfo.distance = vecDim.z * 3;
-	camera.near = 1;
-	camera.far = vecDim.z * 6;
+	const width = vecDim.x;
+	const height = vecDim.y;
+	camera.fitSpaceAtTarget(width, height);
+	// camera.transfo.distance = 1251334;
+	camera.near = camera.transfo.distance - diameter * 0.5;
+	camera.far = camera.transfo.distance + diameter * 0.5;
 
-	return camera;
+	return { camera, width, height };
 }

@@ -34,7 +34,7 @@
         "react": "^19.2.4"
     },
     "dependencies": {
-        "@tolokoban/tgd": "^2.0.95",
+        "@tolokoban/tgd": "^2.0.97",
         "fflate": "^0.8.2",
         "tslib": "^2.8.1"
     }
