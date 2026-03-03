@@ -1,32 +1,44 @@
-import { type ArrayNumber3, TgdCameraPerspective } from "@tolokoban/tgd";
+import {
+	type ArrayNumber3,
+	TgdCameraPerspective,
+	TgdVec3,
+} from "@tolokoban/tgd";
 
 type BBox = { min: ArrayNumber3; max: ArrayNumber3 };
 
 export function makeCamera(bbox: BBox) {
-	const diag = computeDiagonal(bbox);
-	const position = computeCenter(bbox);
+	// const vecMin = new TgdVec3(bbox.min);
+	// const vecMax = new TgdVec3(bbox.max);
+	// const vecDim = new TgdVec3(vecMax).subtract(vecMin);
+	// const center = new TgdVec3(vecMax).add(vecMin).scale(0.5);
+	// const camera = new TgdCameraPerspective({
+	// 	near: 1,
+	// 	transfo: {
+	// 		position: center,
+	// 	},
+	// 	zoom: 1,
+	// });
+	// camera.fitSpaceAtTarget(vecDim.x, vecDim.y);
+	// camera.far = camera.transfo.distance * 2;
+	// camera.zoom = 0.5;
+	// camera.debug();
+
 	const camera = new TgdCameraPerspective({
-		near: 1,
-		far: 2 * diag + 2,
-		transfo: {
-			position,
-			distance: diag + 1,
-		},
+		transfo: { distance: 10 },
+		far: 100,
+		near: 0.1,
+		fovy: Math.PI / 8,
+		zoom: 1,
 	});
+	const vecMin = new TgdVec3(bbox.min);
+	const vecMax = new TgdVec3(bbox.max);
+	const vecDim = new TgdVec3(vecMax).subtract(vecMin);
+	const center = new TgdVec3(vecMax).add(vecMin).scale(0.5);
+	camera.transfo.position = center;
+	// context.camera.transfo.setPosition(0, 0, 0)
+	camera.transfo.distance = vecDim.z * 3;
+	camera.near = 1;
+	camera.far = vecDim.z * 6;
+
 	return camera;
-}
-
-function computeDiagonal(bbox: BBox) {
-	const [x0, y0, z0] = bbox.min;
-	const [x1, y1, z1] = bbox.max;
-	const x = x1 - x0;
-	const y = y1 - y0;
-	const z = z1 - z0;
-	return Math.sqrt(x * x + y * y + z * z);
-}
-
-function computeCenter(bbox: BBox): ArrayNumber3 {
-	const [x0, y0, z0] = bbox.min;
-	const [x1, y1, z1] = bbox.max;
-	return [(x0 + x1) * 0.5, (y0 + y1) * 0.5, (z0 + z1) * 0.5];
 }

@@ -1,4 +1,6 @@
 .morphoViewerOctree {
+	padding: 1em;
+
 	.octree {
 		width: 1000px;
 		height: 750px;

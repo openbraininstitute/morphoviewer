@@ -5,7 +5,7 @@ import styles from "./morpho-viewer-octree.module.css";
 import { type OctreeManager, useOctreeManager } from "./painter/manager";
 import type { MorphoViewerOctreeProps } from "./types";
 
-export default function MorphoViewerOctree(props: MorphoViewerOctreeProps) {
+export function MorphoViewerOctree(props: MorphoViewerOctreeProps) {
 	const manager = useOctreeManager(props);
 
 	return (

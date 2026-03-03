@@ -1,7 +1,5 @@
-import MorphoViewerOctree from "@bbp/morphoviewer/dist/components/morpho-viewer-octree";
-import type { MorphoViewerOctreeProps } from "@bbp/morphoviewer/dist/components/morpho-viewer-octree/types";
+import { MorphoViewerOctree } from "@bbp/morphoviewer";
 import { assertType } from "@tolokoban/type-guards";
-import React from "react";
 import Styles from "./page.module.css";
 
 export default function PageMorphoViewerOctree() {
@@ -12,6 +10,7 @@ export default function PageMorphoViewerOctree() {
 				meshId="1"
 				loadInfo={async (meshId: string) => {
 					const url = `./assets/octree/${meshId}/info.json`;
+					console.debug("Loading info:", url);
 					const resp = await fetch(url);
 					if (!resp.ok) {
 						throw new Error(
@@ -33,6 +32,7 @@ export default function PageMorphoViewerOctree() {
 				}}
 				loadBlock={async (meshId: string, blockId: string) => {
 					const url = `./assets/octree/${meshId}/${blockId}.glb`;
+					console.debug("Loading:", url);
 					const resp = await fetch(url);
 					if (!resp.ok) {
 						console.error(
