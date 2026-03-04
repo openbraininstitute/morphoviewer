@@ -22,13 +22,7 @@ export function getRegionsTextureCanvas(
   const w = 1;
   const h = 5;
   const { ctx } = tgdCanvasCreateWithContext2D(w, h);
-  const colors = customColors ?? [
-    soma,
-    axon,
-    basalDendrite,
-    apicalDendrite,
-    unknown,
-  ];
+  const colors = customColors ?? [soma, axon, basalDendrite, apicalDendrite, unknown];
   colors[0] = setOpacity(colors[0], somaVisible);
   colors.forEach((color, index) => {
     ctx.fillStyle = color;
@@ -56,12 +50,7 @@ export function getDistancesTextureCanvas(
   colors.forEach((color, index) => {
     grad.addColorStop(index / (colors.length - 1), color);
   });
-  const sectionColors = customColors ?? [
-    soma,
-    axon,
-    basalDendrite,
-    apicalDendrite,
-  ];
+  const sectionColors = customColors ?? [soma, axon, basalDendrite, apicalDendrite];
   sectionColors.forEach((colorString, y) => {
     const color = new TgdColor();
     color.parse(colorString);
@@ -73,11 +62,8 @@ export function getDistancesTextureCanvas(
   return ctx.canvas;
 }
 
-function createCanvas2DContext(
-  width: number,
-  height: number,
-): CanvasRenderingContext2D {
-  const canvas = document.createElement("canvas");
+function createCanvas2DContext(width: number, height: number): CanvasRenderingContext2D {
+  const canvas = globalThis.document.createElement("canvas");
   if (!canvas) throw Error("Unable to create a HTMLCanvasElement!");
 
   canvas.width = width;

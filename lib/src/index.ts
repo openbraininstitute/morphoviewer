@@ -1,9 +1,6 @@
-export {
-	TgdCamera,
-	TgdCameraOrthographic,
-	TgdColor,
-	tgdFullscreenToggle,
-} from "@tolokoban/tgd";
+"use client";
+
+export { TgdCamera, TgdCameraOrthographic, TgdColor, tgdFullscreenToggle } from "@tolokoban/tgd";
 export type { CanvasOptions } from "./abstract-canvas";
 export type { ColorsInterface } from "./colors";
 export { colorContrast, colorLuminance, colorToRGBA } from "./colors";

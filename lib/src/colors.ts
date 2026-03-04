@@ -9,7 +9,7 @@ import { TgdEvent } from "@tolokoban/tgd";
  * @example
  * ```tsx
  * const background = painter.colors.background
- * const { body } = document
+ * const { body } = globalThis.document
  * body.style.backgroundColor = background
  * body.style.color = colorContrast(background, "#000d", "#fffd")
  * ```
@@ -43,18 +43,13 @@ export function colorContrast(background: string, ...colors: string[]) {
  * @param green Float between 0.0 and 1.0
  * @param blue Float between 0.0 and 1.0
  */
-export function colorLuminance(
-  red: number,
-  green: number,
-  blue: number,
-): number {
+export function colorLuminance(red: number, green: number, blue: number): number {
   const t = 0.04045;
   const a = 1 / 12.92;
   const b = 0.055;
   const c = 1 / 1.055;
   const gamma = 2.4;
-  const convert = (v: number) =>
-    v <= t ? v * a : Math.pow((v + b) * c, gamma);
+  const convert = (v: number) => (v <= t ? v * a : Math.pow((v + b) * c, gamma));
   const R = convert(red);
   const G = convert(green);
   const B = convert(blue);
@@ -165,7 +160,7 @@ let globalContext: CanvasRenderingContext2D | null = null;
 
 function getContext(): CanvasRenderingContext2D {
   if (!globalContext) {
-    const canvas: HTMLCanvasElement = document.createElement("canvas");
+    const canvas: HTMLCanvasElement = globalThis.document.createElement("canvas");
     canvas.width = 1;
     canvas.height = 1;
     const ctx = canvas.getContext("2d", {
