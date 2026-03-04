@@ -1,4 +1,4 @@
-import { type ArrayNumber3, tgdFullscreenToggle } from "@tolokoban/tgd";
+import {  tgdFullscreenToggle } from "@tolokoban/tgd";
 import React from "react";
 import { classNames } from "@/utils";
 import { IconCenter } from "../icons/center";
