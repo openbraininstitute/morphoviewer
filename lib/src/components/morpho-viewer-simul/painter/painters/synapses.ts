@@ -10,18 +10,18 @@ import {
   TgdVec3,
   tgdCalcMix,
   tgdCanvasCreateFill,
-} from '@tolokoban/tgd';
+} from "@tolokoban/tgd";
 
-import type { MorphoViewerSynapsesGroup } from '../../types/public';
-import type { MorphologyData } from '../morphology-data';
-import type { Structure } from '../structure';
+import type { MorphoViewerSynapsesGroup } from "../../types/public";
+import type { MorphologyData } from "../morphology-data";
+import type { Structure } from "../structure";
 
 export class PainterSynapses extends TgdPainterGroup {
   private readonly textures: TgdTexture2D[] = [];
   private readonly cloud: TgdPainterPointsCloudMorphing;
 
   constructor(context: TgdContext, synapses: MorphoViewerSynapsesGroup, data: MorphologyData) {
-    super();
+    super({ name: "PainterSynapses" });
     const texture = new TgdTexture2D(context).loadBitmap(tgdCanvasCreateFill(1, 1, synapses.color));
     this.textures.push(texture);
 
@@ -29,10 +29,10 @@ export class PainterSynapses extends TgdPainterGroup {
     const dataPointDendrogram = makeDataPoint(
       synapses.sections,
       data.structure,
-      data.segmentsDendrogram
+      data.segmentsDendrogram,
     );
-    console.log('🐞 [synapses@34] dataPoint3D =', dataPoint3D); // @FIXME: Remove this line written on 2026-02-26 at 08:37
-    console.log('🐞 [synapses@35] dataPointDendrogram =', dataPointDendrogram); // @FIXME: Remove this line written on 2026-02-26 at 08:37
+    console.log("🐞 [synapses@34] dataPoint3D =", dataPoint3D); // @FIXME: Remove this line written on 2026-02-26 at 08:37
+    console.log("🐞 [synapses@35] dataPointDendrogram =", dataPointDendrogram); // @FIXME: Remove this line written on 2026-02-26 at 08:37
     const cloud = new TgdPainterPointsCloudMorphing(context, {
       name: `TgdPainterPointsCloud[${synapses.color}]`,
       data: [[dataPoint3D, dataPointDendrogram]],
@@ -60,7 +60,7 @@ export class PainterSynapses extends TgdPainterGroup {
 function makeDataPoint(
   sections: Record<string, number[]>,
   structure: Structure,
-  segments: Map<number, TgdPainterSegmentsData>
+  segments: Map<number, TgdPainterSegmentsData>,
 ): { point: Float32Array } {
   let counter = 0;
   const dataPoint: number[] = [];
@@ -77,7 +77,7 @@ function makeDataPoint(
         targetSegment.getXYZR0(0),
         targetSegment.getXYZR1(0),
         offset,
-        counter++
+        counter++,
       );
       dataPoint.push(x, y, z, 1);
     }
@@ -89,14 +89,13 @@ function computePositionOnSegmentSurface(
   start: ArrayNumber4,
   end: ArrayNumber4,
   offset: number,
-  randomSeed: number
+  randomSeed: number,
 ): [x: number, y: number, z: number] {
   const [x0, y0, z0, r0] = start;
   const [x1, y1, z1, r1] = end;
   const vecZ = new TgdVec3(x1, y1, z1).subtract([x0, y0, z0]);
   const lengthZ = vecZ.size;
   if (lengthZ < 1e-6) {
-    console.log('🐞 [synapses@99] [x0, y0, z0, r0] =', [x0, y0, z0, r0]); // @FIXME: Remove this line written on 2026-02-26 at 10:19
     return computePositionOnSphereSurface(x0, y0, z0, r0, randomSeed);
   }
   const x = tgdCalcMix(x0, x1, offset);
@@ -118,7 +117,7 @@ function computePositionOnSphereSurface(
   y: number,
   z: number,
   r: number,
-  randomSeed: number
+  randomSeed: number,
 ): [x: number, y: number, z: number] {
   const lat = randomSeed;
   const lng = randomSeed * 7.4656519;

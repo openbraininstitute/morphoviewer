@@ -29,7 +29,10 @@ interface LabelToDraw {
 }
 
 const FONTSIZE = 16;
-const MARGIN = 8;
+const MARGIN_TOP = 8;
+const MARGIN_RIGHT = 8;
+const MARGIN_BOTTOM = 48;
+const MARGIN_LEFT = 8;
 const PADDING = 8;
 
 export class LegendPainter {
@@ -77,16 +80,12 @@ export class LegendPainter {
         originX: tip.x,
         originY: tip.y,
         text,
-        color: isInjection
-          ? "#fff"
-          : (target.color ?? getColorFromGeneratedPalette(targetIndex)),
+        color: isInjection ? "#fff" : (target.color ?? getColorFromGeneratedPalette(targetIndex)),
         tipX: round(tgdCalcMapRange(tip.x, -1, +1, 0, canvas.width)),
         tipY: round(tgdCalcMapRange(tip.y, +1, -1, 0, canvas.height)),
         boxX: 0,
         boxY: 0,
-        boxW: round(
-          PADDING * 2 + measure.width + (isInjection ? FONTSIZE * 1.5 : 0),
-        ),
+        boxW: round(PADDING * 2 + measure.width + (isInjection ? FONTSIZE * 1.5 : 0)),
         boxH: round(PADDING * 2 + FONTSIZE),
         isInjection,
       });
@@ -111,9 +110,7 @@ export class LegendPainter {
   }
 }
 
-export function useLegendPainter(
-  painterManager: PainterManager,
-): LegendPainter {
+export function useLegendPainter(painterManager: PainterManager): LegendPainter {
   const ref = React.useRef<LegendPainter | null>(null);
   if (!ref.current) ref.current = new LegendPainter(painterManager);
   return ref.current;
@@ -121,8 +118,7 @@ export function useLegendPainter(
 
 function drawLabel(ctx: CanvasRenderingContext2D, label: LabelToDraw) {
   const r = 8;
-  const { text, boxX, boxY, boxW, boxH, tipX, tipY, color, isInjection } =
-    label;
+  const { text, boxX, boxY, boxW, boxH, tipX, tipY, color, isInjection } = label;
   // Back is all black to help reading the lines.
   ctx.lineWidth = 3;
   ctx.strokeStyle = "#000";
@@ -166,8 +162,7 @@ function drawLabel(ctx: CanvasRenderingContext2D, label: LabelToDraw) {
   ctx.font = `bold ${FONTSIZE}px sans-serif`;
   const measure = ctx.measureText(text);
   ctx.fillStyle = "#000";
-  const fontHeight =
-    measure.emHeightAscent ?? measure.actualBoundingBoxAscent ?? FONTSIZE;
+  const fontHeight = measure.emHeightAscent ?? measure.actualBoundingBoxAscent ?? FONTSIZE;
   ctx.fillText(text, boxX + PADDING, boxY + PADDING + fontHeight);
   if (isInjection) {
     // Draw little bolt
@@ -228,8 +223,7 @@ function spreadLabels(labels: LabelToDraw[], width: number, height: number) {
       else topRight.push(label);
     }
   }
-  const sorter = ({ originY: a }: LabelToDraw, { originY: b }: LabelToDraw) =>
-    b - a;
+  const sorter = ({ originY: a }: LabelToDraw, { originY: b }: LabelToDraw) => b - a;
   topLeft.sort(sorter);
   bottomLeft.sort(sorter);
   topRight.sort(sorter);
@@ -237,30 +231,30 @@ function spreadLabels(labels: LabelToDraw[], width: number, height: number) {
 
   const halfH = height / 2;
   let index = 0;
-  let space = (halfH - MARGIN) / topLeft.length;
+  let space = (halfH - MARGIN_TOP - MARGIN_BOTTOM) / topLeft.length;
   for (const label of topLeft) {
-    label.boxX = MARGIN;
+    label.boxX = MARGIN_LEFT;
     label.boxY = round((index + 0.5) * space);
     index++;
   }
   index = 0;
-  space = (halfH - MARGIN) / bottomLeft.length;
+  space = (halfH - MARGIN_TOP - MARGIN_BOTTOM) / bottomLeft.length;
   for (const label of bottomLeft) {
-    label.boxX = MARGIN;
+    label.boxX = MARGIN_LEFT;
     label.boxY = round(halfH + (index + 0.5) * space);
     index++;
   }
   index = 0;
-  space = (halfH - MARGIN) / topRight.length;
+  space = (halfH - MARGIN_TOP - MARGIN_BOTTOM) / topRight.length;
   for (const label of topRight) {
-    label.boxX = width - MARGIN - label.boxW;
+    label.boxX = width - MARGIN_RIGHT - label.boxW;
     label.boxY = round((index + 0.5) * space);
     index++;
   }
   index = 0;
-  space = (halfH - MARGIN) / bottomRight.length;
+  space = (halfH - MARGIN_TOP - MARGIN_BOTTOM) / bottomRight.length;
   for (const label of bottomRight) {
-    label.boxX = width - MARGIN - label.boxW;
+    label.boxX = width - MARGIN_RIGHT - label.boxW;
     label.boxY = round(halfH + (index + 0.5) * space);
     index++;
   }
