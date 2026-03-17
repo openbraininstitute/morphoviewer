@@ -1,7 +1,6 @@
 import {
   type TgdContext,
   TgdFilterBlur,
-  TgdMaterialFlat,
   TgdMaterialSolid,
   TgdPainter,
   TgdPainterClear,
@@ -12,17 +11,15 @@ import {
   TgdPainterState,
   TgdTexture2D,
   tgdCalcModulo,
-  tgdCanvasCreatePalette,
 } from "@tolokoban/tgd";
 import type { MorphoViewerSpikeRecord } from "../../../types/public";
 import type { MorphologyData } from "../../morphology-data";
-import { PALETTE } from "../contants";
+import { SpikingManager } from "../../spiking-manager";
 
 export class PainterSpiking extends TgdPainterGroup {
   private textureInternal: TgdTexture2D | null = null;
   private framebufferInternal: TgdPainterFramebufferWithAntiAliasing | null = null;
   private blurEffect: TgdPainter | null = null;
-  private readonly palette: TgdTexture2D;
   private painterSegments: TgdPainterSegmentsMorphing | null = null;
   /**
    * Transition between two views.
@@ -31,18 +28,16 @@ export class PainterSpiking extends TgdPainterGroup {
   private _mix = 0;
   private _spike: MorphoViewerSpikeRecord | undefined = undefined;
   private readonly material = new TgdMaterialSolid({
-    color: [0.9, 0.6, 0.1, 1],
+    color: [0, 0, 0, 1],
   });
+  private power = 0;
 
   constructor(
     private readonly context: TgdContext,
     data: MorphologyData,
+    private readonly spikingManager: SpikingManager,
   ) {
     super({ name: "PainterSpiking" });
-    this.palette = new TgdTexture2D(context).loadBitmap(tgdCanvasCreatePalette(PALETTE)).setParams({
-      magFilter: "NEAREST",
-      minFilter: "NEAREST",
-    });
     this.painterSegments = this.createPainterSegments(context, data);
     const framebufferInternal = this.createFramebufferInternal();
     const blurEffect = this.createBlurEffect();
@@ -55,19 +50,12 @@ export class PainterSpiking extends TgdPainterGroup {
     });
   }
 
-  set power(power: number) {
-    const { material } = this;
-    material.color.x = 0.9 * power;
-    material.color.y = 0.6 * power;
-    material.color.z = 0.1 * power;
-  }
-
   private createBlurEffect() {
     const { context, framebufferInternal, painterSegments } = this;
     if (!framebufferInternal) throw new Error("framebufferInternal is not defined!");
     if (!painterSegments) throw new Error("painterSegments is not defined!");
 
-    const size = 8;
+    const size = 4;
     const filters = new TgdPainterFilter(context, {
       filters: [...TgdFilterBlur.createPair({ size })],
       texture: framebufferInternal.textureColor0,
@@ -112,14 +100,12 @@ export class PainterSpiking extends TgdPainterGroup {
     const { dataset3D, datasetDendrogram } = data;
     const painterSegments = (this.painterSegments = new TgdPainterSegmentsMorphing(context, {
       roundness: 4,
-      minRadius: 1,
+      minRadius: 8,
       radiusMultiplier: 1.5,
       datasetsPairs: [[dataset3D, datasetDendrogram]],
       material: this.material,
     }));
     painterSegments.mix = this.mix;
-    console.log("🐞 [spiking@105] data =", data); // @FIXME: Remove this line written on 2026-03-13 at 18:13
-    console.log("🐞 [spiking@106] painterSegments.mix =", painterSegments.mix); // @FIXME: Remove this line written on 2026-03-13 at 18:13
     return painterSegments;
   }
 
@@ -143,10 +129,18 @@ export class PainterSpiking extends TgdPainterGroup {
   }
 
   delete() {
-    this.palette.delete();
     this.blurEffect?.delete();
     this.painterSegments?.delete();
     this.textureInternal?.delete();
     this.framebufferInternal?.delete();
+  }
+
+  paint(time: number, delta: number) {
+    const { spikingManager } = this;
+    const { R, G, B, A } = spikingManager.color;
+    const { color } = this.material;
+    const { intensity } = spikingManager;
+    color.reset(R * intensity, G * intensity, B * intensity, A);
+    super.paint(time, delta);
   }
 }

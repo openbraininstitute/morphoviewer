@@ -31,8 +31,6 @@ export class PainterSynapses extends TgdPainterGroup {
       data.structure,
       data.segmentsDendrogram,
     );
-    console.log("🐞 [synapses@34] dataPoint3D =", dataPoint3D); // @FIXME: Remove this line written on 2026-02-26 at 08:37
-    console.log("🐞 [synapses@35] dataPointDendrogram =", dataPointDendrogram); // @FIXME: Remove this line written on 2026-02-26 at 08:37
     const cloud = new TgdPainterPointsCloudMorphing(context, {
       name: `TgdPainterPointsCloud[${synapses.color}]`,
       data: [[dataPoint3D, dataPointDendrogram]],

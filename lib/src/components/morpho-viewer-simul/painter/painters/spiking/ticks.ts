@@ -1,5 +1,5 @@
 import {
-  tgdCalcRandom,
+  TgdColor,
   TgdContext,
   TgdDataset,
   TgdPainterFramebuffer,
@@ -7,12 +7,15 @@ import {
   TgdTexture2D,
   TgdUniformBufferObject,
 } from "@tolokoban/tgd";
+import { MorphoViewerSpikeRecord } from "@/components/morpho-viewer-simul/types/public";
 
 export interface FramebufferTicksOptions {
   texture: TgdTexture2D;
 }
 
 export class FramebufferTicks extends TgdPainterFramebuffer {
+  private readonly ticks: PainterTicks;
+
   constructor(
     public readonly context: TgdContext,
     { texture }: FramebufferTicksOptions,
@@ -23,10 +26,27 @@ export class FramebufferTicks extends TgdPainterFramebuffer {
       fixedSize: true,
       children: [ticks],
     });
+    this.ticks = ticks;
+  }
+
+  get spike(): MorphoViewerSpikeRecord | undefined {
+    return this.ticks.spike;
+  }
+  set spike(spike: MorphoViewerSpikeRecord | undefined) {
+    this.ticks.spike = spike;
   }
 }
 
+/**
+ * Vertical lines that mark the spikes on the timeline.
+ */
 export class PainterTicks extends TgdPainterProgram {
+  private _spike: MorphoViewerSpikeRecord | undefined = undefined;
+  private readonly uniformBlock: TgdUniformBufferObject<
+    "uniSize" | "uniScale" | "uniPower" | "uniColor"
+  >;
+  private readonly dataset: TgdDataset;
+
   constructor(public readonly context: TgdContext) {
     const datasetTicks = new TgdDataset(
       {
@@ -37,15 +57,12 @@ export class PainterTicks extends TgdPainterProgram {
         usage: "DYNAMIC_DRAW",
       },
     );
-    datasetTicks.set(
-      "attShift",
-      new Float32Array([-1, -0.9, -0.7, -0.2, 0.1, 0.3, 0.4, 0.6, 0.61, 0.62, +1]),
-    );
     const uniformBlock = new TgdUniformBufferObject(context, {
       uniforms: {
         uniSize: "float",
-        uniScale: "float",
+        uniScale: "vec2",
         uniPower: "float",
+        uniColor: "vec4",
       },
     });
     super(context, {
@@ -76,27 +93,61 @@ export class PainterTicks extends TgdPainterProgram {
         mainCode: [
           "varCorner = attCorner;",
           "gl_Position = vec4(",
-          ["attShift * uniScale + uniSize * attCorner.x,", "attCorner.y,", "0,", "1"],
+          [
+            "attShift * uniScale.x + uniSize * attCorner.x,",
+            "uniScale.y * attCorner.y,",
+            "0,",
+            "1",
+          ],
           ");",
         ],
       },
       frag: {
         mainCode: [
-          "vec3 uniColor = vec3(.8, .5, .1);",
-          "float x = varCorner.x;",
-          "float y = varCorner.y * .25;",
-          "float d = x*x + y*y;",
-          "float strength = 1.0 / (256.0 * pow(d, uniPower));",
-          "FragColor = vec4(uniColor * strength, 1.0);",
+          "float x = abs(varCorner.x);",
+          "float y = abs(varCorner.y);",
+          "float dx = max(1.0 - pow(x, 0.25), 0.0);",
+          "float dy = max(1.0 - pow(y, 1.0), 0.0);",
+          "float strength = 2.0 * dx * dy;",
+          "FragColor = vec4(uniColor.rgb * strength, 1.0);",
         ],
       },
       onEnter: () => {
         const radius = 16;
         const { width, height } = context;
         uniformBlock.values.uniSize = radius / width;
-        uniformBlock.values.uniScale = (width - height) / width;
+        uniformBlock.values.uniScale = new Float32Array([
+          (width - height) / width,
+          (height - 4) / height,
+        ]);
         uniformBlock.values.uniPower = 1000 / (width - height);
       },
     });
+    this.uniformBlock = uniformBlock;
+    this.dataset = datasetTicks;
+  }
+
+  get spike(): MorphoViewerSpikeRecord | undefined {
+    return this._spike;
+  }
+  set spike(spike: MorphoViewerSpikeRecord | undefined) {
+    if (this._spike === spike) return;
+
+    this._spike = spike;
+    if (!spike) return;
+
+    const squash = (v: number) => 0.2 + v * 0.8;
+    const color = TgdColor.fromString(spike.color);
+    color.R = squash(color.R);
+    color.G = squash(color.G);
+    color.B = squash(color.B);
+    this.uniformBlock.values.uniColor = color.toVec4();
+    const { dataset } = this;
+    const inverseSize = 1 / (spike.timeMaxInSeconds - spike.timeMinInSeconds);
+    const data = spike.spikesInSeconds.map(
+      (t) => 2 * (t - spike.timeMinInSeconds) * inverseSize - 1,
+    );
+    this.setAttributeValues(dataset, "attShift", new Float32Array(data));
+    this.context.paint();
   }
 }

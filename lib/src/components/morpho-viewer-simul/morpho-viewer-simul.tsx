@@ -12,74 +12,71 @@ import ModeSelector from "./components/ModeSelector";
 import ZoomSlider from "./components/zoom-slider";
 import styles from "./morpho-viewer-simul.module.css";
 import {
-	type PainterManager,
-	useWebglNeuronSelector as useMorphoViewerSimul,
-	usePainterController,
+  type PainterManager,
+  useWebglNeuronSelector as useMorphoViewerSimul,
+  usePainterController,
 } from "./painter";
+import SpikingController from "./painter/spiking-controller";
 import type { MorphoViewerSimulProps } from "./types/public";
 
 // eslint-disable-next-line react/display-name
 export function MorphoViewerSimul(props: MorphoViewerSimulProps) {
-	const painterManager = useMorphoViewerSimul(props);
-	const extraProps = { ...props, painterManager };
-	usePainterController(extraProps);
-	const ref = React.useRef<HTMLDivElement | null>(null);
-	const handleFullscreen = () => {
-		void tgdFullscreenToggle(ref.current);
-	};
-	const debugMode = useDebugMode();
-	const handleCopyMorphologyToClipboard = () => {
-		console.debug("props:", props);
-		navigator.clipboard.writeText(JSON.stringify(props.morphology));
-	};
+  const painterManager = useMorphoViewerSimul(props);
+  const extraProps = { ...props, painterManager };
+  usePainterController(extraProps);
+  const ref = React.useRef<HTMLDivElement | null>(null);
+  const handleFullscreen = () => {
+    void tgdFullscreenToggle(ref.current);
+  };
+  const debugMode = useDebugMode();
+  const handleCopyMorphologyToClipboard = () => {
+    console.debug("props:", props);
+    navigator.clipboard.writeText(JSON.stringify(props.morphology));
+  };
 
-	return (
-		<div className={styles.main} ref={ref}>
-			<Canvas painterManager={painterManager} />
-			<HintPanel painterManager={painterManager} />
-			<header>
-				<ModeSelector painterManager={painterManager} />
-				<ZoomSlider
-					className={styles.zoomSlider}
-					painterManager={painterManager}
-				/>
-				<ButtonResetCamera painterManager={painterManager} />
-				<div className={styles.flex}>
-					<button type="button" onClick={handleFullscreen}>
-						<IconFullscreen />
-					</button>
-					{props.onClose && (
-						<button type="button" onClick={props.onClose}>
-							<IconClose />
-						</button>
-					)}
-				</div>
-			</header>
-			{debugMode && (
-				<footer>
-					<button type="button" onClick={handleCopyMorphologyToClipboard}>
-						<IconCopy />
-					</button>
-				</footer>
-			)}
-			<LegendOverlay {...extraProps} />
-			<AddRecordingDialog {...extraProps} />
-		</div>
-	);
+  return (
+    <div className={styles.main} ref={ref}>
+      <Canvas painterManager={painterManager} />
+      <HintPanel painterManager={painterManager} />
+      <header>
+        <ModeSelector painterManager={painterManager} />
+        <ZoomSlider className={styles.zoomSlider} painterManager={painterManager} />
+        <ButtonResetCamera painterManager={painterManager} />
+        <div className={styles.flex}>
+          <button type="button" onClick={handleFullscreen}>
+            <IconFullscreen />
+          </button>
+          {props.onClose && (
+            <button type="button" onClick={props.onClose}>
+              <IconClose />
+            </button>
+          )}
+        </div>
+      </header>
+      {debugMode && (
+        <footer>
+          <button type="button" onClick={handleCopyMorphologyToClipboard}>
+            <IconCopy />
+          </button>
+        </footer>
+      )}
+      <SpikingController spikingManager={painterManager.spikingManager} />
+      <LegendOverlay {...extraProps} />
+      <AddRecordingDialog {...extraProps} />
+    </div>
+  );
 }
 
-const Canvas = React.memo(
-	({ painterManager }: { painterManager: PainterManager }) => {
-		return (
-			<canvas
-				key="canvas"
-				ref={(canvas: HTMLCanvasElement | null) => {
-					painterManager.canvas = canvas;
-					return () => {
-						painterManager.canvas = null;
-					};
-				}}
-			/>
-		);
-	},
-);
+const Canvas = React.memo(({ painterManager }: { painterManager: PainterManager }) => {
+  return (
+    <canvas
+      key="canvas"
+      ref={(canvas: HTMLCanvasElement | null) => {
+        painterManager.canvas = canvas;
+        return () => {
+          painterManager.canvas = null;
+        };
+      }}
+    />
+  );
+});

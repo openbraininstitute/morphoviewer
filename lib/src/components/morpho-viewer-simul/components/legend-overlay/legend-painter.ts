@@ -29,9 +29,9 @@ interface LabelToDraw {
 }
 
 const FONTSIZE = 16;
-const MARGIN_TOP = 8;
+const MARGIN_TOP = 48;
 const MARGIN_RIGHT = 8;
-const MARGIN_BOTTOM = 48;
+const MARGIN_BOTTOM = 64;
 const MARGIN_LEFT = 8;
 const PADDING = 8;
 

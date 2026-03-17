@@ -24,11 +24,12 @@ import {
 } from "@tolokoban/tgd";
 import type { MorphoViewerSpikeRecord, MorphoViewerSynapsesGroup } from "../../types/public";
 import type { MorphologyData } from "../morphology-data";
+import { SpikingManager } from "../spiking-manager";
 import { PALETTE } from "./contants";
 import { PainterHover as PainterHighlight } from "./highlight";
+import { PainterSpikingOverlay } from "./spiking/overlay";
 import { PainterSpiking } from "./spiking/spiking";
 import { PainterSynapses } from "./synapses";
-import { PainterSpikingOverlay } from "./spiking/overlay";
 
 export class Painter extends TgdPainterGroup {
   private _minRadius = 2;
@@ -54,6 +55,7 @@ export class Painter extends TgdPainterGroup {
   constructor(
     private readonly context: TgdContext,
     private readonly data: MorphologyData,
+    spikingManager: SpikingManager,
   ) {
     super();
     this.palette = new TgdTexture2D(context).loadBitmap(tgdCanvasCreatePalette(PALETTE)).setParams({
@@ -83,9 +85,9 @@ export class Painter extends TgdPainterGroup {
     });
     painterSegments.mix = this.mix;
     this._painterSegments = painterSegments;
-    const painterSpiking = new PainterSpiking(context, data);
+    const painterSpiking = new PainterSpiking(context, data, spikingManager);
     this.painterSpiking = painterSpiking;
-    const painterSpikingOverlay = new PainterSpikingOverlay(context);
+    const painterSpikingOverlay = new PainterSpikingOverlay(context, spikingManager);
     this.painterSpikingOverlay = painterSpikingOverlay;
     this.groupSegments.add(
       painterSegments,

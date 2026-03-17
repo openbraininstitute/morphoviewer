@@ -1,65 +1,103 @@
 import {
-  tgdCanvasCreate,
-  tgdCanvasCreateWithContext2D,
+  TgdColor,
   TgdContext,
+  TgdInputPointerEventTap,
+  TgdPainterGroup,
   TgdPainterOverlay,
   TgdTexture2D,
+  tgdCalcClamp,
+  tgdCanvasCreate,
+  tgdCanvasCreateWithContext2D,
 } from "@tolokoban/tgd";
+import { OVERLAY_HEIGHT, OVERLAY_MARGIN } from "../../constants";
+import { SpikingManager } from "../../spiking-manager";
+import { PainterCursor } from "./cursor";
 import { FramebufferTicks } from "./ticks";
 
-export class PainterSpikingOverlay extends TgdPainterOverlay {
+export class PainterSpikingOverlay extends TgdPainterGroup {
   private actualWidth = 0;
   private actualHeight = 0;
   private readonly painterTicks: FramebufferTicks;
+  private readonly painterOverlay: TgdPainterOverlay;
+  private readonly painterCursor: PainterCursor;
 
-  constructor(public readonly context: TgdContext) {
+  constructor(
+    public readonly context: TgdContext,
+    private readonly spikingManager: SpikingManager,
+  ) {
+    super({ name: "PainterSpikingOverlay" });
+    this.painterCursor = new PainterCursor(context, spikingManager);
     const texture = new TgdTexture2D(context).loadBitmap(tgdCanvasCreate(8, 8));
-    super(context, {
+    const overlay = new TgdPainterOverlay(context, {
       alignX: +1,
       alignY: -1,
-      margin: [0, 8, 8, 64],
-      height: 32,
+      margin: OVERLAY_MARGIN,
+      height: OVERLAY_HEIGHT,
       texture,
     });
-    try {
-      this.texture = texture;
-      this.painterTicks = new FramebufferTicks(context, { texture });
-      this.eventResize.addListener(({ width, height }) => {
-        this.actualWidth = width;
-        this.actualHeight = height;
-        this.refresh();
-      });
-    } catch (error) {
-      console.error("Error in PainterSpikingOverlay!");
-      throw error;
-    }
+    this.painterOverlay = overlay;
+    overlay.texture = texture;
+    this.painterTicks = new FramebufferTicks(context, { texture });
+    overlay.eventResize.addListener(({ width, height }) => {
+      this.actualWidth = width;
+      this.actualHeight = height;
+      this.refresh();
+    });
+    overlay.eventPointerTap.addListener(this.handleTap);
+    spikingManager.eventSpikeChange.addListener(this.refresh);
+    this.add(overlay, this.painterCursor);
+  }
+
+  private readonly handleTap = (evt: TgdInputPointerEventTap) => {
+    this.setCursor(evt.x);
+  };
+
+  private setCursor(cursorX: number) {
+    const [_top, right, _bottom, left] = OVERLAY_MARGIN;
+    const width = this.context.width - left - right;
+    const height = OVERLAY_HEIGHT;
+    const x = ((width + height) * cursorX) / width;
+    const normalizedX = tgdCalcClamp(0.5 * (1 + x), 0, 1);
+    this.spikingManager.progress = normalizedX;
+    this.refresh();
   }
 
   delete(): void {
     this.painterTicks.delete();
-    this.texture?.delete();
+    this.painterOverlay.texture?.delete();
+    this.painterOverlay.eventPointerTap.addListener(this.handleTap);
+    this.painterOverlay.delete();
     super.delete();
+    this.spikingManager.eventSpikeChange.removeListener(this.refresh);
   }
 
   private readonly refresh = () => {
     this.context.paintOneTime(
-      { paint: () => this.texture?.loadBitmap(this.makeCapsule()) },
+      {
+        paint: () => {
+          this.painterOverlay.texture?.loadBitmap(this.makeCapsule());
+          this.painterTicks.spike = this.spikingManager.spike;
+        },
+      },
       this.painterTicks,
     );
+    this.context.paint();
   };
 
   private makeCapsule() {
-    const { actualWidth: width, actualHeight: height } = this;
+    const { actualWidth: width, actualHeight: height, spikingManager } = this;
+    const color = spikingManager.color.toString();
+    const colorDark = TgdColor.fromString(color).luminanceSet(0.5).toString();
     const { canvas, ctx } = tgdCanvasCreateWithContext2D(width, height);
     ctx.clearRect(0, 0, width, height);
     ctx.lineWidth = 2;
     const gradFill = ctx.createLinearGradient(0, 0, 0, height);
     gradFill.addColorStop(0, "#000");
     gradFill.addColorStop(0.5, "#111");
-    gradFill.addColorStop(1, "rgb(80, 48, 0)");
+    gradFill.addColorStop(1, colorDark);
     const gradStroke = ctx.createLinearGradient(0, 0, 0, height);
-    gradStroke.addColorStop(0, "#f90");
-    gradStroke.addColorStop(1, "#f90");
+    gradStroke.addColorStop(0, color);
+    gradStroke.addColorStop(1, color);
     ctx.fillStyle = gradFill;
     ctx.strokeStyle = gradStroke;
     ctx.beginPath();

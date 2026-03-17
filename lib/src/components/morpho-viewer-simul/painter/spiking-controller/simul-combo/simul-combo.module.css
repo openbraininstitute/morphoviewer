@@ -1,0 +1,52 @@
+.simulCombo {
+	position: absolute;
+	left: 48px;
+	bottom: 40px;
+	padding: 8px;
+}
+
+button.button {
+	font: inherit;
+	border: none;
+	background: none;
+	text-decoration: underline var(--custom-color) 0.25em;
+	font-weight: bold;
+	color: #fff;
+	text-underline-offset: 0.25em;
+	cursor: pointer;
+}
+
+div.dialog {
+	backdrop-filter: brightness(0.333);
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	opacity: 0;
+	pointer-events: none;
+	transition: all 0.2s;
+	z-index: 9999;
+
+	&.open {
+		opacity: 1;
+		pointer-events: all;
+	}
+
+	> div {
+		display: flex;
+		flex-wrap: nowrap;
+		flex-direction: column;
+		justify-content: flex-start;
+		align-items: flex-start;
+		gap: 1em;
+		border: none;
+		background: #0005;
+		position: absolute;
+		top: auto;
+		left: 48px;
+		bottom: 40px;
+		padding: 8px;
+		margin: 0;
+	}
+}

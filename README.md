@@ -4,6 +4,8 @@
   <a href="https://www.epfl.ch/research/domains/bluebrain/">Blue Brain Project</a>
 </p>
 
+[See it in action](https://openbraininstitute.github.io/morphoviewer/).
+
 ## Usage
 
 API documentation and exaples can be found [here](https://openbraininstitute.github.io/morphoviewer/).
