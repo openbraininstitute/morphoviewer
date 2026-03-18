@@ -17,6 +17,7 @@ import React from "react";
 import { SYNAPSES } from "./data";
 import { useMorphologyTree, useRandomSpikes } from "./hook";
 import styles from "./page.module.css";
+import { classNames } from "@/utils";
 
 const recordingsState = new AtomicState<MorphoViewerElectrodeRecording[]>(
   [
@@ -51,11 +52,16 @@ export default function Page() {
   const handleRemove = (rec: MorphoViewerElectrodeRecording): void => {
     setRecordings(recordings.filter((item) => item !== rec));
   };
+  const [resolution, setResolution] = React.useState("landscape");
 
   return (
     <div className={styles.page}>
       <div>
-        <div className={styles.viewer}>
+        <ViewOptions value={resolution} onChange={setResolution}>
+          <div key="landscape">Landscape</div>
+          <div key="portrait">Portrait</div>
+        </ViewOptions>
+        <div className={classNames(styles.viewer, styles[resolution])}>
           {tree && typeof tree !== "string" && (
             <MorphoViewerSimul
               backgroundColor="#002077"

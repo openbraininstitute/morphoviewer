@@ -99,7 +99,6 @@ export class PainterManager extends Initializer {
 
   constructor() {
     super();
-    // this.view.eventResetCamera.addListener(this.resetCamera);
   }
 
   useSpikingManager() {
@@ -211,6 +210,7 @@ export class PainterManager extends Initializer {
   delete() {
     this.context?.delete();
     this.context = null;
+    this.view?.eventResetCamera.removeListener(this.resetCamera);
   }
 
   /**
@@ -306,6 +306,7 @@ export class PainterManager extends Initializer {
         },
       });
       const view = new TransitionManager(context, { clearColor: this.backgroundColor });
+      view.eventResetCamera.addListener(this.resetCamera);
       context.add(view);
       this.view = view;
       this.initPainter(context, data, view, this.spikingManager);
