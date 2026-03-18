@@ -10,9 +10,11 @@
         "./dist"
     ],
     "scripts": {
+        "clean": "rm -rf ./dist .tsbuildinfo",
         "doc": "typedoc --watch",
-        "prebuild": "typedoc",
+        "prebuild": "npm run clean",
         "build": "build-typescript-library .",
+        "prestart": "npm run clean",
         "start": "build-typescript-library --watch .",
         "lint": "oxlint src/",
         "test": "jest",

@@ -1,6 +1,7 @@
 import {
   TgdColor,
   TgdContext,
+  TgdInputPointerEventMove,
   TgdInputPointerEventTap,
   TgdPainterGroup,
   TgdPainterOverlay,
@@ -48,12 +49,18 @@ export class PainterSpikingOverlay extends TgdPainterGroup {
       this.refresh();
     });
     overlay.eventPointerTap.addListener(this.handleTap);
+    overlay.eventPointerMove.addListener(this.handleMove);
     spikingManager.eventSpikeChange.addListener(this.refresh);
     this.add(overlay, this.painterCursor);
   }
 
   private readonly handleTap = (evt: TgdInputPointerEventTap) => {
     this.setCursor(evt.x);
+  };
+
+  private readonly handleMove = (evt: TgdInputPointerEventMove) => {
+    this.setCursor(evt.current.x);
+    return true;
   };
 
   private setCursor(cursorX: number) {
@@ -70,6 +77,7 @@ export class PainterSpikingOverlay extends TgdPainterGroup {
     this.painterTicks.delete();
     this.painterOverlay.texture?.delete();
     this.painterOverlay.eventPointerTap.addListener(this.handleTap);
+    this.painterOverlay.eventPointerMove.addListener(this.handleMove);
     this.painterOverlay.delete();
     this.spikingManager.eventSpikeChange.removeListener(this.refresh);
     super.delete();
