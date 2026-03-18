@@ -22,6 +22,7 @@ import type { MorphoViewerSimulProps } from "./types/public";
 // eslint-disable-next-line react/display-name
 export function MorphoViewerSimul(props: MorphoViewerSimulProps) {
   const painterManager = useMorphoViewerSimul(props);
+  const spikingManager = painterManager.useSpikingManager();
   const extraProps = { ...props, painterManager };
   usePainterController(extraProps);
   const ref = React.useRef<HTMLDivElement | null>(null);
@@ -60,7 +61,7 @@ export function MorphoViewerSimul(props: MorphoViewerSimulProps) {
           </button>
         </footer>
       )}
-      <SpikingController spikingManager={painterManager.spikingManager} />
+      {spikingManager && <SpikingController spikingManager={spikingManager} />}
       <LegendOverlay {...extraProps} />
       <AddRecordingDialog {...extraProps} />
     </div>

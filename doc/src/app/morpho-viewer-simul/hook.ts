@@ -117,7 +117,7 @@ function randomSpikes(label: string, color: string, count: number): MorphoViewer
   return {
     label,
     color,
-    speed: 0.5,
+    speed: 1,
     spikesInSeconds: times,
     timeMinInSeconds: min,
     timeMaxInSeconds: max,

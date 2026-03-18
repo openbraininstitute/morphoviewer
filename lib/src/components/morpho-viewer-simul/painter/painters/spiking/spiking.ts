@@ -5,12 +5,12 @@ import {
   TgdPainter,
   TgdPainterClear,
   TgdPainterFilter,
+  TgdPainterFramebuffer,
   TgdPainterFramebufferWithAntiAliasing,
   TgdPainterGroup,
   TgdPainterSegmentsMorphing,
   TgdPainterState,
   TgdTexture2D,
-  tgdCalcModulo,
 } from "@tolokoban/tgd";
 import type { MorphoViewerSpikeRecord } from "../../../types/public";
 import type { MorphologyData } from "../../morphology-data";
@@ -30,7 +30,6 @@ export class PainterSpiking extends TgdPainterGroup {
   private readonly material = new TgdMaterialSolid({
     color: [0, 0, 0, 1],
   });
-  private power = 0;
 
   constructor(
     private readonly context: TgdContext,
@@ -41,13 +40,7 @@ export class PainterSpiking extends TgdPainterGroup {
     this.painterSegments = this.createPainterSegments(context, data);
     const framebufferInternal = this.createFramebufferInternal();
     const blurEffect = this.createBlurEffect();
-    this.add(framebufferInternal, blurEffect, (time) => {
-      const t = tgdCalcModulo(time, 0, 2);
-      const dur = 0.25;
-      const tick = 0.7;
-      const dist = Math.max(1 - Math.abs(t - tick) / dur, 0);
-      this.power = 2 * Math.pow(dist, 3);
-    });
+    this.add(framebufferInternal, blurEffect);
   }
 
   private createBlurEffect() {
@@ -62,6 +55,7 @@ export class PainterSpiking extends TgdPainterGroup {
       flipY: true,
     });
     return new TgdPainterState(context, {
+      name: "State for blur effect",
       depth: "off",
       cull: "off",
       blend: "add",
@@ -78,7 +72,7 @@ export class PainterSpiking extends TgdPainterGroup {
       minFilter: "LINEAR",
     }));
     const clear = new TgdPainterClear(context, { depth: 1 });
-    this.framebufferInternal = new TgdPainterFramebufferWithAntiAliasing(context, {
+    this.framebufferInternal = new TgdPainterFramebuffer(context, {
       name: "framebufferInternal",
       children: [
         new TgdPainterClear(context, { color: [0, 0, 0, 1], depth: 1 }),

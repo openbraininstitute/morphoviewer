@@ -32,7 +32,6 @@ export class TransitionManager extends TgdPainterGroup {
   private _clearColor = "";
   private _mode: MorphoViewerMode = "3d";
   private _minRadius = 2;
-  private _synapsesEnabled = false;
   private _synapses: MorphoViewerSynapsesGroup[] = [];
   private _mix = 0;
   private ongoingAnimations: TgdAnimation[] = [];
@@ -70,7 +69,6 @@ export class TransitionManager extends TgdPainterGroup {
     if (_painter) this.remove(_painter);
     if (painter) {
       this.add(painter);
-      painter.synapsesEnabled = this.synapsesEnabled;
       painter.synapses = this.synapses;
       painter.mix = this.mix;
       painter.minRadius = this.minRadius;
@@ -110,15 +108,6 @@ export class TransitionManager extends TgdPainterGroup {
     clear.blue = color.B;
     clear.alpha = color.A;
     this.context.paint();
-  }
-
-  get synapsesEnabled(): boolean {
-    return this._synapsesEnabled;
-  }
-  set synapsesEnabled(synapsesEnabled: boolean) {
-    this._synapsesEnabled = synapsesEnabled;
-    const { painter } = this;
-    if (painter) painter.synapsesEnabled = synapsesEnabled;
   }
 
   get synapses(): MorphoViewerSynapsesGroup[] {

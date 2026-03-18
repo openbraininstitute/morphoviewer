@@ -10,7 +10,7 @@
         "downlevelIteration": true,
         "esModuleInterop": true,
         "extendedDiagnostics": false,
-        "incremental": false,
+        "incremental": true,
         "jsx": "react-jsx",
         "lib": ["dom", "dom.iterable", "ES2022.Error"],
         "module": "preserve",

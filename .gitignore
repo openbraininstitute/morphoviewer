@@ -5,3 +5,5 @@ test-coverage/
 .vscode/
 *.tar.gz
 *.tgz
+**/*.tsbuildinfo
+**/.tsbuildinfo

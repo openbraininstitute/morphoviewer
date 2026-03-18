@@ -2,6 +2,8 @@
 {
   "compilerOptions": {
     "target": "es2015",
+    "incremental": true,
+    "tsBuildInfoFile": ".tsbuildinfo",
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
     "jsx": "react-jsx",
     "noLib": false /* Disable including any library files, including the default lib.d.ts. */,

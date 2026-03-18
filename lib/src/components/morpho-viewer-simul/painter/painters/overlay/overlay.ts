@@ -14,6 +14,10 @@ import { SpikingManager } from "../../spiking-manager";
 import { PainterCursor } from "./cursor";
 import { FramebufferTicks } from "./ticks";
 
+/**
+ * This overlay displays the progress bar of the animation,
+ * with the ticks where spiking occurs.
+ */
 export class PainterSpikingOverlay extends TgdPainterGroup {
   private actualWidth = 0;
   private actualHeight = 0;
@@ -27,16 +31,16 @@ export class PainterSpikingOverlay extends TgdPainterGroup {
   ) {
     super({ name: "PainterSpikingOverlay" });
     this.painterCursor = new PainterCursor(context, spikingManager);
-    const texture = new TgdTexture2D(context).loadBitmap(tgdCanvasCreate(8, 8));
+    const texture = new TgdTexture2D(context).loadBitmap(tgdCanvasCreate(1, 1));
     const overlay = new TgdPainterOverlay(context, {
       alignX: +1,
       alignY: -1,
       margin: OVERLAY_MARGIN,
+      width: undefined, // Maximum width, according to margins.
       height: OVERLAY_HEIGHT,
       texture,
     });
     this.painterOverlay = overlay;
-    overlay.texture = texture;
     this.painterTicks = new FramebufferTicks(context, { texture });
     overlay.eventResize.addListener(({ width, height }) => {
       this.actualWidth = width;
@@ -67,20 +71,18 @@ export class PainterSpikingOverlay extends TgdPainterGroup {
     this.painterOverlay.texture?.delete();
     this.painterOverlay.eventPointerTap.addListener(this.handleTap);
     this.painterOverlay.delete();
-    super.delete();
     this.spikingManager.eventSpikeChange.removeListener(this.refresh);
+    super.delete();
   }
 
   private readonly refresh = () => {
-    this.context.paintOneTime(
-      {
-        paint: () => {
-          this.painterOverlay.texture?.loadBitmap(this.makeCapsule());
-          this.painterTicks.spike = this.spikingManager.spike;
-        },
+    this.context.paintOneTime({
+      paint: (time: number, delta: number) => {
+        this.painterOverlay.texture?.loadBitmap(this.makeCapsule());
+        this.painterTicks.spike = this.spikingManager.spike;
+        this.painterTicks.paint(time, delta);
       },
-      this.painterTicks,
-    );
+    });
     this.context.paint();
   };
 

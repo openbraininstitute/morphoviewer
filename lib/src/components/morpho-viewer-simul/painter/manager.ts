@@ -1,6 +1,8 @@
 "use client";
+
 /* eslint-disable no-param-reassign */
 
+import { useEventValue } from "@/utils";
 import {
   type TgdCameraState,
   TgdColor,
@@ -17,6 +19,7 @@ import type { MorphoViewerSimulContentProps } from "../types/private";
 import type {
   MorphoViewerMode,
   MorphoViewerSimulProps,
+  MorphoViewerSpikeRecord,
   MorphoViewerSynapsesGroup,
 } from "../types/public";
 import { makeCamera } from "./camera";
@@ -44,7 +47,6 @@ const EMPTY_SEGMENTS: Readonly<Map<number, TgdPainterSegmentsData>> = new Map<
 export class PainterManager extends Initializer {
   private static id = 0;
 
-  public readonly spikingManager = new SpikingManager();
   public minRadius = 2;
   public disableElectrodes = false;
   public readonly id = PainterManager.id++;
@@ -66,6 +68,8 @@ export class PainterManager extends Initializer {
   public readonly eventHintVisible = new TgdEvent<boolean>();
   public readonly eventForbiddenClick = new TgdEvent<void>();
 
+  private spikingManager: SpikingManager | null = null;
+  private readonly enventSpikingManagerChange = new TgdEvent<SpikingManager | null>();
   private context: TgdContext | null = null;
   private _disableSynapses = false;
   private _hoverItem: SelectedItem = { x: 0, y: 0, offset: 0, item: null };
@@ -91,10 +95,27 @@ export class PainterManager extends Initializer {
   private _mode: MorphoViewerMode = "3d";
   private clearColor = new TgdColor(0, 0, 0);
   private view: TransitionManager | null = null;
+  private _spikes: MorphoViewerSpikeRecord[] = [];
 
   constructor() {
     super();
     // this.view.eventResetCamera.addListener(this.resetCamera);
+  }
+
+  useSpikingManager() {
+    const spikingManager = useEventValue(this.spikingManager, this.enventSpikingManagerChange);
+    return spikingManager;
+  }
+
+  get spikes(): MorphoViewerSpikeRecord[] {
+    return this._spikes;
+  }
+  set spikes(spikes: MorphoViewerSpikeRecord[]) {
+    if (this._spikes === spikes) return;
+
+    this._spikes = spikes;
+    const { spikingManager } = this;
+    if (spikingManager) spikingManager.spikes = spikes;
   }
 
   get mode(): MorphoViewerMode {
@@ -119,20 +140,9 @@ export class PainterManager extends Initializer {
     this.clearColor.parse(backgroundColor);
   }
 
-  get disableSynapses() {
-    return this._disableSynapses;
-  }
-
-  set disableSynapses(value: boolean) {
-    this._disableSynapses = value;
-    const { view } = this;
-    if (view) view.synapsesEnabled = !value;
-  }
-
   get clickable() {
     return this._clickable;
   }
-
   set clickable(value: boolean) {
     this._clickable = value;
     this.context?.paint();
@@ -141,7 +151,6 @@ export class PainterManager extends Initializer {
   get hoverItem() {
     return this._hoverItem;
   }
-
   set hoverItem(value: SelectedItem) {
     this._hoverItem = value;
     this.eventHover.dispatch(value);
@@ -289,15 +298,22 @@ export class PainterManager extends Initializer {
     try {
       this.data = data;
       const context = this.initContext(canvas, data);
-      this.spikingManager.bind(context);
+      this.spikingManager = new SpikingManager(context);
+      this.spikingManager.spikes = this.spikes;
+      context.paintOneTime({
+        paint: () => {
+          this.enventSpikingManagerChange.dispatch(this.spikingManager);
+        },
+      });
       const view = new TransitionManager(context, { clearColor: this.backgroundColor });
       context.add(view);
       this.view = view;
-      this.initPainter(context, data, view);
+      this.initPainter(context, data, view, this.spikingManager);
       context.eventPaint.addListener(this.handlePaint);
       this.initOffscreen(context, data, view);
       this.eventHintVisible.dispatch(false);
       this.fitCamera();
+      context.debugHierarchy();
     } catch (error) {
       console.error(error);
       throw error;
@@ -333,8 +349,13 @@ export class PainterManager extends Initializer {
     return context;
   }
 
-  private initPainter(context: TgdContext, data: MorphologyData, view: TransitionManager) {
-    const painter = new Painter(context, data, this.spikingManager);
+  private initPainter(
+    context: TgdContext,
+    data: MorphologyData,
+    view: TransitionManager,
+    spikingManager: SpikingManager,
+  ) {
+    const painter = new Painter(context, data, spikingManager);
     view.minRadius = this.minRadius;
     view.painter = painter;
     painter.synapses = this.synapses;
@@ -467,20 +488,30 @@ export class PainterManager extends Initializer {
   }
 }
 
-export function useWebglNeuronSelector({ morphology, spikes, minRadius }: MorphoViewerSimulProps) {
+export function useWebglNeuronSelector({
+  morphology,
+  spikes,
+  minRadius,
+  synapses,
+}: MorphoViewerSimulProps) {
   const refPainter = React.useRef<PainterManager | null>(null);
   if (!refPainter.current) {
     const manager = new PainterManager();
     refPainter.current = manager;
     manager.morphology = morphology;
-    manager.spikingManager.spikes = spikes ?? [];
+    manager.spikes = spikes ?? [];
+    manager.showSynapses(synapses ?? []);
   }
 
   React.useEffect(() => {
     if (refPainter.current) {
-      refPainter.current.spikingManager.spikes = spikes ?? [];
+      refPainter.current.spikes = spikes ?? [];
     }
   }, [spikes]);
+
+  React.useEffect(() => {
+    refPainter.current?.showSynapses(synapses ?? []);
+  }, [synapses]);
 
   // Update morphology when it changes (even if object reference changes)
   React.useEffect(() => {

@@ -2,6 +2,7 @@ import {
   TgdColor,
   TgdContext,
   TgdDataset,
+  TgdEvent,
   TgdPainterFramebuffer,
   TgdPainterProgram,
   TgdTexture2D,
@@ -14,6 +15,8 @@ export interface FramebufferTicksOptions {
 }
 
 export class FramebufferTicks extends TgdPainterFramebuffer {
+  public readonly eventNeedsRefresh = new TgdEvent();
+
   private readonly ticks: PainterTicks;
 
   constructor(
@@ -33,6 +36,8 @@ export class FramebufferTicks extends TgdPainterFramebuffer {
     return this.ticks.spike;
   }
   set spike(spike: MorphoViewerSpikeRecord | undefined) {
+    if (this.ticks.spike === spike) return;
+
     this.ticks.spike = spike;
   }
 }
@@ -149,5 +154,10 @@ export class PainterTicks extends TgdPainterProgram {
     );
     this.setAttributeValues(dataset, "attShift", new Float32Array(data));
     this.context.paint();
+  }
+
+  paint(time: number, delta: number): void {
+    console.log("PainterTicks:", this.instancesCount, this.context.width, this.context.height);
+    super.paint(time, delta);
   }
 }

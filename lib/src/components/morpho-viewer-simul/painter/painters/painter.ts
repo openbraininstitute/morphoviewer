@@ -1,23 +1,17 @@
 /** biome-ignore-all lint/suspicious/noAssignInExpressions: <explanation> */
 import {
-  type TgdColor,
   type TgdContext,
   TgdGeometrySphereIco,
   TgdLight,
   TgdMaterialDiffuse,
   TgdMaterialGhost,
-  TgdPainterClear,
-  TgdPainterFramebuffer,
   TgdPainterGroup,
   TgdPainterMesh,
-  TgdPainterMix,
   type TgdPainterSegmentsData,
   TgdPainterSegmentsMorphing,
   TgdPainterState,
   TgdTexture2D,
   TgdVec3,
-  tgdCalcMapRange,
-  tgdCalcModulo,
   tgdCanvasCreatePalette,
   webglPresetBlend,
   webglPresetDepth,
@@ -27,8 +21,8 @@ import type { MorphologyData } from "../morphology-data";
 import { SpikingManager } from "../spiking-manager";
 import { PALETTE } from "./contants";
 import { PainterHover as PainterHighlight } from "./highlight";
-import { PainterSpikingOverlay } from "./spiking/overlay";
-import { PainterSpiking } from "./spiking/spiking";
+import { PainterSpikingOverlay } from "./overlay";
+import { PainterSpiking } from "./spiking";
 import { PainterSynapses } from "./synapses";
 
 export class Painter extends TgdPainterGroup {
@@ -91,7 +85,7 @@ export class Painter extends TgdPainterGroup {
     this.painterSpikingOverlay = painterSpikingOverlay;
     this.groupSegments.add(
       painterSegments,
-      //   this.groupSynapses,
+      this.groupSynapses,
       painterSpiking,
       new TgdPainterState(context, {
         depth: "off",
@@ -137,15 +131,6 @@ export class Painter extends TgdPainterGroup {
         painter.mix = value;
       }
     });
-  }
-
-  get synapsesEnabled() {
-    return this.groupSynapses.active;
-  }
-
-  set synapsesEnabled(value: boolean) {
-    this.groupSynapses.active = value;
-    this.context.paint();
   }
 
   get synapses() {

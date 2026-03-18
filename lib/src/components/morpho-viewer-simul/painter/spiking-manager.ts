@@ -1,9 +1,11 @@
 import { TgdColor, TgdContext, TgdEvent, TgdTime, TgdVec4 } from "@tolokoban/tgd";
-import { useEventValue } from "@/utils";
 import { MorphoViewerSpikeRecord } from "../types/public";
+import React from "react";
 
 export class SpikingManager {
-  public readonly eventPlayingChange = new TgdEvent<boolean>();
+  private static ID = 1;
+
+  public readonly name = `SpikingManager#${SpikingManager.ID++}`;
   public readonly eventSpikesChange = new TgdEvent<MorphoViewerSpikeRecord[]>();
   public readonly eventSpikeChange = new TgdEvent<MorphoViewerSpikeRecord | undefined>();
   public readonly eventSpikeIndexChange = new TgdEvent<number>();
@@ -13,37 +15,30 @@ export class SpikingManager {
   private _spike: MorphoViewerSpikeRecord | undefined = undefined;
   private _spikeIndex = 0;
   private _flashTime = 0.1;
-  private _playing = false;
-  private readonly virtualTime = new TgdTime();
-  private context: TgdContext | undefined = undefined;
+  private readonly virtualTime: TgdTime;
+
+  constructor(public readonly context: TgdContext) {
+    this.virtualTime = new TgdTime({ context });
+  }
 
   get time() {
     return this.virtualTime.seconds;
   }
 
-  bind(context: TgdContext) {
-    this.unbind();
-    this.context = context;
-    this.virtualTime.bind(context);
-    this._playing = context.playing;
-    this.eventPlayingChange.dispatch(context.playing);
-    context.eventPaintEnter.addListener(this.handlePaintEnter);
-  }
-
-  unbind() {
-    this.context?.eventPaintEnter.removeListener(this.handlePaintEnter);
-    this.context = undefined;
-    this.virtualTime.unbind();
-    this.eventPlayingChange.dispatch(false);
-  }
-
   usePlaying(): [playing: boolean, setPlaying: (playing: boolean) => void] {
-    const playing = useEventValue(this.playing, this.eventPlayingChange);
+    const { context } = this;
+    const [playing, setPlaying] = React.useState(false);
+    React.useEffect(() => {
+      const handler = () => setPlaying(context.playing);
+      context.eventPaintingChange.addListener(handler);
+      return () => context.eventPaintingChange.removeListener(handler);
+    }, []);
+
     return [
       playing,
       (v: boolean) => {
-        const { context } = this;
-        if (context) context.playing = v;
+        if (v) context.play();
+        else context.pause();
       },
     ];
   }
@@ -149,9 +144,9 @@ export class SpikingManager {
     if (spike === this._spike) return;
 
     this._spike = spike;
-    spike?.spikesInSeconds.sort();
+    spike?.spikesInSeconds.sort((a, b) => a - b);
     this.virtualTime.reset();
-    // this.virtualTime.speed = spike?.speed ?? 1;
+    this.virtualTime.speed = spike?.speed ?? 1;
     this.eventSpikeChange.dispatch(spike);
   }
 
@@ -162,6 +157,7 @@ export class SpikingManager {
     if (spikeIndex === this._spikeIndex) return;
 
     this._spikeIndex = spikeIndex;
+    this.spike = this.spikes[spikeIndex];
     const { spike } = this;
     if (spike) {
       this._color.parse(spike.color);
@@ -169,10 +165,4 @@ export class SpikingManager {
     this.eventSpikeIndexChange.dispatch(spikeIndex);
     this.eventSpikeChange.dispatch(this.spike);
   }
-
-  private handlePaintEnter = (context: TgdContext) => {
-    if (context.playing === this._playing) return;
-
-    this.eventPlayingChange.dispatch(context.playing);
-  };
 }
