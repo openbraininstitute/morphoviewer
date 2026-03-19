@@ -15,10 +15,21 @@ export class SpikingManager {
   private _spike: MorphoViewerSpikeRecord | undefined = undefined;
   private _spikeIndex = 0;
   private _flashTime = 0.1;
+  private _speed = 1;
   private readonly virtualTime: TgdTime;
 
   constructor(public readonly context: TgdContext) {
     this.virtualTime = new TgdTime({ context });
+  }
+
+  get speed(): number {
+    return this._speed;
+  }
+  set speed(speed: number) {
+    if (this._speed === speed) return;
+
+    this._speed = speed;
+    this.virtualTime.speed = speed;
   }
 
   get time() {
@@ -113,16 +124,12 @@ export class SpikingManager {
       }
     }
     m = Math.floor((a + b) / 2);
-    const factor = spike.speed / this._flashTime;
+    const factor = 1 / (this.speed * this._flashTime);
     const computeIntensity = (index: number) => 1 - Math.min(Math.abs(data[index] - t) * factor, 1);
     let intensity = computeIntensity(m);
     if (m < data.length - 1) {
       intensity += computeIntensity(m + 1);
     }
-    // console.log();
-    // console.log(data[m], "<", t, "<", data[m + 1]);
-    // console.log(data.map((v) => v.toFixed(2)).join(", "));
-    // console.log("🐞 [spiking-manager@124] intensity =", intensity); // @FIXME: Remove this line written on 2026-03-17 at 15:28
     return intensity;
   }
 
@@ -146,7 +153,6 @@ export class SpikingManager {
     this._spike = spike;
     spike?.spikesInSeconds.sort((a, b) => a - b);
     this.virtualTime.reset();
-    this.virtualTime.speed = spike?.speed ?? 1;
     this.eventSpikeChange.dispatch(spike);
   }
 

@@ -3,6 +3,7 @@ import { useEventValue } from "@/utils";
 import { SpikingManager } from "../spiking-manager";
 import PlayButton from "./play-button";
 import SimulCombo from "./simul-combo";
+import { SpeedCombo } from "./speed-combo";
 
 export interface SpikingControllerProps {
   spikingManager: SpikingManager;
@@ -16,6 +17,7 @@ export default function SpikingController({ spikingManager }: SpikingControllerP
   return (
     <>
       <PlayButton spikingManager={spikingManager} />
+      <SpeedCombo spikingManager={spikingManager} />
       <SimulCombo spikingManager={spikingManager} spikes={spikes} />
     </>
   );

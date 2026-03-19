@@ -1,0 +1,69 @@
+.speedCombo {
+  position: absolute;
+  left: 0;
+  bottom: 48px;
+  width: 48px;
+  height: auto;
+  display: grid;
+  place-items: center;
+}
+
+button.speedComboButton {
+  display: inline-block;
+  font: inherit;
+  font-size: 80%;
+  border: none;
+  color: #000;
+  background: #fff;
+  border-radius: 99vmax;
+  width: 36px;
+  text-align: center;
+
+  &:hover {
+    background: #adf;
+  }
+}
+
+div.dialog {
+  backdrop-filter: brightness(0.333);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.2s;
+  z-index: 9999;
+
+  &.open {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  > div.column {
+    display: flex;
+    flex-wrap: nowrap;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: 0.5em;
+    border: none;
+    background: #0005;
+    position: absolute;
+    top: auto;
+    left: 0;
+    bottom: 80px;
+    padding: 8px;
+    margin: 0;
+
+    > div.row {
+      display: flex;
+      flex-wrap: nowrap;
+      flex-direction: row;
+      justify-content: flex-start;
+      align-items: center;
+      gap: 0.5em;
+    }
+  }
+}

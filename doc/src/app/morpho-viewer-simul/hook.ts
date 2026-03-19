@@ -108,7 +108,7 @@ export function useRandomSpikes(): MorphoViewerSpikeRecord[] {
 
 function randomSpikes(label: string, color: string, count: number): MorphoViewerSpikeRecord {
   const min = Math.random();
-  const max = min + tgdCalcRandom(10, 20);
+  const max = min + tgdCalcRandom(1, 2);
   const times: number[] = [];
   for (let i = 0; i < count; i++) {
     times.push(tgdCalcRandom(min, max));
@@ -117,7 +117,6 @@ function randomSpikes(label: string, color: string, count: number): MorphoViewer
   return {
     label,
     color,
-    speed: 1,
     spikesInSeconds: times,
     timeMinInSeconds: min,
     timeMaxInSeconds: max,

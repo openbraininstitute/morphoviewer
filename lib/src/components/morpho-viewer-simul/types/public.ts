@@ -89,8 +89,4 @@ export interface MorphoViewerSpikeRecord {
    */
   timeMinInSeconds: number;
   timeMaxInSeconds: number;
-  /**
-   * Number of seconds in the simulation time to pass every one second in visualization time.
-   */
-  speed: number;
 }
