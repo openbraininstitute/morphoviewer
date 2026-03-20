@@ -17,12 +17,13 @@ export class SpikingManager {
   private _spike: MorphoViewerSpikeRecord | undefined = undefined;
   private _spikeIndex = 0;
   private _spikingRadiusTime = SPIKING_TIME_RADIUS;
-  private _speed = 1;
+  private _speed = 0;
   private readonly virtualTime: TgdTime;
 
   constructor(public readonly context: TgdContext) {
     this.virtualTime = new TgdTime({ context });
     context.eventPaint.addListener(this.dispatchProgress);
+    this.speed = 0.1;
   }
 
   delete() {

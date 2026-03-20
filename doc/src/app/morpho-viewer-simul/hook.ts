@@ -96,11 +96,11 @@ type Morphology = Record<string, MorphologySection>;
 export function useRandomSpikes(): MorphoViewerSpikeRecord[] {
   return React.useMemo(() => {
     const spikes: MorphoViewerSpikeRecord[] = [
-      randomSpikes("IDREST_0.05", "#1a1ae6", 5),
-      randomSpikes("IDREST_0.1625", "#e61abd", 7),
-      randomSpikes("IDREST_0.0275", "#e66b1a", 10),
-      randomSpikes("IDREST_0.03875", "#6be61a", 15),
-      randomSpikes("IDREST_0.5", "#1ae6bd", 20),
+      randomSpikes("IDREST_0.05", "#1a1ae6", 20),
+      randomSpikes("IDREST_0.1625", "#e61abd", 40),
+      randomSpikes("IDREST_0.0275", "#e66b1a", 60),
+      randomSpikes("IDREST_0.03875", "#6be61a", 80),
+      randomSpikes("IDREST_0.5", "#1ae6bd", 100),
     ];
     return spikes;
   }, []);
@@ -108,9 +108,9 @@ export function useRandomSpikes(): MorphoViewerSpikeRecord[] {
 
 function randomSpikes(label: string, color: string, count: number): MorphoViewerSpikeRecord {
   const min = Math.random();
-  const max = min + tgdCalcRandom(1, 2);
+  const max = min + tgdCalcRandom(2, 3);
   const times: number[] = [];
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < tgdCalcRandom(count / 2, count); i++) {
     times.push(tgdCalcRandom(min, max));
   }
   times.sort();
