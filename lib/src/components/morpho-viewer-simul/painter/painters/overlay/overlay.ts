@@ -10,10 +10,10 @@ import {
   tgdCanvasCreate,
   tgdCanvasCreateWithContext2D,
 } from "@tolokoban/tgd";
-import { OVERLAY_HEIGHT, OVERLAY_MARGIN } from "../../constants";
 import { SpikingManager } from "../../spiking-manager";
 import { PainterCursor } from "./cursor";
 import { FramebufferTicks } from "./ticks";
+import { TIMELINE_HEIGHT, TIMELINE_MARGIN } from "@/components/morpho-viewer-simul/contants";
 
 /**
  * This overlay displays the progress bar of the animation,
@@ -36,9 +36,9 @@ export class PainterSpikingOverlay extends TgdPainterGroup {
     const overlay = new TgdPainterOverlay(context, {
       alignX: +1,
       alignY: -1,
-      margin: OVERLAY_MARGIN,
+      margin: TIMELINE_MARGIN,
       width: undefined, // Maximum width, according to margins.
-      height: OVERLAY_HEIGHT,
+      height: TIMELINE_HEIGHT,
       texture,
     });
     this.painterOverlay = overlay;
@@ -64,9 +64,9 @@ export class PainterSpikingOverlay extends TgdPainterGroup {
   };
 
   private setCursor(cursorX: number) {
-    const [_top, right, _bottom, left] = OVERLAY_MARGIN;
+    const [_top, right, _bottom, left] = TIMELINE_MARGIN;
     const width = this.context.width - left - right;
-    const height = OVERLAY_HEIGHT;
+    const height = TIMELINE_HEIGHT;
     const x = ((width + height) * cursorX) / width;
     const normalizedX = tgdCalcClamp(0.5 * (1 + x), 0, 1);
     this.spikingManager.progress = normalizedX;
@@ -97,17 +97,16 @@ export class PainterSpikingOverlay extends TgdPainterGroup {
   private makeCapsule() {
     const { actualWidth: width, actualHeight: height, spikingManager } = this;
     const color = spikingManager.color.toString();
-    const colorDark = TgdColor.fromString(color).luminanceSet(0.5).toString();
     const { canvas, ctx } = tgdCanvasCreateWithContext2D(width, height);
     ctx.clearRect(0, 0, width, height);
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1;
     const gradFill = ctx.createLinearGradient(0, 0, 0, height);
-    gradFill.addColorStop(0, "#000");
-    gradFill.addColorStop(0.5, "#111");
-    gradFill.addColorStop(1, colorDark);
+    gradFill.addColorStop(0, setAlpha(color, 0.0));
+    gradFill.addColorStop(0.5, setAlpha(color, 0.05));
+    gradFill.addColorStop(1, setAlpha(color, 0.2));
     const gradStroke = ctx.createLinearGradient(0, 0, 0, height);
-    gradStroke.addColorStop(0, color);
-    gradStroke.addColorStop(1, color);
+    gradStroke.addColorStop(0, setAlpha(color, 0.2));
+    gradStroke.addColorStop(1, setAlpha(color, 0));
     ctx.fillStyle = gradFill;
     ctx.strokeStyle = gradStroke;
     ctx.beginPath();
@@ -116,4 +115,13 @@ export class PainterSpikingOverlay extends TgdPainterGroup {
     ctx.stroke();
     return canvas;
   }
+}
+
+function setAlpha(cssColor: string, alpha: number): string {
+  const color = new TgdColor(cssColor);
+  color.rgb2hsl();
+  color.L = alpha / 2;
+  color.hsl2rgb();
+  color.A = 1;
+  return color.toString();
 }

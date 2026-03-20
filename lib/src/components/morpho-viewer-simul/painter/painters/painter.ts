@@ -4,6 +4,7 @@ import {
   TgdGeometrySphereIco,
   TgdLight,
   TgdMaterialDiffuse,
+  TgdMaterialFlatTexture,
   TgdMaterialGhost,
   TgdPainterGroup,
   TgdPainterMesh,
@@ -59,23 +60,27 @@ export class Painter extends TgdPainterGroup {
     this.add(
       new TgdPainterState(context, {
         depth: webglPresetDepth.less,
+        blend: "off",
+        cull: "back",
         children: [this.groupSegments, this.groupHover],
       }),
     );
     const { dataset3D, datasetDendrogram } = data;
+    const material = new TgdMaterialDiffuse({
+      color: this.palette,
+      specularExponent: 1,
+      specularIntensity: 0.25,
+      lockLightsToCamera: true,
+      light: new TgdLight({
+        direction: new TgdVec3(0, 0, -1),
+      }),
+    });
+    // const material = new TgdMaterialFlatTexture({ texture: this.palette });
     const painterSegments = new TgdPainterSegmentsMorphing(context, {
       roundness: 18,
-      minRadius: 0.5,
+      minRadius: 4,
       datasetsPairs: [[dataset3D, datasetDendrogram]],
-      material: new TgdMaterialDiffuse({
-        color: this.palette,
-        specularExponent: 1,
-        specularIntensity: 0.25,
-        lockLightsToCamera: true,
-        light: new TgdLight({
-          direction: new TgdVec3(0, 0, -1),
-        }),
-      }),
+      material,
     });
     painterSegments.mix = this.mix;
     this._painterSegments = painterSegments;

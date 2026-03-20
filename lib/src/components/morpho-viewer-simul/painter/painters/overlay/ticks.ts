@@ -111,14 +111,14 @@ export class PainterTicks extends TgdPainterProgram {
         mainCode: [
           "float x = abs(varCorner.x);",
           "float y = abs(varCorner.y);",
-          "float dx = max(1.0 - pow(x, 0.25), 0.0);",
+          "float dx = max(1.0 - pow(x, 0.125), 0.0);",
           "float dy = max(1.0 - pow(y, 1.0), 0.0);",
           "float strength = 2.0 * dx * dy;",
           "FragColor = vec4(uniColor.rgb * strength, 1.0);",
         ],
       },
       onEnter: () => {
-        const radius = 16;
+        const radius = 32;
         const { width, height } = context;
         uniformBlock.values.uniSize = radius / width;
         uniformBlock.values.uniScale = new Float32Array([

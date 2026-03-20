@@ -1,4 +1,5 @@
 import {
+  tgdCalcMix,
   type TgdContext,
   TgdFilterBlur,
   TgdMaterialSolid,
@@ -15,6 +16,12 @@ import {
 import type { MorphoViewerSpikeRecord } from "../../../types/public";
 import type { MorphologyData } from "../../morphology-data";
 import { SpikingManager } from "../../spiking-manager";
+import {
+  SPIKING_BLUR_SIZE,
+  SPIKING_COLOR,
+  SPIKING_COLOR_MIX,
+  SPIKING_RADIUS_MULTIPLIER,
+} from "@/components/morpho-viewer-simul/contants";
 
 export class PainterSpiking extends TgdPainterGroup {
   private textureInternal: TgdTexture2D | null = null;
@@ -48,7 +55,7 @@ export class PainterSpiking extends TgdPainterGroup {
     if (!framebufferInternal) throw new Error("framebufferInternal is not defined!");
     if (!painterSegments) throw new Error("painterSegments is not defined!");
 
-    const size = 4;
+    const size = SPIKING_BLUR_SIZE;
     const filters = new TgdPainterFilter(context, {
       filters: [...TgdFilterBlur.createPair({ size })],
       texture: framebufferInternal.textureColor0,
@@ -95,7 +102,7 @@ export class PainterSpiking extends TgdPainterGroup {
     const painterSegments = (this.painterSegments = new TgdPainterSegmentsMorphing(context, {
       roundness: 4,
       minRadius: 8,
-      radiusMultiplier: 1.5,
+      radiusMultiplier: SPIKING_RADIUS_MULTIPLIER,
       datasetsPairs: [[dataset3D, datasetDendrogram]],
       material: this.material,
     }));
@@ -131,7 +138,11 @@ export class PainterSpiking extends TgdPainterGroup {
 
   paint(time: number, delta: number) {
     const { spikingManager } = this;
-    const { R, G, B, A } = spikingManager.color;
+    const { R: R1, G: G1, B: B1, A } = spikingManager.color;
+    const [R2, G2, B2] = SPIKING_COLOR;
+    const R = tgdCalcMix(R1, R2, SPIKING_COLOR_MIX);
+    const G = tgdCalcMix(G1, G2, SPIKING_COLOR_MIX);
+    const B = tgdCalcMix(B1, B2, SPIKING_COLOR_MIX);
     const { color } = this.material;
     const { intensity } = spikingManager;
     color.reset(R * intensity, G * intensity, B * intensity, A);

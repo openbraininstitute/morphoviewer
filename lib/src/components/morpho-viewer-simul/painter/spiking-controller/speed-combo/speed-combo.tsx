@@ -7,7 +7,7 @@ export interface SpeedComboProps {
   spikingManager: SpikingManager;
 }
 
-const STEPS = [1, 2, 4, 8, 16, 32, 64];
+const SPEEDS = [1.0, 0.5, 0.25, 0.1, 0.05, 0.01];
 
 export function SpeedCombo({ spikingManager }: SpeedComboProps) {
   const [speed, setSpeed] = React.useState(spikingManager.speed);
@@ -20,7 +20,7 @@ export function SpeedCombo({ spikingManager }: SpeedComboProps) {
     <>
       <div className={styles.speedCombo}>
         <button type="button" className={styles.speedComboButton} onClick={handleOpenDialog}>
-          1:{Math.round(1 / speed)}
+          {speedToText(speed)}
         </button>
       </div>
       <div
@@ -30,16 +30,16 @@ export function SpeedCombo({ spikingManager }: SpeedComboProps) {
         <div className={styles.column}>
           <div>Playback speed:</div>
           <div className={styles.row}>
-            {STEPS.map((step) => (
+            {SPEEDS.map((speed) => (
               <button
                 className={styles.speedComboButton}
-                key={step}
+                key={speed}
                 onClick={() => {
-                  setSpeed(1 / step);
-                  spikingManager.speed = 1 / step;
+                  setSpeed(speed);
+                  spikingManager.speed = speed;
                 }}
               >
-                1:{step}
+                {speedToText(speed)}
               </button>
             ))}
           </div>
@@ -47,4 +47,8 @@ export function SpeedCombo({ spikingManager }: SpeedComboProps) {
       </div>
     </>
   );
+}
+
+function speedToText(speed: number) {
+  return <span>{speed.toFixed(2)}×</span>;
 }

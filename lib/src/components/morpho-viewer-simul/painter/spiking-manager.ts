@@ -1,6 +1,7 @@
 import { TgdColor, TgdContext, TgdEvent, TgdTime, TgdVec4 } from "@tolokoban/tgd";
 import { MorphoViewerSpikeRecord } from "../types/public";
 import React from "react";
+import { SPIKING_TIME_RADIUS } from "../contants";
 
 export class SpikingManager {
   private static ID = 1;
@@ -14,7 +15,7 @@ export class SpikingManager {
   private _spikes: MorphoViewerSpikeRecord[] = [];
   private _spike: MorphoViewerSpikeRecord | undefined = undefined;
   private _spikeIndex = 0;
-  private _flashTime = 0.1;
+  private _spikingRadiusTime = SPIKING_TIME_RADIUS;
   private _speed = 1;
   private readonly virtualTime: TgdTime;
 
@@ -104,6 +105,8 @@ export class SpikingManager {
     if (!spike) return 0;
 
     const { progress } = this;
+    if (progress <= 0) return 0;
+
     const t = progress * (spike.timeMaxInSeconds - spike.timeMinInSeconds) + spike.timeMinInSeconds;
     let a = 0;
     const data = spike.spikesInSeconds;
@@ -124,7 +127,7 @@ export class SpikingManager {
       }
     }
     m = Math.floor((a + b) / 2);
-    const factor = 1 / (this.speed * this._flashTime);
+    const factor = 1 / (this.speed * this._spikingRadiusTime);
     const computeIntensity = (index: number) => 1 - Math.min(Math.abs(data[index] - t) * factor, 1);
     let intensity = computeIntensity(m);
     if (m < data.length - 1) {

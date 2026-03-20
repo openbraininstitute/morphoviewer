@@ -16,7 +16,7 @@ button.speedComboButton {
   color: #000;
   background: #fff;
   border-radius: 99vmax;
-  width: 36px;
+  width: auto;
   text-align: center;
 
   &:hover {
