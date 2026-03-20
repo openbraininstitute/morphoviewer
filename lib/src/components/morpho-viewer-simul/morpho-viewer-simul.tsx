@@ -16,7 +16,7 @@ import {
   useWebglNeuronSelector as useMorphoViewerSimul,
   usePainterController,
 } from "./painter";
-import SpikingController from "./painter/spiking-controller";
+import SpikingController from "./components/spiking-controller";
 import type { MorphoViewerSimulProps } from "./types/public";
 
 // eslint-disable-next-line react/display-name

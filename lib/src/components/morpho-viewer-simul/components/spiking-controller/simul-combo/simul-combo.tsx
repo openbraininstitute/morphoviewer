@@ -1,7 +1,7 @@
 import React from "react";
 import { MorphoViewerSpikeRecord } from "@/components/morpho-viewer-simul/types/public";
 import { classNames } from "@/utils";
-import { SpikingManager } from "../../spiking-manager";
+import { SpikingManager } from "../../../painter/spiking-manager";
 import styles from "./simul-combo.module.css";
 
 export interface SimulComboProps {

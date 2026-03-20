@@ -1,9 +1,10 @@
 import React from "react";
 import { useEventValue } from "@/utils";
-import { SpikingManager } from "../spiking-manager";
+import { SpikingManager } from "../../painter/spiking-manager";
 import PlayButton from "./play-button";
 import SimulCombo from "./simul-combo";
 import { SpeedCombo } from "./speed-combo";
+import { CurrentTime } from "./current-time";
 
 export interface SpikingControllerProps {
   spikingManager: SpikingManager;
@@ -18,6 +19,7 @@ export default function SpikingController({ spikingManager }: SpikingControllerP
     <>
       <PlayButton spikingManager={spikingManager} />
       <SpeedCombo spikingManager={spikingManager} />
+      <CurrentTime spikingManager={spikingManager} />
       <SimulCombo spikingManager={spikingManager} spikes={spikes} />
     </>
   );

@@ -1,0 +1,18 @@
+.currentTime {
+  font-size: 90%;
+  display: inline-block;
+  position: absolute;
+  width: 6em;
+  text-align: center;
+  left: calc(
+    var(--custom-left) + var(--custom-progress) * (100% - var(--custom-left) - var(--custom-right))
+  );
+  bottom: calc(2 * var(--custom-bottom) + var(--custom-height));
+  color: #fff;
+  background-color: #000d;
+  border-radius: 99vmax;
+  padding: 0 0.5em;
+  z-index: 999;
+  transform: translateX(-3em);
+  border: 1px solid #fff3;
+}

@@ -1,5 +1,5 @@
 import React from "react";
-import { SpikingManager } from "../../spiking-manager";
+import { SpikingManager } from "../../../painter/spiking-manager";
 import styles from "./speed-combo.module.css";
 import { classNames } from "@/utils";
 

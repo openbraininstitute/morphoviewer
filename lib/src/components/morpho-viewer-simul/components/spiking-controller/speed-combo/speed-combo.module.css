@@ -1,7 +1,7 @@
 .speedCombo {
   position: absolute;
   left: 0;
-  bottom: 48px;
+  bottom: calc(48px + 32px);
   width: 48px;
   height: auto;
   display: grid;
@@ -53,7 +53,7 @@ div.dialog {
     position: absolute;
     top: auto;
     left: 0;
-    bottom: 80px;
+    bottom: calc(80px + 32px);
     padding: 8px;
     margin: 0;
 

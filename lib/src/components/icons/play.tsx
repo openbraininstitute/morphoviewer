@@ -14,12 +14,17 @@ export function IconPlay({ className, style }: Props) {
         height: "1.5em",
         ...style,
       }}
-      viewBox="0 0 24 24"
+      viewBox="-3 -3 32 32"
       fill="currentColor"
       xmlns="http://www.w3.org/2000/svg"
     >
       <title>play</title>
-      <path d="M8,5.14V19.14L19,12.14L8,5.14Z" />
+      <path
+        d="M8,5.14V19.14L19,12.14L8,5.14Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="3"
+      />
     </svg>
   );
 }

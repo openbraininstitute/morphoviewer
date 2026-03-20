@@ -7,6 +7,7 @@ export class SpikingManager {
   private static ID = 1;
 
   public readonly name = `SpikingManager#${SpikingManager.ID++}`;
+  public readonly eventProgressChange = new TgdEvent<number>();
   public readonly eventSpikesChange = new TgdEvent<MorphoViewerSpikeRecord[]>();
   public readonly eventSpikeChange = new TgdEvent<MorphoViewerSpikeRecord | undefined>();
   public readonly eventSpikeIndexChange = new TgdEvent<number>();
@@ -21,6 +22,11 @@ export class SpikingManager {
 
   constructor(public readonly context: TgdContext) {
     this.virtualTime = new TgdTime({ context });
+    context.eventPaint.addListener(this.dispatchProgress);
+  }
+
+  delete() {
+    this.context.eventPaint.removeListener(this.dispatchProgress);
   }
 
   get speed(): number {
@@ -42,8 +48,8 @@ export class SpikingManager {
     const [playing, setPlaying] = React.useState(false);
     React.useEffect(() => {
       const handler = () => setPlaying(context.playing);
-      context.eventPaintingChange.addListener(handler);
-      return () => context.eventPaintingChange.removeListener(handler);
+      context.eventPlayingChange.addListener(handler);
+      return () => context.eventPlayingChange.removeListener(handler);
     }, []);
 
     return [
@@ -174,4 +180,8 @@ export class SpikingManager {
     this.eventSpikeIndexChange.dispatch(spikeIndex);
     this.eventSpikeChange.dispatch(this.spike);
   }
+
+  private readonly dispatchProgress = () => {
+    this.eventProgressChange.dispatch(this.progress);
+  };
 }

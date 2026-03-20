@@ -48,8 +48,8 @@ export class PainterSpikingOverlay extends TgdPainterGroup {
       this.actualHeight = height;
       this.refresh();
     });
-    overlay.eventPointerTap.addListener(this.handleTap);
-    overlay.eventPointerMove.addListener(this.handleMove);
+    overlay.eventTap.addListener(this.handleTap);
+    overlay.eventMove.addListener(this.handleMove);
     spikingManager.eventSpikeChange.addListener(this.refresh);
     this.add(overlay, this.painterCursor);
   }
@@ -62,6 +62,12 @@ export class PainterSpikingOverlay extends TgdPainterGroup {
     this.setCursor(evt.current.x);
     return true;
   };
+
+  /**
+   * Returning `true` prevents the event from propagating to the parent.
+   */
+  private readonly handleMoveStart = () => true;
+  private readonly handleMoveEnd = () => true;
 
   private setCursor(cursorX: number) {
     const [_top, right, _bottom, left] = TIMELINE_MARGIN;
@@ -76,8 +82,10 @@ export class PainterSpikingOverlay extends TgdPainterGroup {
   delete(): void {
     this.painterTicks.delete();
     this.painterOverlay.texture?.delete();
-    this.painterOverlay.eventPointerTap.addListener(this.handleTap);
-    this.painterOverlay.eventPointerMove.addListener(this.handleMove);
+    this.painterOverlay.eventTap.addListener(this.handleTap);
+    this.painterOverlay.eventMoveStart.addListener(this.handleMoveStart);
+    this.painterOverlay.eventMove.addListener(this.handleMove);
+    this.painterOverlay.eventMoveEnd.addListener(this.handleMoveEnd);
     this.painterOverlay.delete();
     this.spikingManager.eventSpikeChange.removeListener(this.refresh);
     super.delete();
