@@ -47,7 +47,7 @@ const EMPTY_SEGMENTS: Readonly<Map<number, TgdPainterSegmentsData>> = new Map<
 export class PainterManager extends Initializer {
   private static id = 0;
 
-  public minRadius = 2;
+  public minRadius = 3;
   public disableElectrodes = false;
   public readonly id = PainterManager.id++;
   public readonly eventError = new TgdEvent<string>();
@@ -124,6 +124,11 @@ export class PainterManager extends Initializer {
     if (this._mode === mode) return;
 
     this._mode = mode;
+    const { cameraController } = this;
+    if (cameraController) {
+      // Prevent orbiting in "dendrogram" move.
+      cameraController.speedOrbit = mode === "3d" ? 1 : 0;
+    }
     if (this.view) {
       this.view.mode = mode;
     }

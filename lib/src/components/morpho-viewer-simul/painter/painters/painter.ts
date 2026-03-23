@@ -78,7 +78,6 @@ export class Painter extends TgdPainterGroup {
     // const material = new TgdMaterialFlatTexture({ texture: this.palette });
     const painterSegments = new TgdPainterSegmentsMorphing(context, {
       roundness: 18,
-      minRadius: 4,
       datasetsPairs: [[dataset3D, datasetDendrogram]],
       material,
     });
