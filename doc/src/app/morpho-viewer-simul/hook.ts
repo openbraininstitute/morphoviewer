@@ -94,16 +94,18 @@ interface MorphologySection {
 type Morphology = Record<string, MorphologySection>;
 
 export function useRandomSpikes(): MorphoViewerSpikeRecord[] {
-  return React.useMemo(() => {
-    const spikes: MorphoViewerSpikeRecord[] = [
-      randomSpikes("IDREST_0.05", "#1a1ae6", 20),
-      randomSpikes("IDREST_0.1625", "#e61abd", 40),
-      randomSpikes("IDREST_0.0275", "#e66b1a", 60),
-      randomSpikes("IDREST_0.03875", "#6be61a", 80),
-      randomSpikes("IDREST_0.5", "#1ae6bd", 100),
-    ];
-    return spikes;
-  }, []);
+  return React.useMemo(makeRandomSpikes, []);
+}
+
+export function makeRandomSpikes() {
+  const spikes: MorphoViewerSpikeRecord[] = [
+    randomSpikes("IDREST_0.05", "#1a1ae6", 20),
+    randomSpikes("IDREST_0.1625", "#e61abd", 40),
+    randomSpikes("IDREST_0.0275", "#e66b1a", 60),
+    randomSpikes("IDREST_0.03875", "#6be61a", 80),
+    randomSpikes("IDREST_0.5", "#1ae6bd", 100),
+  ];
+  return spikes;
 }
 
 function randomSpikes(label: string, color: string, count: number): MorphoViewerSpikeRecord {

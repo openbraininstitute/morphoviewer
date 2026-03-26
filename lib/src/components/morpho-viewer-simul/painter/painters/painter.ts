@@ -4,7 +4,6 @@ import {
   TgdGeometrySphereIco,
   TgdLight,
   TgdMaterialDiffuse,
-  TgdMaterialFlatTexture,
   TgdMaterialGhost,
   TgdPainterGroup,
   TgdPainterMesh,
@@ -36,7 +35,6 @@ export class Painter extends TgdPainterGroup {
   });
   private readonly groupHover = new TgdPainterGroup();
   private readonly painterSpiking: PainterSpiking;
-  private readonly painterSpikingOverlay: PainterSpikingOverlay;
   private readonly palette: TgdTexture2D;
   private _painterSegments: TgdPainterSegmentsMorphing | null = null;
   /**
@@ -86,7 +84,6 @@ export class Painter extends TgdPainterGroup {
     const painterSpiking = new PainterSpiking(context, data, spikingManager);
     this.painterSpiking = painterSpiking;
     const painterSpikingOverlay = new PainterSpikingOverlay(context, spikingManager);
-    this.painterSpikingOverlay = painterSpikingOverlay;
     this.groupSegments.add(
       painterSegments,
       this.groupSynapses,
@@ -110,14 +107,6 @@ export class Painter extends TgdPainterGroup {
     if (this._painterSegments) {
       this._painterSegments.minRadius = minRadius;
     }
-  }
-
-  get spike() {
-    return this._spike;
-  }
-  set spike(value: MorphoViewerSpikeRecord | undefined) {
-    this._spike = value;
-    this.context.paint();
   }
 
   get mix() {

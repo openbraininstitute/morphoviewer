@@ -39,6 +39,11 @@ div.viewer {
     height: 750px;
   }
 
+  &.small {
+    width: 640px;
+    height: 480px;
+  }
+
   &.portrait {
     width: 500px;
     height: 750px;

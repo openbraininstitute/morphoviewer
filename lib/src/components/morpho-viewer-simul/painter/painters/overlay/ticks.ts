@@ -157,7 +157,6 @@ export class PainterTicks extends TgdPainterProgram {
   }
 
   paint(time: number, delta: number): void {
-    console.log("PainterTicks:", this.instancesCount, this.context.width, this.context.height);
     super.paint(time, delta);
   }
 }

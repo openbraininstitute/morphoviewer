@@ -2,11 +2,13 @@ import {
   type MorphoViewerElectrodeInjection,
   type MorphoViewerElectrodeRecording,
   MorphoViewerSimul,
+  MorphoViewerSpikeRecord,
 } from "@bbp/morphoviewer";
 import AtomicState from "@tolokoban/react-state";
-import { isType } from "@tolokoban/type-guards";
+import { isString, isType } from "@tolokoban/type-guards";
 import {
   IconDelete,
+  useLocalStorageState,
   ViewButton,
   ViewInputNumber,
   ViewOptions,
@@ -18,6 +20,7 @@ import { SYNAPSES } from "./data";
 import { useMorphologyTree, useRandomSpikes } from "./hook";
 import styles from "./page.module.css";
 import { classNames } from "@/utils";
+import { SpikesSettings } from "./_/spikes-settings";
 
 const recordingsState = new AtomicState<MorphoViewerElectrodeRecording[]>(
   [
@@ -48,11 +51,20 @@ export default function Page() {
   const [example, setExample] = React.useState("01");
   const tree = useMorphologyTree(example);
   const [injection, setInjection] = injectionState.useState();
-  const spikes = useRandomSpikes();
+  const [spikes, setSpikes] = useLocalStorageState(
+    [],
+    "MorphoViewerSimul/spikes",
+    ensureMorphoViewerSpikeRecordArray,
+  );
   const handleRemove = (rec: MorphoViewerElectrodeRecording): void => {
     setRecordings(recordings.filter((item) => item !== rec));
   };
-  const [resolution, setResolution] = React.useState("landscape");
+  const [resolution, setResolution] = useLocalStorageState(
+    "landscape",
+    "MorphoViewerSimul/resolution",
+    (data: unknown) =>
+      isString(data) && ["landscape", "portrait", "small"].includes(data) ? data : "landscape",
+  );
 
   return (
     <div className={styles.page}>
@@ -60,6 +72,7 @@ export default function Page() {
         <ViewOptions value={resolution} onChange={setResolution}>
           <div key="landscape">Landscape</div>
           <div key="portrait">Portrait</div>
+          <div key="small">Small</div>
         </ViewOptions>
         <div className={classNames(styles.viewer, styles[resolution])}>
           {tree && typeof tree !== "string" && (
@@ -95,6 +108,7 @@ export default function Page() {
           <div key="02">Cell #2</div>
           <div key="03">Cell #3</div>
         </ViewOptions>
+        <SpikesSettings spikes={spikes} onSpikesChange={setSpikes} />
         <p>You can hover and click the segments.</p>
         {injection && (
           <ViewPanel margin={["M", 0]} padding={"M"} backColor="neutral-1">
@@ -169,4 +183,21 @@ function isMorphoViewerElectrodeInjection(data: unknown): data is MorphoViewerEl
     inject_to: "string",
     current: ["?", "number"],
   });
+}
+
+function isMorphoViewerSpikeRecordArray(data: unknown): data is MorphoViewerSpikeRecord[] {
+  return isType(data, [
+    "array",
+    {
+      label: "string",
+      color: "string",
+      spikesInSeconds: ["array", "number"],
+      timeMinInSeconds: "number",
+      timeMaxInSeconds: "number",
+    },
+  ]);
+}
+
+function ensureMorphoViewerSpikeRecordArray(data: unknown): MorphoViewerSpikeRecord[] {
+  return isMorphoViewerSpikeRecordArray(data) ? data : [];
 }

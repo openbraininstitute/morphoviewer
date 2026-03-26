@@ -319,7 +319,6 @@ export class PainterManager extends Initializer {
       this.initOffscreen(context, data, view);
       this.eventHintVisible.dispatch(false);
       this.fitCamera();
-      context.debugHierarchy();
     } catch (error) {
       console.error(error);
       throw error;
@@ -346,11 +345,6 @@ export class PainterManager extends Initializer {
       context.camera.setCurrentState(this.lastCameraState);
       this.eventRestingPosition.dispatch(false);
     }
-    context.inputs.pointer.eventTapMultiple.addListener(() => {
-      console.log(context.camera.toCode());
-      console.log("🐞 [manager@340] this.context =", this.context); // @FIXME: Remove this line written on 2026-03-12 at 11:52
-      this.context?.debugHierarchy();
-    });
     context.paint();
     return context;
   }

@@ -92,13 +92,20 @@ export class PainterSpikingOverlay extends TgdPainterGroup {
   }
 
   private readonly refresh = () => {
-    this.context.paintOneTime({
-      paint: (time: number, delta: number) => {
-        this.painterOverlay.texture?.loadBitmap(this.makeCapsule());
-        this.painterTicks.spike = this.spikingManager.spike;
-        this.painterTicks.paint(time, delta);
-      },
-    });
+    const spike = this.spikingManager.spike;
+    if (spike) {
+      this.active = true;
+      this.context.paintOneTime({
+        paint: (time: number, delta: number) => {
+          this.painterOverlay.texture?.loadBitmap(this.makeCapsule());
+          this.painterTicks.spike = spike;
+          this.painterTicks.paint(time, delta);
+        },
+      });
+    } else {
+      this.active = false;
+      this.context.pause();
+    }
     this.context.paint();
   };
 
