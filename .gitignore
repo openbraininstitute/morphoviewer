@@ -7,3 +7,5 @@ test-coverage/
 *.tgz
 **/*.tsbuildinfo
 **/.tsbuildinfo
+**/.VSCodeCounter/
+.VSCodeCounter/
