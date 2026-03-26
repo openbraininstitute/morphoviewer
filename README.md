@@ -6,26 +6,6 @@
 
 [See it in action](https://openbraininstitute.github.io/morphoviewer/).
 
-## Usage
-
-API documentation and exaples can be found [here](https://openbraininstitute.github.io/morphoviewer/).
-
-```tsx
-import React from "react"
-import { MorphologyCanvas } from "@bbp/morphoviewer"
-
-export default functon MyCellViewer({ swc }: { swc: string }) {
-    const refPainter = React.useRef(new MorphologyCanvas())
-    React.useEffect(
-        () => {
-            refPainter.current.swc = swc
-        },
-        [swc]
-    )
-    return <canvas ref={(canvas) => refPainter.canvas = canvas} />
-}
-```
-
 ## Developent
 
 ```ts
