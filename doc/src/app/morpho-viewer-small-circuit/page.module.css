@@ -1,0 +1,8 @@
+div.page {
+	padding: 1em;
+
+	div.viewer {
+		width: 1000px;
+		height: 750px;
+	}
+}

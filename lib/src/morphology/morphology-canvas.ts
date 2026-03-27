@@ -1,28 +1,23 @@
 import {
-  TgdColor,
-  TgdControllerCameraOrbitZoomRequest,
-  TgdDataset,
+  type TgdControllerCameraOrbitZoomRequest,
   TgdEvent,
   TgdMat3,
-  TgdMaterialDiffuse,
+  type TgdMaterialDiffuse,
   TgdPainterClear,
   TgdPainterDepth,
-  TgdPainterMesh,
-  TgdParserGLTransfertFormatBinary,
+  TgdPainterLogic,
   TgdQuat,
   TgdVec3,
-  TgdVec4,
   tgdActionCreateCameraInterpolation,
   tgdEasingFunctionInOutCubic,
   tgdFullscreenTest,
-} from "@tgd";
-import { TgdGeometry } from "@tgd/geometry";
+} from "@tolokoban/tgd";
 
-import { AbstractCanvas, CanvasOptions } from "../abstract-canvas";
-import Colors, { ColorsInterface, colorToRGBA } from "../colors";
-import { CellNode, parseSwc } from "../parser/swc";
-import { ScalebarOptions, computeScalebarAttributes } from "../scalebar";
-import { CellNodeType, ColoringType } from "../types";
+import { AbstractCanvas, type CanvasOptions } from "../abstract-canvas";
+import Colors, { type ColorsInterface, colorToRGBA } from "../colors";
+import { type CellNode, parseSwc } from "../parser/swc";
+import { computeScalebarAttributes, type ScalebarOptions } from "../scalebar";
+import { CellNodeType, type ColoringType } from "../types";
 import { SwcPainter } from "./painter";
 import { CellNodes } from "./painter/nodes";
 
@@ -66,18 +61,17 @@ export class MorphologyCanvas extends AbstractCanvas {
   private _radiusType: number = 0;
   private _radiusMultiplier: number = 1;
   private material: TgdMaterialDiffuse | null = null;
-  private somaPainter: TgdPainterMesh | null = null;
-  private _somaGLB: ArrayBuffer | null = null;
   private _nodes: CellNode[] = [];
+  private morphoWidthAtTarget = 1;
+  private morphoHeightAtTarget = 1;
 
   constructor(options: Partial<CanvasOptions> = {}) {
     super({
       name: "MorphologyCanvas",
       cameraController: {
-        minZoom: 0.1,
+        minZoom: 0.5,
         maxZoom: 100,
-        inertiaOrbit: 500,
-        fixedTarget: true,
+        inertiaOrbit: 1000,
       },
       ...options,
     });
@@ -165,7 +159,7 @@ export class MorphologyCanvas extends AbstractCanvas {
     const { context } = this;
     if (!context) return;
 
-    context.camera.orientation = journey.from;
+    context.camera.transfo.orientation = journey.from;
     this.resetCamera(journey.to, 300);
   };
 
@@ -184,30 +178,23 @@ export class MorphologyCanvas extends AbstractCanvas {
         nodes,
         newOrientation ?? new TgdQuat(),
       );
-      const morphoWidth = Math.max(1e-6, 2 * Math.abs(sx));
-      const morphoHeight = Math.max(1e-6, 2 * Math.abs(sy));
-      const morphoRatio = morphoWidth / morphoHeight;
-      const canvasWidth = camera.screenWidth;
-      const canvasHeight = camera.screenHeight;
-      const canvasRatio = canvasWidth / canvasHeight;
-      const height =
-        canvasRatio > morphoRatio
-          ? morphoHeight
-          : (morphoHeight * morphoRatio) / canvasRatio;
+      const morphoWidth = Math.max(1e-6, Math.abs(sx));
+      const morphoHeight = Math.max(1e-6, Math.abs(sy));
+      this.morphoWidthAtTarget = morphoWidth;
+      this.morphoHeightAtTarget = morphoHeight;
+      camera.fitSpaceAtTarget(morphoWidth, morphoHeight);
+      camera.zoom = 0.1;
       context.animSchedule({
         action: tgdActionCreateCameraInterpolation(camera, {
-          // We keep a margin of 5%
-          spaceHeightAtTarget: height * 1.05,
           zoom: 1,
-          target: nodes.center,
-          shift: new TgdVec3(0, 0, 0),
+          position: nodes.center,
           orientation: newOrientation,
         }),
         duration: transition,
         easingFunction: tgdEasingFunctionInOutCubic,
       });
     } else {
-      camera.face("+X+Y+Z");
+      camera.transfo.orientation.face("+X+Y+Z");
     }
     context.paint();
   };
@@ -271,7 +258,6 @@ export class MorphologyCanvas extends AbstractCanvas {
     this._swc = swc;
     this.nodesManager = null;
     if (swc) {
-      console.log("🚀 [morphology-canvas] swc =", swc); // @FIXME: Remove this line written on 2025-09-25 at 10:55
       this.nodes = parseSwc(swc);
     }
   }
@@ -285,55 +271,6 @@ export class MorphologyCanvas extends AbstractCanvas {
     this._maxDendriteLength = nodesManager.computeDistancesFromSoma();
     this.nodesManager = nodesManager;
     this.init();
-  }
-
-  set somaGLB(data: ArrayBuffer | null) {
-    const { context } = this;
-    if (!context) return;
-
-    if (this._somaGLB === data) return;
-
-    this._somaGLB = data;
-    if (this.somaPainter) context.remove(this.somaPainter);
-    this.somaPainter = null;
-    if (data) {
-      const parser = new TgdParserGLTransfertFormatBinary(data);
-      const gltf = parser.gltf;
-      console.log("🚀 [morphology-canvas] gltf = ", gltf); // @FIXME: Remove this line written on 2024-05-02 at 15:27
-      const meshIndex = 0;
-      const primitiveIndex = 0;
-      const elements = parser.getMeshPrimitiveIndices(
-        meshIndex,
-        primitiveIndex,
-      );
-      const dataset = new TgdDataset({
-        POSITION: "vec3",
-        NORMAL: "vec3",
-      });
-      parser.setAttrib(dataset, "POSITION", meshIndex, primitiveIndex);
-      const geometry = new TgdGeometry({
-        dataset,
-        elements,
-        drawMode: "TRIANGLES",
-        computeNormalsIfMissing: true,
-      });
-      const material = new TgdMaterialDiffuse({
-        color: new TgdVec4(...colorToRGBA(this.colors.soma, 1)),
-      });
-      const painter = new TgdPainterMesh(context, {
-        geometry,
-        material,
-      });
-      this.material = material;
-      this.somaPainter = painter;
-      context.add(painter);
-      // Hide the approximate soma.
-      const color = new TgdColor(this.colors.soma);
-      color.A = 0.99;
-      this.colors.soma = color.toString();
-      if (this.painter) this.painter.somaVisible = false;
-    }
-    this.paint();
   }
 
   public readonly paint = () => {
@@ -360,7 +297,7 @@ export class MorphologyCanvas extends AbstractCanvas {
     this.resetClearColor();
     if (this.material) {
       const rgba = colorToRGBA(this.colors.soma, 1);
-      this.material.color = new TgdVec4(...rgba);
+      //   this.material.texture  .color = new TgdVec4(...rgba);
     }
     this.paint();
   };
@@ -404,7 +341,17 @@ export class MorphologyCanvas extends AbstractCanvas {
         this.customColorsForDistance,
       );
     this.painter = segments;
-    context.add(clear, depth, this.painter);
+    context.add(
+      new TgdPainterLogic(() => {
+        context.camera.fitSpaceAtTarget(
+          this.morphoWidthAtTarget,
+          this.morphoHeightAtTarget,
+        );
+      }),
+      clear,
+      depth,
+      this.painter,
+    );
     const { orbiter } = this;
     if (orbiter) orbiter.onZoomRequest = this.handleZoomRequest;
   }
@@ -419,7 +366,10 @@ export class MorphologyCanvas extends AbstractCanvas {
     const { context } = this;
     if (!context) return false;
 
-    if (tgdFullscreenTest(context.canvas)) return true;
+    const { canvas } = context.gl;
+    if (canvas instanceof HTMLCanvasElement && tgdFullscreenTest(canvas)) {
+      return true;
+    }
 
     return evt.ctrlKey;
   };

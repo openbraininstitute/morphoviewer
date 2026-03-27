@@ -1,0 +1,72 @@
+div.page {
+  padding: 1em;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1em;
+
+  div.recordings {
+    display: grid;
+    grid-template-columns: auto auto auto;
+    gap: 0.5em 1.5em;
+    place-items: center;
+
+    .box {
+      color: #000;
+      font-weight: bold;
+      padding: 0.5em 1em;
+    }
+
+    button {
+      font: inherit;
+      border: none;
+      box-shadow: 0 0.125em 0.25em #000;
+      cursor: pointer;
+      width: 2.5em;
+      height: 2.5em;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+    }
+  }
+}
+
+div.viewer {
+  position: relative;
+  border: none;
+
+  &.landscape {
+    width: 1000px;
+    height: 750px;
+  }
+
+  &.small {
+    width: 640px;
+    height: 480px;
+  }
+
+  &.portrait {
+    width: 500px;
+    height: 750px;
+  }
+
+  > .grid {
+    display: grid;
+    place-items: center;
+
+    .error {
+      background-color: #e30;
+      color: #fffd;
+      font-weight: bold;
+      padding: 2em;
+      border-radius: 2em;
+    }
+  }
+
+  > * {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+  }
+}

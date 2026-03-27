@@ -1,8 +1,8 @@
 {
     "name": "@bbp/morphoviewer",
-    "version": "0.21.2",
+    "version": "0.24.4",
     "description": "Class to display SWC morphology files in 3D",
-    "main": "./dist/index.js",
+    "main": "./lib/dist/index.js",
     "module": "./lib/dist/index.js",
     "types": "./lib/dist",
     "files": [
@@ -16,20 +16,26 @@
         "SWC",
         "morphology",
         "BBP",
-        "OBP",
+        "OBI",
         "webgl2"
     ],
     "scripts": {
-        "ci": "cd lib && npm install && npm run build",
-        "minor": "npm version minor -no-git-tag-version --force && cd lib && npm version minor -no-git-tag-version --force && cd ../app && npm version minor -no-git-tag-version --force",
-        "patch": "npm version patch -no-git-tag-version --force && cd lib && npm version patch -no-git-tag-version --force && cd ../app && npm version patch -no-git-tag-version --force",
-        "test": "cd lib && npm test"
+        "clean": "rm -rf dist node_modules package-lock.json lib/node_modules lib/package-lock.json doc/node_modules doc/package-lock.json && npm run version",
+        "prebuild": "npm run version",
+        "build": "cd lib && npm install && npm run build && cd .. && npm pack",
+        "minor": "npm version minor -no-git-tag-version --force && node version.mjs",
+        "patch": "npm version patch -no-git-tag-version --force && node version.mjs",
+        "test": "cd lib && npm test",
+        "version": "node version.mjs"
     },
-    "author": "Fabien PETITJEAN <fabien.petitjean@epfl.ch>",
+    "author": "Fabien PETITJEAN <fabien.petitjean@openbraininstitute.org>",
     "license": "Apache-2.0",
-    "devDependencies": {
-        "canvas": "^2.11.2",
-        "jest-canvas-mock": "^2.5.2",
-        "prettier": "^3.6.2"
+    "peerDependencies": {
+        "react": "^19.2.4"
+    },
+    "dependencies": {
+        "@tolokoban/tgd": "^2.0.118",
+        "fflate": "^0.8.2",
+        "tslib": "^2.8.1"
     }
 }

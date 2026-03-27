@@ -1,0 +1,60 @@
+.zoomSlider {
+  display: flex;
+  flex-wrap: nowrap;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.5em;
+  width: 50%;
+  z-index: 9;
+
+  > * {
+    flex: 1 1 auto;
+  }
+
+  > button {
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    width: 1.5em;
+    height: 1.5em;
+    border-radius: 0.25em;
+    cursor: pointer;
+    background-color: #adf0;
+    transition: all 0.3s;
+
+    &:hover {
+      background-color: #adf;
+      color: #000;
+    }
+  }
+
+  > :global(.ant-slider) {
+    > :global(.ant-slider-rail) {
+      background-color: #fff7;
+    }
+  }
+
+  --color-input-range: #adf;
+
+  /* input[type="range"]::-webkit-slider-thumb {
+    background: var(--color-input-range);
+    cursor: pointer;
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    background: var(--color-input-range);
+    cursor: pointer;
+  }
+
+  input[type="range"]::-ms-thumb {
+    background: var(--color-input-range);
+    cursor: pointer;
+  } */
+}
+
+@container (width < 600px) {
+  .zoomSlider > input {
+    display: none;
+  }
+}

@@ -1,108 +1,151 @@
-import { TgdContext, TgdPainterSegments } from "@tgd"
+/** biome-ignore-all lint/suspicious/noAssignInExpressions: <explanation> */
+import {
+  type TgdContext,
+  TgdMaterialDiffuse,
+  TgdPainterGroup,
+  TgdPainterSegments,
+  TgdTexture2D,
+} from "@tolokoban/tgd";
 
-import { ColorsInterface } from "@/colors"
-import { CellNodes } from "./nodes"
-import { getDistancesTextureCanvas, getRegionsTextureCanvas } from "./textures"
-import { makeData } from "./factory"
+import { makeData } from "./factory";
+import { getDistancesTextureCanvas, getRegionsTextureCanvas } from "./textures";
 
-export class SwcPainter extends TgdPainterSegments {
-    public minRadius = 1.5
+import type { ColorsInterface } from "@/colors";
+import type { CellNodes } from "./nodes";
 
-    private colors: ColorsInterface | undefined
-    private _colorBy: "section" | "distance" = "section"
-    private textureIsOutOfDate = true
-    private _somaVisible = true
+export class SwcPainter extends TgdPainterGroup {
+  private colors: ColorsInterface | undefined;
+  private _colorBy: "section" | "distance" = "section";
+  private textureIsOutOfDate = true;
+  private _somaVisible = true;
+  private readonly texture: TgdTexture2D;
+  private radiusSwitch = 0;
+  private customColorsForSection: string[] | null = null;
+  private customColorsForDistance: string[] | null = null;
+  private readonly painterNeurites: TgdPainterSegments;
 
-    private customColorsForSection: string[] | null = null
-    private customColorsForDistance: string[] | null = null
+  constructor(
+    public readonly context: TgdContext,
+    nodes: CellNodes,
+  ) {
+    super();
+    const texture = (this.texture = new TgdTexture2D(context, {
+      params: {
+        wrapR: "CLAMP_TO_EDGE",
+        wrapS: "CLAMP_TO_EDGE",
+        wrapT: "CLAMP_TO_EDGE",
+      },
+    }));
+    const material = new TgdMaterialDiffuse({
+      color: texture,
+      lockLightsToCamera: true,
+    });
+    const { neurites, soma } = makeData(nodes);
+    const painterNeurites = (this.painterNeurites = new TgdPainterSegments(
+      context,
+      {
+        dataset: neurites.makeDataset,
+        minRadius: 2,
+        roundness: 8,
+        material,
+      },
+    ));
+    const painterSoma = new TgdPainterSegments(context, {
+      dataset: soma.makeDataset,
+      minRadius: 2,
+      roundness: 48,
+      material,
+    });
+    this.add(painterNeurites, painterSoma);
+  }
 
-    constructor(context: TgdContext, nodes: CellNodes) {
-        super(context, makeData(nodes))
-    }
+  get minRadius() {
+    return this.painterNeurites.minRadius;
+  }
+  set minRadius(radius: number) {
+    this.painterNeurites.minRadius = radius;
+  }
 
-    get somaVisible() {
-        return this._somaVisible
-    }
+  get radiusMultiplier() {
+    return this.painterNeurites.radiusMultiplier;
+  }
+  set radiusMultiplier(radius: number) {
+    console.log("🐞 [painter@67] radius =", radius); // @FIXME: Remove this line written on 2026-02-18 at 10:09
+    this.painterNeurites.radiusMultiplier = radius;
+  }
 
-    set somaVisible(visible: boolean) {
-        if (visible === this._somaVisible) return
+  get somaVisible() {
+    return this._somaVisible;
+  }
 
-        this._somaVisible = visible
-        this.textureIsOutOfDate = true
-    }
+  set somaVisible(visible: boolean) {
+    if (visible === this._somaVisible) return;
 
-    get colorBy() {
-        return this._colorBy
-    }
-    set colorBy(value: "section" | "distance") {
-        if (value === this._colorBy) return
+    this._somaVisible = visible;
+    this.textureIsOutOfDate = true;
+  }
 
-        this._colorBy = value
-        this.textureIsOutOfDate = true
-        this.refresh()
-    }
+  get colorBy() {
+    return this._colorBy;
+  }
+  set colorBy(value: "section" | "distance") {
+    if (value === this._colorBy) return;
 
-    get radiusType() {
-        return this.radiusSwitch
-    }
-    set radiusType(value: number) {
-        this.radiusSwitch = value
-    }
+    this._colorBy = value;
+    this.textureIsOutOfDate = true;
+    this.refresh();
+  }
 
-    public readonly paint = (time: number, delay: number) => {
-        // const radiusVariable = 1 - this._radiusType
-        // const radiusConstant = this._radiusType
-        this.updateTextureIfNeeded()
-        this.light = 1
-        this.shiftZ = 0
-        super.paint(time, delay)
-        // We now want to draw the outline.
-        const radiusMultiplier = this.radiusMultiplier
-        this.radiusMultiplier *= 1.5
-        this.light = 0.25
-        this.shiftZ = 0.5
-        super.paint(time, delay)
-        this.radiusMultiplier = radiusMultiplier
-    }
+  get radiusType() {
+    return this.radiusSwitch;
+  }
+  set radiusType(value: number) {
+    this.radiusSwitch = value;
+  }
 
-    private updateTextureIfNeeded() {
-        const {
-            colorTexture,
-            colorBy,
-            textureIsOutOfDate,
-            customColorsForSection,
-            customColorsForDistance,
-        } = this
-        if (textureIsOutOfDate) {
-            colorTexture.loadImage(
-                colorBy === "section"
-                    ? getRegionsTextureCanvas(
-                          this.somaVisible,
-                          this.colors ?? {},
-                          customColorsForSection
-                      )
-                    : getDistancesTextureCanvas(
-                          this.colors ?? {},
-                          customColorsForDistance
-                      )
+  public readonly paint = (time: number, delay: number) => {
+    this.updateTextureIfNeeded();
+    super.paint(time, delay);
+  };
+
+  private updateTextureIfNeeded() {
+    const {
+      texture,
+      colorBy,
+      textureIsOutOfDate,
+      customColorsForSection,
+      customColorsForDistance,
+    } = this;
+    if (textureIsOutOfDate) {
+      texture.loadBitmap(
+        colorBy === "section"
+          ? getRegionsTextureCanvas(
+              this.somaVisible,
+              this.colors ?? {},
+              customColorsForSection,
             )
-            this.textureIsOutOfDate = false
-        }
+          : getDistancesTextureCanvas(
+              this.colors ?? {},
+              customColorsForDistance,
+            ),
+      );
+      this.textureIsOutOfDate = false;
     }
+  }
 
-    resetColors(
-        colors: ColorsInterface,
-        customColorsForSection: string[] | null,
-        customColorsForDistance: string[] | null
-    ) {
-        this.textureIsOutOfDate = true
-        this.customColorsForSection = customColorsForSection
-        this.customColorsForDistance = customColorsForDistance
-        this.colors = colors
-        this.refresh()
-    }
+  resetColors(
+    colors: ColorsInterface,
+    customColorsForSection: string[] | null,
+    customColorsForDistance: string[] | null,
+  ) {
+    this.textureIsOutOfDate = true;
+    this.customColorsForSection = customColorsForSection;
+    this.customColorsForDistance = customColorsForDistance;
+    this.colors = colors;
+    this.refresh();
+  }
 
-    public readonly refresh = () => {
-        this.context.paint()
-    }
+  public readonly refresh = () => {
+    this.context.paint();
+  };
 }

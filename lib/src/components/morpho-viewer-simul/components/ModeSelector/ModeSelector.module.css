@@ -1,0 +1,25 @@
+div.modeSelector {
+    display: flex;
+    flex-wrap: nowrap;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: stretch;
+    gap: 2px;
+
+    > button.button {
+        border-radius: 0;
+
+        &.selected {
+            background-color: #adf;
+            color: #000;
+        }
+
+        &:first-child {
+            border-radius: 8px 0 0 8px;
+        }
+
+        &:last-child {
+            border-radius: 0 8px 8px 0;
+        }
+    }
+}

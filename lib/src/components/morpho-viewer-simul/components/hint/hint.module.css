@@ -1,0 +1,23 @@
+div.hintPanel {
+  position: absolute;
+  left: 1em;
+  width: auto;
+  height: auto;
+  border-radius: 0.5em;
+  border: 1px solid #fff3;
+  background-color: #3333;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+  z-index: 2;
+}
+
+div.hintContent {
+  padding: 1em;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25em 1em;
+
+  > div:nth-child(2n) {
+    font-weight: bolder;
+  }
+}

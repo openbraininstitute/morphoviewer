@@ -1,0 +1,82 @@
+{
+    "name": "extended-swc-viewer",
+    "version": "0.24.4",
+    "private": false,
+    "homepage": "./",
+    "sideEffects": [
+        "*.css"
+    ],
+    "scripts": {
+        "build": "rspack --mode=production",
+        "predeploy": "npm run build",
+        "deploy": "gh-pages -d ./build",
+        "start": "rspack --version && rspack serve --mode=development",
+        "routes": "build-react-routes ./src/app/",
+        "demo": "tsx ./scripts/demo/index.ts ./src/app",
+        "generate": "npm run routes && npm run demo",
+        "lint": "oxlint src/"
+    },
+    "dependencies": {
+        "@bbp/morphoviewer": "file:../lib",
+        "@mdx-js/react": "^3.1.1",
+        "@tolokoban/react-state": "^0.7.3",
+        "@tolokoban/type-guards": "^0.9.0",
+        "@tolokoban/ui": "^0.25.3",
+        "colord": "^2.9.3",
+        "highlight.js": "^11.11.1",
+        "jotai": "^2.18.0",
+        "prismjs": "^1.30.0",
+        "react": "19.2.4",
+        "react-dom": "19.2.4",
+        "react-simple-code-editor": "^0.14.1",
+        "tslib": "^2.8.1"
+    },
+    "devDependencies": {
+        "@biomejs/biome": "^2.4.4",
+        "@mdx-js/loader": "^3.1.1",
+        "@rspack/cli": "^1.7.5",
+        "@rspack/core": "^1.7.5",
+        "@types/mdx": "^2.0.13",
+        "@types/node": "^25.2.2",
+        "@types/prismjs": "^1.26.5",
+        "@types/react": "^19.2.13",
+        "@types/react-dom": "^19.2.3",
+        "babel-loader": "^10.0.0",
+        "build-react-routes": "^0.10.8",
+        "clean-webpack-plugin": "^4.0.0",
+        "css-loader": "^6.11.0",
+        "gh-pages": "^6.3.0",
+        "globals": "^17.3.0",
+        "install": "^0.13.0",
+        "lowlight": "^3.3.0",
+        "mini-css-extract-plugin": "^2.10.0",
+        "npm": "^11.10.1",
+        "oxfmt": "^0.35.0",
+        "oxlint": "^1.50.0",
+        "rehype-highlight": "^7.0.2",
+        "rehype-highlight-code-lines": "^1.2.1",
+        "remark-emoji": "^5.0.2",
+        "remark-gfm": "^4.0.1",
+        "remark-images": "^4.1.0",
+        "style-loader": "^3.3.4",
+        "ts-loader": "^9.5.4",
+        "tsx": "^4.21.0",
+        "typescript": "5.9.3",
+        "typescript-eslint": "^8.54.0",
+        "webpack-shell-plugin-next": "^2.3.3",
+        "workbox-webpack-plugin": "^7.4.0"
+    },
+    "browserslist": {
+        "production": [
+            ">0.2%",
+            "not dead",
+            "not op_mini all"
+        ],
+        "development": [
+            "last 3 chrome version",
+            "last 3 firefox version",
+            "last 3 safari version"
+        ]
+    },
+    "port": 42341
+}

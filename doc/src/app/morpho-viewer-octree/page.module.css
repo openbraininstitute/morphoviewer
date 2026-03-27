@@ -1,0 +1,18 @@
+.morphoViewerOctree {
+	padding: 1em;
+
+	> header {
+		display: inline-flex;
+		flex-wrap: nowrap;
+		flex-direction: row;
+		justify-content: flex-start;
+		align-items: center;
+		gap: 1em;
+		margin-bottom: 1em;
+	}
+
+	.octree {
+		width: 1000px;
+		height: 750px;
+	}
+}

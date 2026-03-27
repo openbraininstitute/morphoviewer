@@ -1,2 +1,6 @@
-app/
+out/
 lib/
+*.tgz
+!lib/dist/
+*.tsbuildinfo
+.tsbuildinfo

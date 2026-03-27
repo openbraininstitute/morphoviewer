@@ -1,50 +1,45 @@
+/* Visit https://aka.ms/tsconfig to read more about this file */
 {
-    "compilerOptions": {
-        /* Visit https://aka.ms/tsconfig to read more about this file */
-
-        /* Language and Environment */
-        "target": "ESNext" /* Set the JavaScript language version for emitted JavaScript and include compatible library declarations. */,
-        "jsx": "preserve" /* Specify what JSX code is generated. */,
-
-        /* Modules */
-        "module": "ESNext" /* Specify what module code is generated. */,
-        "moduleResolution": "node" /* Specify how TypeScript looks up a file from a given module specifier. */,
-
-        /* Emit */
-        "declaration": true /* Generate .d.ts files from TypeScript and JavaScript files in your project. */,
-        "declarationMap": true /* Create sourcemaps for d.ts files. */,
-        "sourceMap": false /* Create source map files for emitted JavaScript files. */,
-        "inlineSourceMap": true /* Create source map files for emitted JavaScript files. */,
-        "outDir": "./dist" /* Specify an output folder for all emitted files. */,
-        "removeComments": true /* Disable emitting comments. */,
-
-        /* Interop Constraints */
-        "allowSyntheticDefaultImports": true /* Allow 'import x from y' when a module doesn't have a default export. */,
-        "esModuleInterop": true /* Emit additional JavaScript to ease support for importing CommonJS modules. This enables 'allowSyntheticDefaultImports' for type compatibility. */,
-        "forceConsistentCasingInFileNames": true /* Ensure that casing is correct in imports. */,
-
-        /* Type Checking */
-        "strict": true /* Enable all strict type-checking options. */,
-        "noImplicitAny": true /* Enable error reporting for expressions and declarations with an implied 'any' type. */,
-        "strictNullChecks": true /* When type checking, take into account 'null' and 'undefined'. */,
-
-        /* Completeness */
-        "skipLibCheck": true /* Skip type checking all .d.ts files. */,
-
-        "baseUrl": "./src/",
-        "paths": {
-            "@/*": ["*"],
-            "@tgd/*": ["tgd/*"],
-            "@tgd": ["tgd"]
-        },
-        "plugins": [
-            // Transform paths in output .js files
-            { "transform": "typescript-transform-paths" },
-            // Transform paths in output .d.ts files (Include this line if you output declarations files)
-            {
-                "transform": "typescript-transform-paths",
-                "afterDeclarations": true
-            }
-        ]
+  "compilerOptions": {
+    "target": "es2015",
+    "incremental": true,
+    "tsBuildInfoFile": ".tsbuildinfo",
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "jsx": "react-jsx",
+    "noLib": false /* Disable including any library files, including the default lib.d.ts. */,
+    "module": "es2015" /* Specify what module code is generated. */,
+    "moduleResolution": "bundler" /* Specify how TypeScript looks up a file from a given module specifier. */,
+    "baseUrl": "./src/" /* Specify the base directory to resolve non-relative module names. */,
+    "paths": {
+      "@/*": ["*"]
+    } /* Specify a set of entries that re-map imports to additional lookup locations. */,
+    "resolveJsonModule": true /* Enable importing .json files. */,
+    "allowJs": true /* Allow JavaScript files to be a part of your program. Use the 'checkJS' option to get errors from these files. */,
+    "checkJs": false /* Enable error reporting in type-checked JavaScript files. */,
+    "declaration": true /* Generate .d.ts files from TypeScript and JavaScript files in your project. */,
+    "declarationMap": true /* Create sourcemaps for d.ts files. */,
+    "sourceMap": false /* Create source map files for emitted JavaScript files. */,
+    "inlineSourceMap": true /* Include sourcemap files inside the emitted JavaScript. */,
+    "outDir": "./dist" /* Specify an output folder for all emitted files. */,
+    "removeComments": true /* Disable emitting comments. */,
+    "noEmit": false /* Disable emitting files from a compilation. */,
+    "importHelpers": true /* Allow importing helper functions from tslib once per project, instead of including them per-file. */,
+    "isolatedModules": true /* Ensure that each file can be safely transpiled without relying on other imports. */,
+    "allowSyntheticDefaultImports": true /* Allow 'import x from y' when a module doesn't have a default export. */,
+    "esModuleInterop": true /* Emit additional JavaScript to ease support for importing CommonJS modules. This enables 'allowSyntheticDefaultImports' for type compatibility. */,
+    "forceConsistentCasingInFileNames": true /* Ensure that casing is correct in imports. */,
+    "strict": true /* Enable all strict type-checking options. */,
+    "skipLibCheck": true /* Skip type checking all .d.ts files. */
+  },
+  "include": ["src"], // Specifies the directory to include when searching for TypeScript files.
+  "exclude": ["src/**/*.spec.*"],
+  "plugins": [
+    // Transform paths in output .js files
+    { "transform": "typescript-transform-paths" },
+    // Transform paths in output .d.ts files (Include this line if you output declarations files)
+    {
+      "transform": "typescript-transform-paths",
+      "afterDeclarations": true
     }
+  ]
 }

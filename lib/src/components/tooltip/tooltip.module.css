@@ -1,0 +1,74 @@
+.container {
+  position: relative;
+  --custom-backColor: #fff;
+  --custom-foreColor: #000;
+  --arrowWidth: 16px;
+  --arrowHeight: 16px;
+  --borderColor: var(--custom-foreColor);
+  --borderColor: color-mix(in srgb, var(--custom-foreColor) 50%, transparent 50%);
+}
+
+.tooltip {
+  border-radius: 0.25em;
+  padding: 0.5em 1em;
+  color: var(--custom-foreColor, #000);
+  background-color: var(--custom-backColor, #fff);
+  position: absolute;
+  /* width: fit-content; */
+  z-index: 999999;
+  box-shadow: 0 0.25em 0.5em #0007;
+  pointer-events: none;
+  border: 1px solid var(--borderColor);
+  text-align: center;
+  min-width: 160px;
+  transition: opacity 0.2s;
+  opacity: 0;
+
+  &.top {
+    left: 50%;
+    bottom: 0;
+    transform: translate(-50%, calc(100% + var(--arrowHeight)));
+  }
+
+  &.topLeft {
+    left: 50%;
+    bottom: 0;
+    transform: translate(calc(-1 * var(--arrowWidth)), calc(100% + var(--arrowHeight)));
+  }
+
+  &.topRight {
+    left: 50%;
+    bottom: 0;
+    transform: translate(calc(-100% + var(--arrowWidth)), calc(100% + var(--arrowHeight)));
+  }
+
+  .arrow {
+    width: var(--arrowWidth);
+    height: var(--arrowHeight);
+    fill: var(--custom-backColor);
+    stroke: var(--borderColor);
+    position: absolute;
+
+    &.top {
+      top: 0;
+      left: 50%;
+      transform: translate(-50%, calc(-100% + 1px));
+    }
+
+    &.topLeft {
+      top: 0;
+      left: var(--arrowWidth);
+      transform: translate(-50%, calc(-100% + 1px));
+    }
+
+    &.topRight {
+      top: 0;
+      right: var(--arrowWidth);
+      transform: translate(50%, calc(-100% + 1px));
+    }
+  }
+}
+
+.container:hover .tooltip {
+  opacity: 1;
+}

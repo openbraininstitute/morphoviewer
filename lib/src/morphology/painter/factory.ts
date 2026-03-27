@@ -1,10 +1,16 @@
-import { TgdPainterSegmentsData } from "@tgd";
-import { Segments } from "./segments";
-import { CellNodes } from "./nodes";
 import { CellNodeType } from "@/types";
 
-export function makeData(nodes: CellNodes): TgdPainterSegmentsData {
-  const segments = new Segments(nodes);
+import { Segments } from "./segments";
+
+import type { TgdPainterSegmentsData } from "@tolokoban/tgd";
+import type { CellNodes } from "./nodes";
+
+export function makeData(nodes: CellNodes): {
+  neurites: TgdPainterSegmentsData;
+  soma: TgdPainterSegmentsData;
+} {
+  const segmentsNeurites = new Segments(nodes);
+  const somaNeurites = new Segments(nodes);
   nodes.forEach(
     ({ index: childIndex, parent: parentIndex, type: childType }) => {
       if (parentIndex < 0) return;
@@ -13,11 +19,12 @@ export function makeData(nodes: CellNodes): TgdPainterSegmentsData {
       if (!parent) return;
 
       const parentType = parent.type;
-      if (parentType === CellNodeType.Soma && childType !== CellNodeType.Soma)
-        return;
-
-      segments.addSegment(childIndex, parentIndex);
+      if (parentType === CellNodeType.Soma && childType !== CellNodeType.Soma) {
+        somaNeurites.addSegment(childIndex, parentIndex);
+      } else {
+        segmentsNeurites.addSegment(childIndex, parentIndex);
+      }
     },
   );
-  return segments.data;
+  return { neurites: segmentsNeurites.data, soma: somaNeurites.data };
 }

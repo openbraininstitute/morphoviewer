@@ -1,0 +1,38 @@
+div.page {
+	padding: 1em;
+	display: flex;
+	flex-wrap: wrap;
+	flex-direction: row;
+	justify-content: center;
+	align-items: center;
+	gap: 1em;
+
+	a {
+		position: relative;
+		display: inline-block;
+		margin: 0;
+		padding: 1em;
+		border-radius: 1em;
+		background: var(--theme-color-neutral-6);
+		color: var(--theme-color-on-neutral-6);
+		box-shadow: 0 0.5em 1em #0008;
+		width: 512px;
+		aspect-ratio: 1 / 1;
+		background-size: cover;
+		overflow: hidden;
+
+		&:hover {
+			box-shadow: 0 0.5em 1em #f907;
+		}
+
+		> div {
+			position: absolute;
+			left: 0;
+			bottom: 0;
+			width: 100%;
+			padding: 0.5em 1em;
+			text-align: center;
+			background-color: #0007;
+		}
+	}
+}
