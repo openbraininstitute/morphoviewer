@@ -1,13 +1,13 @@
-import { type ArrayNumber3, TgdBoundingBox, type TgdVec3 } from '@tolokoban/tgd';
+import { type ArrayNumber3, TgdBoundingBox, type TgdVec3 } from "@tolokoban/tgd";
 
 import {
   type MorphoViewerTree,
   type MorphoViewerTreeItem,
   MorphoViewerTreeItemType,
-} from '../types/public';
-import { resolveSectionIndex } from '../utils';
-import { findSoma, parentOrphansToSoma } from './soma';
-import { addLiaisons, computeRanks, populateTree } from './tree';
+} from "../types/public";
+import { resolveSectionIndex } from "../utils";
+import { findSoma, parentOrphansToSoma } from "./soma";
+import { addLiaisons, computeRanks, populateTree } from "./tree";
 
 export interface StructureItem {
   parent?: StructureItem;
@@ -54,6 +54,7 @@ export class Structure {
   public readonly zoomMin: number;
   public readonly zoomMax: number;
   public readonly center: Readonly<ArrayNumber3>;
+  public readonly useStraightCylinders: boolean;
 
   private readonly bbox = new TgdBoundingBox();
   /**
@@ -66,9 +67,10 @@ export class Structure {
 
   constructor(morphology: MorphoViewerTree) {
     this.cellId = morphology.cellId;
+    this.useStraightCylinders = morphology.useStraightCylinders ?? false;
     const { somaTreeItem } = findSoma(morphology);
     const treeRoot = parentOrphansToSoma(morphology, somaTreeItem);
-    if (!treeRoot) throw new Error('No root found in morphology!');
+    if (!treeRoot) throw new Error("No root found in morphology!");
 
     this.computeDistancesFromSoma(treeRoot);
     const root: StructureItem = this.createAllSegments(treeRoot);
@@ -93,7 +95,7 @@ export class Structure {
 
   private createAllSegments(
     node: MorphoViewerTreeItem,
-    parent?: MorphoViewerTreeItem
+    parent?: MorphoViewerTreeItem,
   ): StructureItem {
     const segment = this.createSegment(parent ?? node, node);
     for (const child of node.children ?? []) {
@@ -116,7 +118,7 @@ export class Structure {
   private registerBranch(
     parent: MorphoViewerTreeItem | null,
     node: MorphoViewerTreeItem,
-    distanceFromSoma: number
+    distanceFromSoma: number,
   ) {
     node.distanceFromSoma = distanceFromSoma;
     const { type } = node;
@@ -143,7 +145,7 @@ export class Structure {
         node,
         child,
         distanceFromSoma +
-          (parent ? computeDistance([parent.x, parent.y, parent.z], [node.x, node.y, node.z]) : 0)
+          (parent ? computeDistance([parent.x, parent.y, parent.z], [node.x, node.y, node.z]) : 0),
       );
     }
   }
@@ -154,7 +156,7 @@ export class Structure {
 
   getSegmentOfSectionAtOffset(
     sectionName: string,
-    offset: number
+    offset: number,
   ): { segment: StructureItem; offset: number } | null {
     const segments = this.getSegmentsOfSection(sectionName);
     const length = segments.length;

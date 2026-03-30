@@ -2,7 +2,6 @@
 
 /* eslint-disable no-param-reassign */
 
-import { useEventValue } from "@/utils";
 import {
   type TgdCameraState,
   TgdColor,
@@ -15,9 +14,12 @@ import {
   tgdCalcMapRange,
 } from "@tolokoban/tgd";
 import React from "react";
+import { useEventValue } from "@/utils";
 import type { MorphoViewerSimulContentProps } from "../types/private";
 import type {
   MorphoViewerMode,
+  MorphoViewerSimulCamera,
+  MorphoViewerSimulController,
   MorphoViewerSimulProps,
   MorphoViewerSpikeRecord,
   MorphoViewerSynapsesGroup,
@@ -44,12 +46,14 @@ const EMPTY_SEGMENTS: Readonly<Map<number, TgdPainterSegmentsData>> = new Map<
   TgdPainterSegmentsData
 >();
 
-export class PainterManager extends Initializer {
+export class PainterManager extends Initializer implements MorphoViewerSimulController {
   private static id = 0;
 
   public minRadius = 3;
   public disableElectrodes = false;
   public readonly id = PainterManager.id++;
+  public readonly eventSpikeProgressChange = new TgdEvent<number>();
+  public readonly eventSpikePlayingChange = new TgdEvent<boolean>();
   public readonly eventError = new TgdEvent<string>();
   public readonly eventPaint = new TgdEvent<void>();
   public readonly eventHover = new TgdEvent<SelectedItem>();
@@ -96,9 +100,35 @@ export class PainterManager extends Initializer {
   private clearColor = new TgdColor(0, 0, 0);
   private view: TransitionManager | null = null;
   private _spikes: MorphoViewerSpikeRecord[] = [];
+  private _spikeProgress = -1;
+  private _spikePlaying = false;
 
-  constructor() {
+  constructor(public onReady?: (controller: MorphoViewerSimulController) => void) {
     super();
+  }
+
+  cameraGet(): MorphoViewerSimulCamera {
+    const camera = this.context?.camera;
+    if (!camera) throw new Error("PainterManager is not ready yet!");
+
+    const zoom = camera.zoom;
+    const [x, y, z] = camera.transfo.position;
+    const [qx, qy, qz, qw] = camera.transfo.orientation;
+    return {
+      zoom,
+      center: [x, y, z],
+      orientation: [qx, qy, qz, qw],
+    };
+  }
+
+  cameraSet(settings: MorphoViewerSimulCamera): void {
+    const camera = this.context?.camera;
+    if (!camera) throw new Error("PainterManager is not ready yet!");
+
+    camera.zoom = settings.zoom;
+    camera.transfo.setPosition(...settings.center);
+    camera.transfo.setOrientation(settings.orientation);
+    this.context?.paint();
   }
 
   useSpikingManager() {
@@ -115,6 +145,32 @@ export class PainterManager extends Initializer {
     this._spikes = spikes;
     const { spikingManager } = this;
     if (spikingManager) spikingManager.spikes = spikes;
+  }
+
+  get spikeProgress(): number {
+    const { spikingManager } = this;
+    return spikingManager ? spikingManager.progress : this._spikeProgress;
+  }
+  set spikeProgress(spikeProgress: number) {
+    if (this._spikeProgress === spikeProgress) return;
+
+    this._spikeProgress = spikeProgress;
+    const { spikingManager } = this;
+    if (spikingManager) spikingManager.progress = spikeProgress;
+  }
+
+  get spikePlaying(): boolean {
+    return this._spikePlaying;
+  }
+  set spikePlaying(spikePlaying: boolean) {
+    if (this._spikePlaying === spikePlaying) return;
+
+    this._spikePlaying = spikePlaying;
+    const { context } = this;
+    if (!context) return;
+
+    if (spikePlaying) context.play();
+    else context.pause();
   }
 
   get mode(): MorphoViewerMode {
@@ -199,7 +255,7 @@ export class PainterManager extends Initializer {
     return new TgdMat4(camera.matrixProjection).multiply(camera.matrixModelView);
   }
 
-  readonly resetCamera = () => {
+  readonly cameraReset = () => {
     const { cameraController, context } = this;
     if (!context || !cameraController) return;
 
@@ -215,7 +271,7 @@ export class PainterManager extends Initializer {
   delete() {
     this.context?.delete();
     this.context = null;
-    this.view?.eventResetCamera.removeListener(this.resetCamera);
+    this.view?.eventResetCamera.removeListener(this.cameraReset);
   }
 
   /**
@@ -304,6 +360,10 @@ export class PainterManager extends Initializer {
       this.data = data;
       const context = this.initContext(canvas, data);
       this.spikingManager = new SpikingManager(context);
+      this.spikingManager.eventProgressChange.addListener((value) =>
+        this.eventSpikeProgressChange.dispatch(value),
+      );
+      this.spikingManager.progress = this._spikeProgress;
       this.spikingManager.spikes = this.spikes;
       context.paintOneTime({
         paint: () => {
@@ -311,7 +371,7 @@ export class PainterManager extends Initializer {
         },
       });
       const view = new TransitionManager(context, { clearColor: this.backgroundColor });
-      view.eventResetCamera.addListener(this.resetCamera);
+      view.eventResetCamera.addListener(this.cameraReset);
       context.add(view);
       this.view = view;
       this.initPainter(context, data, view, this.spikingManager);
@@ -319,6 +379,7 @@ export class PainterManager extends Initializer {
       this.initOffscreen(context, data, view);
       this.eventHintVisible.dispatch(false);
       this.fitCamera();
+      this.onReady?.(this);
     } catch (error) {
       console.error(error);
       throw error;
@@ -332,6 +393,11 @@ export class PainterManager extends Initializer {
       preserveDrawingBuffer: false,
     });
     this.context = context;
+    if (this._spikePlaying) context.play();
+    else context.pause();
+    this.context.eventPlayingChange.addListener((value) =>
+      this.eventSpikePlayingChange.dispatch(value),
+    );
     context.eventWebGLContextRestored.addListener(() => {
       this.delete();
       globalThis.requestAnimationFrame(() => this.initialize(canvas, data));
@@ -491,12 +557,17 @@ export class PainterManager extends Initializer {
 export function useWebglNeuronSelector({
   morphology,
   spikes,
+  spikeProgress,
+  onSpikeProgressChange,
+  spikePlaying,
+  onSpikePlayingChange,
   minRadius,
   synapses,
+  onReady,
 }: MorphoViewerSimulProps) {
   const refPainter = React.useRef<PainterManager | null>(null);
   if (!refPainter.current) {
-    const manager = new PainterManager();
+    const manager = new PainterManager(onReady);
     refPainter.current = manager;
     manager.morphology = morphology;
     manager.spikes = spikes ?? [];
@@ -508,6 +579,36 @@ export function useWebglNeuronSelector({
       refPainter.current.spikes = spikes ?? [];
     }
   }, [spikes]);
+
+  React.useEffect(() => {
+    const manager = refPainter.current;
+    if (!manager || typeof spikeProgress !== "number") return;
+
+    manager.spikeProgress = spikeProgress;
+  }, [spikeProgress]);
+
+  React.useEffect(() => {
+    const manager = refPainter.current;
+    if (!manager || !onSpikeProgressChange) return;
+
+    manager.eventSpikeProgressChange.addListener(onSpikeProgressChange);
+    return () => manager.eventSpikeProgressChange.removeListener(onSpikeProgressChange);
+  }, [onSpikeProgressChange]);
+
+  React.useEffect(() => {
+    const manager = refPainter.current;
+    if (!manager) return;
+
+    manager.spikePlaying = spikePlaying ?? false;
+  }, [spikePlaying]);
+
+  React.useEffect(() => {
+    const manager = refPainter.current;
+    if (!manager || !onSpikePlayingChange) return;
+
+    manager.eventSpikePlayingChange.addListener(onSpikePlayingChange);
+    return () => manager.eventSpikePlayingChange.removeListener(onSpikePlayingChange);
+  }, [onSpikePlayingChange]);
 
   React.useEffect(() => {
     refPainter.current?.showSynapses(synapses ?? []);

@@ -1,17 +1,17 @@
-import { tgdFullscreenToggle } from '@tolokoban/tgd';
-import React from 'react';
+import { tgdFullscreenToggle } from "@tolokoban/tgd";
+import React from "react";
 
-import { classNames } from '@/utils';
+import { classNames } from "@/utils";
 
-import { ButtonResetCamera } from '../button-reset-camera';
-import { IconClose } from '../icons/close';
-import { IconFullscreen } from '../icons/fullscreen';
-import { usePainterManager } from './painter/manager';
+import { ButtonCameraReset } from "../button-reset-camera";
+import { IconClose } from "../icons/close";
+import { IconFullscreen } from "../icons/fullscreen";
+import { usePainterManager } from "./painter/manager";
 
-import type { MorphoViewerSmallCircuitProps } from '.';
-import type { PainterManager } from './painter';
+import type { MorphoViewerSmallCircuitProps } from ".";
+import type { PainterManager } from "./painter";
 
-import styles from './morpho-viewer-small-circuit.module.css';
+import styles from "./morpho-viewer-small-circuit.module.css";
 
 /**
  * @example
@@ -65,13 +65,13 @@ export function MorphoViewerSmallCircuit(props: MorphoViewerSmallCircuitProps) {
       ref={ref}
       className={classNames(props.className, styles.morphoViewerSmallCircuit)}
       style={{
-        background: props.backgroundColor ?? '#000',
+        background: props.backgroundColor ?? "#000",
       }}
     >
       <Canvas painterManager={manager} />
       <header>
         <div />
-        <ButtonResetCamera painterManager={manager} />
+        <ButtonCameraReset painterManager={manager} />
         <div className={styles.flex}>
           <button type="button" onClick={handleToggleFullscreen}>
             <IconFullscreen />

@@ -1,7 +1,7 @@
 import { tgdFullscreenToggle } from "@tolokoban/tgd";
 import React from "react";
 import { useDebugMode } from "@/utils";
-import { ButtonResetCamera } from "../button-reset-camera";
+import { ButtonCameraReset } from "../button-reset-camera";
 import { IconClose } from "../icons/close";
 import { IconCopy } from "../icons/copy";
 import { IconFullscreen } from "../icons/fullscreen";
@@ -42,7 +42,7 @@ export function MorphoViewerSimul(props: MorphoViewerSimulProps) {
       <header>
         <ModeSelector painterManager={painterManager} />
         <ZoomSlider className={styles.zoomSlider} painterManager={painterManager} />
-        <ButtonResetCamera painterManager={painterManager} />
+        <ButtonCameraReset painterManager={painterManager} />
         <div className={styles.flex}>
           <button type="button" onClick={handleFullscreen}>
             <IconFullscreen />

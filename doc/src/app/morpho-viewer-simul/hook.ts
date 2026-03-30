@@ -7,13 +7,20 @@ import { tgdCalcRandom } from "@tolokoban/tgd";
 import { assertType$ } from "@tolokoban/type-guards";
 import React from "react";
 
-export function useMorphologyTree(example: string): MorphoViewerTree | undefined | string {
+export function useMorphologyTree(
+  example: string,
+  straightCylinders: boolean,
+): [MorphoViewerTree | undefined | string, Morphology | undefined] {
+  const [morpho, setMorpho] = React.useState<Morphology | undefined>(undefined);
   const [tree, setTree] = React.useState<MorphoViewerTree | undefined | string>(undefined);
   React.useEffect(() => {
     setTree(undefined);
+    setMorpho(undefined);
     loadMorphology(example)
       .then((morphology) => {
+        setMorpho(morphology);
         const tree = morphoViewerConvertMorphologyIntoTree(morphology, `Cell #${example}`);
+        tree.useStraightCylinders = straightCylinders;
         setTree(tree);
       })
       .catch((error) => {
@@ -21,12 +28,12 @@ export function useMorphologyTree(example: string): MorphoViewerTree | undefined
         const message = error instanceof Error ? error.message : JSON.stringify(error);
         setTree(message);
       });
-  }, [example]);
-  return tree;
+  }, [example, straightCylinders]);
+  return [tree, morpho];
 }
 
 async function loadMorphology(example) {
-  const url = `assets/morpho-${example}.json`;
+  const url = `assets/morpho/${example}.json`;
   const resp = await fetch(url);
   if (!resp || !resp.ok)
     throw new Error(`Unable to load URL: ${url}\nError #${resp.status}: ${resp.statusText}`);
