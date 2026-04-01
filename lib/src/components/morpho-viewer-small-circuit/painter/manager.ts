@@ -37,12 +37,8 @@ interface Framebuffer {
 }
 export class PainterManager {
   public readonly eventRestingPosition = new TgdEvent<boolean>();
-  public readonly eventCellHover = new TgdEvent<
-    MorphoViewerSmallCircuitCell | undefined
-  >();
-  public readonly eventCellClick = new TgdEvent<
-    MorphoViewerSmallCircuitCell | undefined
-  >();
+  public readonly eventCellHover = new TgdEvent<MorphoViewerSmallCircuitCell | undefined>();
+  public readonly eventCellClick = new TgdEvent<MorphoViewerSmallCircuitCell | undefined>();
 
   /**
    * Used for the highlights, because we don't want to render at full resolution
@@ -64,21 +60,18 @@ export class PainterManager {
   private readonly groupHighlithedCells = new TgdPainterGroup({
     name: "groupHighlisthedCells",
   });
-  private loadCell:
-    | null
-    | ((id: string) => Promise<MorphoViewerSmallCircuitCellData | null>) = null;
+  private loadCell: null | ((id: string) => Promise<MorphoViewerSmallCircuitCellData | null>) =
+    null;
   private framebufferCircuit: Framebuffer | null = null;
   private textureFramebufferCircuit: TgdTexture2D | null = null;
   private framebufferHighlightedCells: Framebuffer | null = null;
   private textureFramebufferHighlightedCells: TgdTexture2D | null = null;
   private framebufferBlur: Framebuffer | null = null;
   private textureFramebufferBlur: TgdTexture2D | null = null;
-  private loadedCells = new CacheLRU<
-    Promise<MorphoViewerSmallCircuitCellData | null>
-  >(24);
+  private loadedCells = new CacheLRU<Promise<MorphoViewerSmallCircuitCellData | null>>(24);
   private circuitSignature = "";
 
-  readonly resetCamera = () => this.cameraManager?.resetCamera();
+  readonly cameraReset = () => this.cameraManager?.resetCamera();
 
   setCircuit(
     circuit: MorphoViewerSmallCircuitCell[],
@@ -167,12 +160,7 @@ export class PainterManager {
   }
 
   private updateHightedCells() {
-    const {
-      highlightingCells,
-      groupHighlithedCells,
-      circuit,
-      highlightedCellIds,
-    } = this;
+    const { highlightingCells, groupHighlithedCells, circuit, highlightedCellIds } = this;
     groupHighlithedCells.removeWithoutDeleting();
     for (const cell of circuit) {
       const painter = highlightingCells.get(cell.id);
@@ -242,39 +230,35 @@ export class PainterManager {
 
   private createramebufferCircuit(context: TgdContext, clear: TgdPainterClear) {
     this.textureFramebufferCircuit = new TgdTexture2D(context);
-    this.framebufferCircuit = new TgdPainterFramebufferWithAntiAliasing(
-      context,
-      {
-        textureColor0: this.textureFramebufferCircuit,
-        depthBuffer: true,
-        children: [
-          clear,
-          new TgdPainterState(context, {
-            depth: webglPresetDepth.less,
-            children: [this.groupCells],
-          }),
-        ],
-      },
-    );
+    this.framebufferCircuit = new TgdPainterFramebufferWithAntiAliasing(context, {
+      textureColor0: this.textureFramebufferCircuit,
+      depthBuffer: true,
+      children: [
+        clear,
+        new TgdPainterState(context, {
+          depth: webglPresetDepth.less,
+          children: [this.groupCells],
+        }),
+      ],
+    });
     return this.framebufferCircuit as TgdPainter;
   }
 
   private createFramebufferHighlightedCells(context: TgdContext) {
     const { viewportMatchingScale } = this;
     this.textureFramebufferHighlightedCells = new TgdTexture2D(context);
-    this.framebufferHighlightedCells =
-      new TgdPainterFramebufferWithAntiAliasing(context, {
-        viewportMatchingScale,
-        textureColor0: this.textureFramebufferHighlightedCells,
-        depthBuffer: true,
-        children: [
-          new TgdPainterClear(context, { depth: 1, color: [0, 0, 0, 1] }),
-          new TgdPainterState(context, {
-            depth: webglPresetDepth.less,
-            children: [this.groupHighlithedCells],
-          }),
-        ],
-      });
+    this.framebufferHighlightedCells = new TgdPainterFramebufferWithAntiAliasing(context, {
+      viewportMatchingScale,
+      textureColor0: this.textureFramebufferHighlightedCells,
+      depthBuffer: true,
+      children: [
+        new TgdPainterClear(context, { depth: 1, color: [0, 0, 0, 1] }),
+        new TgdPainterState(context, {
+          depth: webglPresetDepth.less,
+          children: [this.groupHighlithedCells],
+        }),
+      ],
+    });
     return this.framebufferHighlightedCells as TgdPainter;
   }
 
@@ -320,13 +304,9 @@ export class PainterManager {
   private createMix(context: TgdContext) {
     const { framebufferCircuit, framebufferBlur } = this;
     if (!framebufferCircuit)
-      throw new Error(
-        "Framebuffer for circuit must be created before calling createMix()!",
-      );
+      throw new Error("Framebuffer for circuit must be created before calling createMix()!");
     if (!framebufferBlur)
-      throw new Error(
-        "Framebuffer for blur must be created before calling createMix()!",
-      );
+      throw new Error("Framebuffer for blur must be created before calling createMix()!");
 
     return new TgdPainterState(context, {
       depth: webglPresetDepth.off,
@@ -377,9 +357,7 @@ export class PainterManager {
     this.painterClear?.delete();
     this.painterClear = null;
     if (this.context) {
-      this.context.inputs.pointer.eventHover.removeListener(
-        this.handlePointerHover,
-      );
+      this.context.inputs.pointer.eventHover.removeListener(this.handlePointerHover);
       this.context.delete();
       this.context = null;
     }

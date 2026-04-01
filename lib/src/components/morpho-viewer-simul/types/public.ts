@@ -27,14 +27,35 @@ export interface MorphoViewerElectrodesProps {
   onInjectionChange?(this: void, injections: MorphoViewerElectrodeInjection | undefined): void;
 }
 
+export interface MorphoViewerSimulCamera {
+  orientation: [number, number, number, number];
+  center: [number, number, number];
+  zoom: number;
+}
+
+export interface MorphoViewerSimulController {
+  cameraGet(): MorphoViewerSimulCamera;
+  cameraSet(settings: MorphoViewerSimulCamera): void;
+  cameraReset(): void;
+}
+
 export interface MorphoViewerSimulProps extends MorphoViewerElectrodesProps {
   backgroundColor?: string;
   minRadius?: number;
   morphology: MorphoViewerTree;
   synapses?: MorphoViewerSynapsesGroup[];
   spikes?: MorphoViewerSpikeRecord[];
+  /**
+   * Always between 0.0 and 1.0, regardless to the actual timeline.
+   */
+  spikeProgress?: number;
+  onSpikeProgressChange?(spikeProgress: number): void;
+  spikePlaying?: boolean;
+  onSpikePlayingChange?(spikePlaying: boolean): void;
   disableClick?: boolean;
+  onSegmentClick?(item: { segment: MorphoViewerTreeItem; parent?: MorphoViewerTreeItem }): void;
   onClose?(): void;
+  onReady?(controller: MorphoViewerSimulController): void;
 }
 
 export type MorphoViewerMode = "3d" | "dendrogram";
@@ -75,6 +96,10 @@ export interface MorphoViewerTreeItem {
 export interface MorphoViewerTree {
   cellId: string;
   roots: MorphoViewerTreeItem[];
+  /**
+   * Force the cylinders to have the same radius at both tips.
+   */
+  useStraightCylinders?: boolean;
 }
 
 export interface MorphoViewerSpikeRecord {
