@@ -457,15 +457,23 @@ export class PainterManager extends Initializer implements MorphoViewerSimulCont
             this.eventHintVisible.dispatch(true)
         })
         context.inputs.pointer.eventTap.addListener((evt) => {
-            if (this.disableElectrodes) return
+            if (this.disableElectrodes) {
+                console.debug("<MorphoViewerSimul disableElectode=\"true\" /> So the click is disabled.")
+                return
+            }
 
             if (!this.clickable) {
+                console.debug("<MorphoViewerSimul /> eventForbiddenClick.dispatch()")
                 this.eventForbiddenClick.dispatch()
                 return
             }
 
             // Prevent camera movement to be interpreted as a click.
-            if (Date.now() - this.lastCameraChangeTimestamp < 300) return
+            const dx = (evt.x - evt.start.x) * context.width * .5
+            const dy = (evt.y - evt.start.y) * context.height * .5
+            const dist = Math.sqrt(dx * dx + dy * dy)
+            console.log('🐞 [manager@475] dist =', dist) // @FIXME: Remove this line written on 2026-04-08 at 15:23
+            if (dist > 10) return
 
             const { data } = this
             if (!data) return

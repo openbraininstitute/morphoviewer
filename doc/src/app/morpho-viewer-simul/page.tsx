@@ -57,6 +57,8 @@ const injectionState = new AtomicState<MorphoViewerElectrodeInjection | undefine
 const MORPHOLOGIES = ["01", "02", "03", "cylindrical", "MEM__rp110125_L5-2_idA__cSTUT_L6_NGC"];
 
 export default function Page() {
+  const [onMinimize, setOnMinimize] = React.useState(false);
+  const [onClose, setOnClose] = React.useState(false);
   const [showSynapses, setShowSynapses] = useLocalStorageState(
     false,
     "MorphoViewerSimul/showSynapses",
@@ -165,7 +167,8 @@ export default function Page() {
               onRecordingsChange={setRecordings}
               injection={injection}
               onInjectionChange={setInjection}
-              onClose={() => alert("Close!")}
+              onMinimize={onMinimize ? () => alert("Minimize!") : undefined}
+              onClose={onClose ? () => alert("Close!") : undefined}
               onReady={setController}
             />
           )}
@@ -220,9 +223,17 @@ export default function Page() {
             <div key={key}>{key}</div>
           ))}
         </ViewOptions>
-        <ViewSwitch value={showSynapses} onChange={setShowSynapses}>
-          Show synapses
-        </ViewSwitch>
+        <ViewPanel display="flex" placeItems="center" justifyContent="space-around">
+          <ViewSwitch value={showSynapses} onChange={setShowSynapses}>
+            Show synapses
+          </ViewSwitch>
+          <ViewSwitch value={onMinimize} onChange={setOnMinimize}>
+            onMinimize
+          </ViewSwitch>
+          <ViewSwitch value={onClose} onChange={setOnClose}>
+            onClose
+          </ViewSwitch>
+        </ViewPanel>
         <SpikesSettings
           spikes={spikes}
           onSpikesChange={setSpikes}

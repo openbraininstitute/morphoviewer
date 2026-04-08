@@ -18,6 +18,7 @@ import {
 } from "./painter";
 import SpikingController from "./components/spiking-controller";
 import type { MorphoViewerSimulProps } from "./types/public";
+import { IconMinimize } from "../icons/minimize";
 
 // eslint-disable-next-line react/display-name
 export function MorphoViewerSimul(props: MorphoViewerSimulProps) {
@@ -47,6 +48,11 @@ export function MorphoViewerSimul(props: MorphoViewerSimulProps) {
           <button type="button" onClick={handleFullscreen}>
             <IconFullscreen />
           </button>
+          {props.onMinimize && (
+            <button type="button" onClick={props.onMinimize}>
+              <IconMinimize />
+            </button>
+          )}
           {props.onClose && (
             <button type="button" onClick={props.onClose}>
               <IconClose />
