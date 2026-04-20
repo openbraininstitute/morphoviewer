@@ -54,7 +54,7 @@ export class PainterManager {
     private hoveredCellId: string | undefined = "";
     private readonly groupCells = new TgdPainterGroup({ name: "GroupCell" });
     private circuit: MorphoViewerSmallCircuitCell[] = [];
-    private readonly highlightingCells = new Map<string, PainterCell>();
+    private readonly cellsForHighights = new Map<string, PainterCell>();
     private readonly groupHighlithedCells = new TgdPainterGroup({
         name: "groupHighlisthedCells",
     });
@@ -110,9 +110,9 @@ export class PainterManager {
             loadedCells,
         })
         const bbox = new TgdBoundingBox()
-        const { highlightingCells } = this
+        const { cellsForHighights: highlightingCells } = this
         highlightingCells.clear()
-        this.groupHighlithedCells.removeAll()
+        this.groupHighlithedCells.removeAll(false)
         for (const cell of this.circuit) {
             const [x, y, z] = cell.center
             bbox.addSphere(x, y, z, cell.somaRadius * 2)
@@ -127,7 +127,6 @@ export class PainterManager {
                 loadCell,
                 matrerial: "flat",
             })
-            this.groupHighlithedCells.add(highlightedCell)
             highlightingCells.set(cell.id, highlightedCell)
         }
         const bboxW = Math.abs(bbox.max[0] - bbox.min[0])
@@ -158,17 +157,17 @@ export class PainterManager {
     }
 
     private updateHightedCells() {
-        const { highlightingCells, groupHighlithedCells, circuit, highlightedCellIds } = this
-        groupHighlithedCells.removeWithoutDeleting()
+        const { cellsForHighights, groupHighlithedCells, circuit, highlightedCellIds } = this
+        groupHighlithedCells.removeAll(false)
         for (const cell of circuit) {
-            const painter = highlightingCells.get(cell.id)
+            const painter = cellsForHighights.get(cell.id)
             if (painter) {
                 painter.black = true
                 groupHighlithedCells.add(painter)
             }
         }
         for (const id of highlightedCellIds ?? []) {
-            const painter = highlightingCells.get(id)
+            const painter = cellsForHighights.get(id)
             if (painter) {
                 painter.black = false
             }
@@ -229,9 +228,17 @@ export class PainterManager {
         context.add(
             clear,
             new TgdPainterState(context, {
-                depth: webglPresetDepth.less,
+                depth: "less",
                 children: [this.groupCells],
             }),
+            // Highlighted cells
+            new TgdPainterClear(context, { depth: 1 }),
+            new TgdPainterState(context, {
+                depth: "less",
+                blend: "add",
+                children: [this.groupHighlithedCells],
+            }),
+
         )
         this.updateCircuit()
     }

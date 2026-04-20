@@ -43,7 +43,7 @@ function convertNode(item: unknown): null | MorphoViewerSmallCircuitCell {
         })
 
         return {
-            id: item.morphology_path,
+            id: `${item.morphology_path}?${Math.random()}`,
             center: item.position,
             orientation: item.orientation,
             somaRadius: item.soma_radius,
