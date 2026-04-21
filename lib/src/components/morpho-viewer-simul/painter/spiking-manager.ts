@@ -1,7 +1,7 @@
 import { TgdColor, TgdContext, TgdEvent, TgdTime, TgdVec4 } from "@tolokoban/tgd";
-import { MorphoViewerSpikeRecord } from "../types/public";
 import React from "react";
 import { SPIKING_TIME_RADIUS } from "../contants";
+import { MorphoViewerSpikeRecord } from "../types/public";
 
 export class SpikingManager {
   private static ID = 1;
@@ -98,6 +98,7 @@ export class SpikingManager {
     const duration = spike.timeMaxInSeconds - spike.timeMinInSeconds;
     const seconds = duration * progress;
     this.virtualTime.seconds = seconds;
+    this.context.paint();
   }
 
   get playing() {

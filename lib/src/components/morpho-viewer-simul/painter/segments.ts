@@ -1,8 +1,4 @@
-import {
-  type ArrayNumber2,
-  type ArrayNumber3,
-  TgdPainterSegmentsData,
-} from "@tolokoban/tgd";
+import { type ArrayNumber2, type ArrayNumber3, TgdPainterSegmentsData } from "@tolokoban/tgd";
 
 import { MorphoViewerTreeItemType } from "../types/public";
 
@@ -10,10 +6,7 @@ import type { Structure, StructureItem } from "./structure";
 
 const HIGHLIGHT_RADIUS_MULTIPLIER = 1.5;
 
-export function makeSegments3D(
-  structure: Structure,
-  map: Map<number, TgdPainterSegmentsData>,
-) {
+export function makeSegments3D(structure: Structure, map: Map<number, TgdPainterSegmentsData>) {
   const segments = new TgdPainterSegmentsData();
   structure.forEach((item) => {
     const { start, end } = item;
@@ -26,12 +19,8 @@ export function makeSegmentsDendrogram(
   structure: Structure,
   map: Map<number, TgdPainterSegmentsData>,
 ) {
-  const width = Math.abs(
-    structure.bboxDendrites.max[0] - structure.bboxDendrites.min[0],
-  );
-  const height = Math.abs(
-    structure.bboxDendrites.max[1] - structure.bboxDendrites.min[1],
-  );
+  const width = Math.abs(structure.bboxDendrites.max[0] - structure.bboxDendrites.min[0]);
+  const height = Math.abs(structure.bboxDendrites.max[1] - structure.bboxDendrites.min[1]);
   const segments = new TgdPainterSegmentsData();
   structure.forEach((item) => {
     const start = computeDendrogramStart(item, width, height);
@@ -53,7 +42,12 @@ function processSegment(
     (item.type + 0.5) / (MorphoViewerTreeItemType.Unknown + 1),
     (item.index + 1.5) / (structure.length + 2),
   ];
-  segments.add([...start, item.radiusStart], [...end, item.radiusEnd], uv, uv);
+  segments.add(
+    [...start, structure.useStraightCylinders ? item.radiusEnd : item.radiusStart],
+    [...end, item.radiusEnd],
+    uv,
+    uv,
+  );
   /**
    * Singletons are used to paint highlights.
    */
@@ -68,11 +62,7 @@ function processSegment(
 
 const DENDROGRAM_CENTER_Y = 0.4;
 
-function computeDendrogramStart(
-  item: StructureItem,
-  width: number,
-  height: number,
-): ArrayNumber3 {
+function computeDendrogramStart(item: StructureItem, width: number, height: number): ArrayNumber3 {
   if (item.type === MorphoViewerTreeItemType.Liaison) {
     return computeDendrogramEnd(item.parent ?? item, width, height);
   }
@@ -82,18 +72,13 @@ function computeDendrogramStart(
   return [x, y, z];
 }
 
-function computeDendrogramEnd(
-  item: StructureItem,
-  width: number,
-  height: number,
-): ArrayNumber3 {
+function computeDendrogramEnd(item: StructureItem, width: number, height: number): ArrayNumber3 {
   if (item.type === MorphoViewerTreeItemType.Liaison) {
     const [child] = item.children;
     return computeDendrogramStart(child ?? item, width, height);
   }
   const x = item.rank * width;
-  const y =
-    item.distanceFromSoma + item.segmentLength - height * DENDROGRAM_CENTER_Y;
+  const y = item.distanceFromSoma + item.segmentLength - height * DENDROGRAM_CENTER_Y;
   const z = 0;
   return [x, y, z];
 }

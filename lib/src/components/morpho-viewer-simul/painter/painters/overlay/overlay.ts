@@ -10,10 +10,10 @@ import {
   tgdCanvasCreate,
   tgdCanvasCreateWithContext2D,
 } from "@tolokoban/tgd";
+import { TIMELINE_HEIGHT, TIMELINE_MARGIN } from "@/components/morpho-viewer-simul/contants";
 import { SpikingManager } from "../../spiking-manager";
 import { PainterCursor } from "./cursor";
 import { FramebufferTicks } from "./ticks";
-import { TIMELINE_HEIGHT, TIMELINE_MARGIN } from "@/components/morpho-viewer-simul/contants";
 
 /**
  * This overlay displays the progress bar of the animation,
@@ -48,6 +48,8 @@ export class PainterSpikingOverlay extends TgdPainterGroup {
       this.actualHeight = height;
       this.refresh();
     });
+    overlay.eventMoveStart.addListener(this.handleStopPropagation);
+    overlay.eventMoveEnd.addListener(this.handleStopPropagation);
     overlay.eventTap.addListener(this.handleTap);
     overlay.eventMove.addListener(this.handleMove);
     spikingManager.eventSpikeChange.addListener(this.refresh);
@@ -66,8 +68,7 @@ export class PainterSpikingOverlay extends TgdPainterGroup {
   /**
    * Returning `true` prevents the event from propagating to the parent.
    */
-  private readonly handleMoveStart = () => true;
-  private readonly handleMoveEnd = () => true;
+  private readonly handleStopPropagation = () => true;
 
   private setCursor(cursorX: number) {
     const [_top, right, _bottom, left] = TIMELINE_MARGIN;
@@ -83,9 +84,9 @@ export class PainterSpikingOverlay extends TgdPainterGroup {
     this.painterTicks.delete();
     this.painterOverlay.texture?.delete();
     this.painterOverlay.eventTap.addListener(this.handleTap);
-    this.painterOverlay.eventMoveStart.addListener(this.handleMoveStart);
     this.painterOverlay.eventMove.addListener(this.handleMove);
-    this.painterOverlay.eventMoveEnd.addListener(this.handleMoveEnd);
+    this.painterOverlay.eventMoveStart.removeListener(this.handleStopPropagation);
+    this.painterOverlay.eventMoveEnd.removeListener(this.handleStopPropagation);
     this.painterOverlay.delete();
     this.spikingManager.eventSpikeChange.removeListener(this.refresh);
     super.delete();
