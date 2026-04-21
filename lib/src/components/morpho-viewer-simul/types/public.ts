@@ -63,6 +63,12 @@ export interface MorphoViewerSimulProps extends MorphoViewerElectrodesProps {
     onClose?(): void
     onMinimize?(): void
     onReady?(controller: MorphoViewerSimulController): void
+    /**
+     * If `true` write more warning in the console about WebGL issues.
+     * 
+     * Default to `false`.
+     */
+    verbose?: boolean
 }
 
 export type MorphoViewerMode = "3d" | "dendrogram"
