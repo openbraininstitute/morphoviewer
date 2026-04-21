@@ -11,7 +11,7 @@ import { useCircuit } from "./data"
 import styles from "./page.module.css"
 
 export default function Page() {
-    const circuit = useCircuit()
+    const circuit = useCircuit(50)
     const [selectedCells, setSelectedCells] = React.useState<string[]>([])
     const [highlightedCellId, setHighlightedCellId] = React.useState("")
     const highlightedCellIds = React.useMemo(

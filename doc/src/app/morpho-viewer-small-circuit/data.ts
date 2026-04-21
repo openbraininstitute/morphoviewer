@@ -2,7 +2,7 @@ import type { MorphoViewerSmallCircuitCell } from "@bbp/morphoviewer"
 import { assertType$ } from "@tolokoban/type-guards"
 import React from "react"
 
-export function useCircuit() {
+export function useCircuit(maxNumberOfCells: number) {
     const [circuit, setCircuit] = React.useState<MorphoViewerSmallCircuitCell[]>(
         [],
     )
@@ -14,6 +14,7 @@ export function useCircuit() {
                 const circuit = JSON.parse(content)
                 setCircuit(
                     circuit
+                        .slice(0, maxNumberOfCells)
                         .map(convertNode)
                         .filter((item: null | MorphoViewerSmallCircuitCell) => !!item),
                 )
@@ -22,7 +23,7 @@ export function useCircuit() {
             }
         }
         action()
-    }, [])
+    }, [maxNumberOfCells])
     return circuit
 }
 
@@ -55,13 +56,10 @@ function convertNode(item: unknown): null | MorphoViewerSmallCircuitCell {
     }
 }
 
-const COLORS = [
-    "#28f", "#e82", "#3f4", "#f53",
-    "#f2a", "#2dd", "#a4f", "#fb3",
-    "#4bf", "#f74", "#6e3", "#d3f",
-    "#3cf", "#f93", "#5f8", "#e4a",
-    "#7af", "#fc4", "#3ea", "#f47",
-]
+const COLORS = Array.from({ length: 100 }, (_, i) => {
+    const s = Math.round(60 + Math.random() * 40)
+    return `hsl(${Math.round(i * 3.6)}, ${s}%, 50%)`
+})
 let colorIndex = 0
 
 function nextColor() {
