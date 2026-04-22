@@ -72,6 +72,10 @@ export class PainterManager extends Initializer implements MorphoViewerSimulCont
     public readonly eventHintVisible = new TgdEvent<boolean>();
     public readonly eventForbiddenClick = new TgdEvent<void>();
 
+    /**
+     * Verbosity of TgdContext.
+     */
+    private _verbose = false
     private spikingManager: SpikingManager | null = null;
     private readonly enventSpikingManagerChange = new TgdEvent<SpikingManager | null>();
     private context: TgdContext | null = null;
@@ -106,6 +110,22 @@ export class PainterManager extends Initializer implements MorphoViewerSimulCont
     constructor(public onReady?: (controller: MorphoViewerSimulController) => void) {
         super()
     }
+
+    get verbose(): boolean {
+        return this._verbose
+    }
+    set verbose(verbose: boolean) {
+        if (this._verbose === verbose) return
+
+        this._verbose = verbose
+        const { context, view } = this
+        if (context) context.verbose = verbose
+        if (view) {
+            const { offscreen } = view
+            if (offscreen) offscreen.context.verbose = verbose
+        }
+    }
+
 
     cameraGet(): MorphoViewerSimulCamera {
         const camera = this.context?.camera
@@ -391,6 +411,7 @@ export class PainterManager extends Initializer implements MorphoViewerSimulCont
             alpha: false,
             antialias: true,
             preserveDrawingBuffer: false,
+            verbose: this.verbose
         })
         this.context = context
         if (this._spikePlaying) context.play()
@@ -572,6 +593,7 @@ export function useWebglNeuronSelector({
     minRadius,
     synapses,
     onReady,
+    verbose = false
 }: MorphoViewerSimulProps) {
     const refPainter = React.useRef<PainterManager | null>(null)
     if (!refPainter.current) {
@@ -581,6 +603,12 @@ export function useWebglNeuronSelector({
         manager.spikes = spikes ?? []
         manager.showSynapses(synapses ?? [])
     }
+
+    React.useEffect(() => {
+        if (refPainter.current) {
+            refPainter.current.verbose = verbose
+        }
+    }, [verbose])
 
     React.useEffect(() => {
         if (refPainter.current) {

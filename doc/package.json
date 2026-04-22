@@ -1,6 +1,6 @@
 {
     "name": "extended-swc-viewer",
-    "version": "0.24.11",
+    "version": "0.24.14",
     "private": false,
     "homepage": "./",
     "sideEffects": [
@@ -24,10 +24,10 @@
         "@tolokoban/ui": "^0.25.3",
         "colord": "^2.9.3",
         "highlight.js": "^11.11.1",
-        "jotai": "^2.18.0",
+        "jotai": "^2.19.1",
         "prismjs": "^1.30.0",
-        "react": "19.2.4",
-        "react-dom": "19.2.4",
+        "react": "19.2.5",
+        "react-dom": "19.2.5",
         "react-simple-code-editor": "^0.14.1",
         "tslib": "^2.8.1"
     },

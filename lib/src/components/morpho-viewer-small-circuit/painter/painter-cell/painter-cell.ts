@@ -14,7 +14,6 @@ import {
     TgdVec4,
 } from "@tolokoban/tgd"
 import type { MorphoViewerTree } from "@/components/morpho-viewer-simul"
-import { CacheLRU } from "@/tools/cache-lru"
 import { int16ToVec3 } from "@/utils"
 import type {
     MorphoViewerSmallCircuitCell,
