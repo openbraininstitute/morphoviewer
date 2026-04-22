@@ -39,6 +39,7 @@ export class SwcPainter extends TgdPainterGroup {
     const material = new TgdMaterialDiffuse({
       color: texture,
       lockLightsToCamera: true,
+      alphaCut: 1
     });
     const { neurites, soma } = makeData(nodes);
     const painterNeurites = (this.painterNeurites = new TgdPainterSegments(
