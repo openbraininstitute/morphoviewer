@@ -24,6 +24,7 @@ const FIRST_INDEX = 1
 
 export class OffscreenPainter {
     public mix = 0;
+    public readonly context: TgdContext
 
     private readonly offscreenCanvas = new OffscreenCanvas(1, 1);
     private readonly offscreenContext: TgdContext
@@ -42,6 +43,7 @@ export class OffscreenPainter {
             alpha: false,
             depth: true,
         })
+        this.context = context
         context.camera = onscreenContext.camera
         this.offscreenContext = context
         context.add(
