@@ -69,9 +69,12 @@ export function ColorInput(
 
 const COLOR = new TgdColor();
 
+const ALPHA1 = 1
+const ALPHA0 = .1
+
 function toggleOpacity(color: string): string {
     COLOR.parse(color);
-    COLOR.A = COLOR.A < 1 ? 1 : 0.99;
+    COLOR.A = COLOR.A < 1 ? ALPHA1 : ALPHA0;
     return COLOR.toString();
 }
 
@@ -82,6 +85,6 @@ function isOpaque(color: string) {
 
 function setOpacity(color: string, opaque: boolean): string {
     COLOR.parse(color);
-    COLOR.A = opaque ? 0.99 : 1;
+    COLOR.A = opaque ? ALPHA0 : ALPHA1;
     return COLOR.toString();
 }

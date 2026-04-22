@@ -5,11 +5,12 @@ import { MorphoViewer } from "@/components/MorphoViewer";
 
 import styles from "./page.module.css";
 
+const FILE = "./2062129966.swc"
 // const FILE = "./17302_00065.swc";
 // const FILE = "./marwan_wo_soma.swc";
 // const FILE = "./marwan_with_soma.swc"
 // const FILE = "./GolgiCell.swc";
-const FILE = "./missing-soma.swc";
+// const FILE = "./missing-soma.swc";
 // const FILE = "./AA0622.swc";
 // const FILE = "./test-2.swc";
 // const FILE = "./aurelien.swc"
