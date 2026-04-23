@@ -47,44 +47,44 @@ const EMPTY_SEGMENTS: Readonly<Map<number, TgdPainterSegmentsData>> = new Map<
 >()
 
 export class PainterManager extends Initializer implements MorphoViewerSimulController {
-    private static id = 0;
+    private static id = 0
 
-    public minRadius = 3;
-    public disableElectrodes = false;
-    public readonly id = PainterManager.id++;
-    public readonly eventSpikeProgressChange = new TgdEvent<number>();
-    public readonly eventSpikePlayingChange = new TgdEvent<boolean>();
-    public readonly eventError = new TgdEvent<string>();
-    public readonly eventPaint = new TgdEvent<void>();
-    public readonly eventHover = new TgdEvent<SelectedItem>();
+    public minRadius = 3
+    public disableElectrodes = false
+    public readonly id = PainterManager.id++
+    public readonly eventSpikeProgressChange = new TgdEvent<number>()
+    public readonly eventSpikePlayingChange = new TgdEvent<boolean>()
+    public readonly eventError = new TgdEvent<string>()
+    public readonly eventPaint = new TgdEvent<void>()
+    public readonly eventHover = new TgdEvent<SelectedItem>()
     public readonly eventTap = new TgdEvent<{
         x: number
         y: number
         item: StructureItem | null
         offset: number
-    }>();
+    }>()
     /**
      * Event for normalized zoom changes.
      * The value is between `-1.0` and `+1.0`
      */
-    public readonly eventZoom = new TgdEvent<number>();
-    public readonly eventRestingPosition = new TgdEvent<boolean>();
-    public readonly eventHintVisible = new TgdEvent<boolean>();
-    public readonly eventForbiddenClick = new TgdEvent<void>();
+    public readonly eventZoom = new TgdEvent<number>()
+    public readonly eventRestingPosition = new TgdEvent<boolean>()
+    public readonly eventHintVisible = new TgdEvent<boolean>()
+    public readonly eventForbiddenClick = new TgdEvent<void>()
 
     /**
      * Verbosity of TgdContext.
      */
     private _verbose = false
-    private spikingManager: SpikingManager | null = null;
-    private readonly enventSpikingManagerChange = new TgdEvent<SpikingManager | null>();
-    private context: TgdContext | null = null;
-    private _disableSynapses = false;
-    private _hoverItem: SelectedItem = { x: 0, y: 0, offset: 0, item: null };
-    private readonly initialPosition = new TgdVec3();
-    private cameraController: TgdControllerCameraOrbit | null = null;
-    private synapses: MorphoViewerSynapsesGroup[] = [];
-    private data: MorphologyData | null = null;
+    private spikingManager: SpikingManager | null = null
+    private readonly enventSpikingManagerChange = new TgdEvent<SpikingManager | null>()
+    private context: TgdContext | null = null
+    private _disableSynapses = false
+    private _hoverItem: SelectedItem = { x: 0, y: 0, offset: 0, item: null }
+    private readonly initialPosition = new TgdVec3()
+    private cameraController: TgdControllerCameraOrbit | null = null
+    private synapses: MorphoViewerSynapsesGroup[] = []
+    private data: MorphologyData | null = null
     /**
      * When is the last time the camera moved?
      * We use this to prevent a quick camera moved
@@ -92,20 +92,20 @@ export class PainterManager extends Initializer implements MorphoViewerSimulCont
      * Because a click will bring a modal window to add
      * recording.
      */
-    private lastCameraChangeTimestamp = 0;
+    private lastCameraChangeTimestamp = 0
     /**
      * Remember the camera position, so if we initialize with the
      * same morphology, we can restore camera state.
      */
-    private lastCameraState: TgdCameraState | null = null;
-    private _clickable = true;
-    private _backgroundColor = "#000000";
-    private _mode: MorphoViewerMode = "3d";
-    private clearColor = new TgdColor(0, 0, 0);
-    private view: TransitionManager | null = null;
-    private _spikes: MorphoViewerSpikeRecord[] = [];
-    private _spikeProgress = -1;
-    private _spikePlaying = false;
+    private lastCameraState: TgdCameraState | null = null
+    private _clickable = true
+    private _backgroundColor = "#000000"
+    private _mode: MorphoViewerMode = "3d"
+    private clearColor = new TgdColor(0, 0, 0)
+    private view: TransitionManager | null = null
+    private _spikes: MorphoViewerSpikeRecord[] = []
+    private _spikeProgress = -1
+    private _spikePlaying = false
 
     constructor(public onReady?: (controller: MorphoViewerSimulController) => void) {
         super()
@@ -125,7 +125,6 @@ export class PainterManager extends Initializer implements MorphoViewerSimulCont
             if (offscreen) offscreen.context.verbose = verbose
         }
     }
-
 
     cameraGet(): MorphoViewerSimulCamera {
         const camera = this.context?.camera
@@ -261,11 +260,11 @@ export class PainterManager extends Initializer implements MorphoViewerSimulCont
 
     readonly zoomOut = () => {
         this.zoom -= 0.1
-    };
+    }
 
     readonly zoomIn = () => {
         this.zoom += 0.1
-    };
+    }
 
     getCameraMatrix(): Readonly<TgdMat4> {
         const { context } = this
@@ -286,7 +285,7 @@ export class PainterManager extends Initializer implements MorphoViewerSimulCont
             },
             onEnd: () => this.eventRestingPosition.dispatch(true),
         })
-    };
+    }
 
     delete() {
         this.context?.delete()
@@ -411,7 +410,7 @@ export class PainterManager extends Initializer implements MorphoViewerSimulCont
             alpha: false,
             antialias: true,
             preserveDrawingBuffer: false,
-            verbose: this.verbose
+            verbose: this.verbose,
         })
         this.context = context
         if (this._spikePlaying) context.play()
@@ -445,7 +444,7 @@ export class PainterManager extends Initializer implements MorphoViewerSimulCont
         const painter = new Painter(context, data, spikingManager)
         view.minRadius = this.minRadius
         view.painter = painter
-        painter.synapses = this.synapses
+        painter.synapses = this.view?.synapses ?? this.synapses
         return painter
     }
 
@@ -479,7 +478,9 @@ export class PainterManager extends Initializer implements MorphoViewerSimulCont
         })
         context.inputs.pointer.eventTap.addListener((evt) => {
             if (this.disableElectrodes) {
-                console.debug("<MorphoViewerSimul disableElectode=\"true\" /> So the click is disabled.")
+                console.debug(
+                    '<MorphoViewerSimul disableElectode="true" /> So the click is disabled.',
+                )
                 return
             }
 
@@ -490,10 +491,10 @@ export class PainterManager extends Initializer implements MorphoViewerSimulCont
             }
 
             // Prevent camera movement to be interpreted as a click.
-            const dx = (evt.x - evt.start.x) * context.width * .5
-            const dy = (evt.y - evt.start.y) * context.height * .5
+            const dx = (evt.x - evt.start.x) * context.width * 0.5
+            const dy = (evt.y - evt.start.y) * context.height * 0.5
             const dist = Math.sqrt(dx * dx + dy * dy)
-            console.log('🐞 [manager@475] dist =', dist) // @FIXME: Remove this line written on 2026-04-08 at 15:23
+            // If the mouse moved of more than 10 pixels, it is not a click.
             if (dist > 10) return
 
             const { data } = this
@@ -550,7 +551,7 @@ export class PainterManager extends Initializer implements MorphoViewerSimulCont
 
         this.lastCameraState = context.camera.getCurrentState()
         this.eventPaint.dispatch()
-    };
+    }
 
     /**
      * @param controllerZoom Between `this.controller.minZoom` and `this.controller.maxZoom`.
@@ -593,7 +594,7 @@ export function useWebglNeuronSelector({
     minRadius,
     synapses,
     onReady,
-    verbose = false
+    verbose = false,
 }: MorphoViewerSimulProps) {
     const refPainter = React.useRef<PainterManager | null>(null)
     if (!refPainter.current) {

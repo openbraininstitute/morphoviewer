@@ -136,7 +136,9 @@ export class Painter extends TgdPainterGroup {
     groupSynapses.delete();
     if (synapses && synapses.length > 0) {
       for (const group of synapses) {
-        groupSynapses.add(new PainterSynapses(context, group, this.data));
+        const painter = new PainterSynapses(context, group, this.data)
+        painter.mix = this.mix
+        groupSynapses.add(painter);
       }
     }
     this.context.paint();

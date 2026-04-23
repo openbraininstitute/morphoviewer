@@ -1,22 +1,17 @@
-# Release Notes — v0.24.14
+# Release Notes — v0.24.16
+
+By default `<MorphioViewerSimul />` starts in 3D mode, and can then be switched to Dendrogram mode.
+The synapses stick to the neurites when transitionning between these modes, but only if they are added in 3D mode.
+If you add synapses when in Dendrogram mode, they appear in 3D view, creating an inconstancy in the view.
+
+This release fix this issue.
 
 ## Bug Fixes
 
-- Fix missing somas after conversion from morphology to tree
-  - Prevent a segment from being added as its own child when start and end coordinates match (self-referencing segments are now treated as roots)
-- Fix circuit viewer becoming laggy after prolonged use
-- Fix lagging with small circuits
-- More control over WebGL logging output
+- Preserve synapses when transitioning between views (use existing view synapses instead of resetting)
+- Apply mix value to newly created synapse painters so they render correctly
 
-## Features
+## Refactoring
 
-- Controllable timeline
-- Add minimize button (in addition to close button) with click handler fix
-
-## Performance
-
-- Speed up circuit viewer rendering
-
-## Housekeeping
-
-- Code cleanup and formatting (tabs, double quotes)
+- Convert GLSL shader files (.frag, .vert) to TypeScript modules for gizmo tips painter because it was forcing the bundler of the library client to add special rules for them.
+- Remove unused `TgdVec3` import from tips painter

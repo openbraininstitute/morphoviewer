@@ -1,0 +1,8 @@
+{
+    "formatter": {
+        "semi": false,
+        "quoteStyle": "double",
+        "indentStyle": "space",
+        "indentWidth": 4
+    }
+}

@@ -1,4 +1,4 @@
-#version 300 es
+export const FRAG = `#version 300 es
 
 precision mediump float;
 
@@ -15,3 +15,4 @@ void main() {
         discard;
     }
 }
+`

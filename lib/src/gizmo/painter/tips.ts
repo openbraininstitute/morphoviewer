@@ -5,13 +5,12 @@ import {
   TgdPainter,
   TgdProgram,
   TgdTexture2D,
-  TgdVec3,
   TgdVertexArray,
   tgdCanvasCreateWithContext2D,
 } from "@tolokoban/tgd";
 
-import FRAG from "./shader.frag";
-import VERT from "./shader.vert";
+import {FRAG} from "./shader.frag";
+import {VERT} from "./shader.vert";
 
 export class TipsPainter extends TgdPainter {
   public readonly camera = new TgdCameraPerspective({
