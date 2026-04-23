@@ -5,7 +5,9 @@
   width: 6em;
   text-align: center;
   left: calc(
-    var(--custom-left) + var(--custom-progress) * (100% - var(--custom-left) - var(--custom-right))
+    var(--custom-left) +
+    var(--custom-progress) *
+    (100% - var(--custom-left) - var(--custom-right))
   );
   bottom: calc(2 * var(--custom-bottom) + var(--custom-height));
   color: #fff;

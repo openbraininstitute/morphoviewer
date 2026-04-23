@@ -95,7 +95,7 @@ export class Structure {
 
   private createAllSegments(
     node: MorphoViewerTreeItem,
-    parent?: MorphoViewerTreeItem,
+    parent?: MorphoViewerTreeItem
   ): StructureItem {
     const segment = this.createSegment(parent ?? node, node);
     for (const child of node.children ?? []) {
@@ -118,7 +118,7 @@ export class Structure {
   private registerBranch(
     parent: MorphoViewerTreeItem | null,
     node: MorphoViewerTreeItem,
-    distanceFromSoma: number,
+    distanceFromSoma: number
   ) {
     node.distanceFromSoma = distanceFromSoma;
     const { type } = node;
@@ -145,7 +145,7 @@ export class Structure {
         node,
         child,
         distanceFromSoma +
-          (parent ? computeDistance([parent.x, parent.y, parent.z], [node.x, node.y, node.z]) : 0),
+          (parent ? computeDistance([parent.x, parent.y, parent.z], [node.x, node.y, node.z]) : 0)
       );
     }
   }
@@ -156,7 +156,7 @@ export class Structure {
 
   getSegmentOfSectionAtOffset(
     sectionName: string,
-    offset: number,
+    offset: number
   ): { segment: StructureItem; offset: number } | null {
     const segments = this.getSegmentsOfSection(sectionName);
     const length = segments.length;

@@ -73,21 +73,18 @@ const extendedSettingsAtom = atom(getDefaultSettings());
  * @param painter The painter to update when the settings change.
  */
 export function useMorphoViewerSettings(
-  painter: MorphologyCanvas,
+  painter: MorphologyCanvas
 ): [
   settings: MorphoViewerSettings,
   update: (settings: Partial<MorphoViewerSettings>) => void,
   reset: (darkMode?: boolean) => void,
 ] {
   const [extendedSettings, setExtendedSettings] = useAtom(extendedSettingsAtom);
-  const settings = useMemo(
-    () => readSettings(extendedSettings),
-    [extendedSettings],
-  );
+  const settings = useMemo(() => readSettings(extendedSettings), [extendedSettings]);
 
   useEffect(
     () => applySettingsToMorphologyCanvas(painter, extendedSettings),
-    [extendedSettings, painter],
+    [extendedSettings, painter]
   );
   const update = (value: Partial<MorphoViewerSettings>) => {
     const darkMode = value.isDarkMode ?? extendedSettings.darkMode;
@@ -139,9 +136,7 @@ interface ExtendedMorphoViewerSettings {
   colorBy: ColoringType;
 }
 
-function readSettings(
-  settings: ExtendedMorphoViewerSettings,
-): MorphoViewerSettings {
+function readSettings(settings: ExtendedMorphoViewerSettings): MorphoViewerSettings {
   const { darkMode, darkColors, lightColors } = settings;
   const palette: Palette = darkMode ? darkColors : lightColors;
   return {
@@ -177,13 +172,7 @@ function writeSettings({
 
 function applySettingsToMorphologyCanvas(
   painter: MorphologyCanvas,
-  {
-    darkMode,
-    darkColors,
-    lightColors,
-    radiusType,
-    colorBy,
-  }: ExtendedMorphoViewerSettings,
+  { darkMode, darkColors, lightColors, radiusType, colorBy }: ExtendedMorphoViewerSettings
 ) {
   const { soma, basalDendrite, apicalDendrite, axon }: Palette = darkMode
     ? darkColors

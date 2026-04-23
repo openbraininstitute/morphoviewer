@@ -24,7 +24,7 @@ export function colorContrast(background: string, ...colors: string[]) {
     const foreLum = colorLuminance(
       foreA * foreR + (1 - foreA) * backR,
       foreA * foreG + (1 - foreA) * backG,
-      foreA * foreB + (1 - foreA) * backB,
+      foreA * foreB + (1 - foreA) * backB
     );
     const L1 = Math.max(backLum, foreLum);
     const L2 = Math.min(backLum, foreLum);
@@ -62,7 +62,7 @@ export function colorLuminance(red: number, green: number, blue: number): number
  */
 export function colorToRGBA(
   color: string,
-  overrideOpacity?: number,
+  overrideOpacity?: number
 ): [red: number, green: number, blue: number, alpha: number] {
   const ctx = getContext();
   ctx.clearRect(0, 0, 1, 1);

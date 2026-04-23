@@ -3,13 +3,11 @@ import { getColorFromGeneratedPalette } from "./colors";
 import type { MorphoViewerSimulContentProps } from "./types/private";
 import type { MorphoViewerElectrodeRecording } from "./types/public";
 
-export function useRecordingsAndInjection(
-  props: MorphoViewerSimulContentProps,
-) {
+export function useRecordingsAndInjection(props: MorphoViewerSimulContentProps) {
   const addRecording = (sectionName: string, offset: number) => {
     const recordings = props.recordings ?? [];
     const existingColors = new Set<string>(
-      recordings.map((rec) => (rec.color ?? "").toUpperCase()),
+      recordings.map((rec) => (rec.color ?? "").toUpperCase())
     );
     let color = "#000";
     let index = 0;

@@ -1,1 +1,1 @@
-export * from "./speed-combo"
+export * from "./speed-combo";

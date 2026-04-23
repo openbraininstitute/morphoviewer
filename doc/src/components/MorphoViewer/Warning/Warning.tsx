@@ -1,6 +1,6 @@
-import { classNames } from '@/util/utils';
+import { classNames } from "@/util/utils";
 
-import styles from './warning.module.css';
+import styles from "./warning.module.css";
 
 interface WarningProps {
   className?: string;

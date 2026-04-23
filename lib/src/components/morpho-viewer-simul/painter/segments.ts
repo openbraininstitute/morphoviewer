@@ -17,7 +17,7 @@ export function makeSegments3D(structure: Structure, map: Map<number, TgdPainter
 
 export function makeSegmentsDendrogram(
   structure: Structure,
-  map: Map<number, TgdPainterSegmentsData>,
+  map: Map<number, TgdPainterSegmentsData>
 ) {
   const width = Math.abs(structure.bboxDendrites.max[0] - structure.bboxDendrites.min[0]);
   const height = Math.abs(structure.bboxDendrites.max[1] - structure.bboxDendrites.min[1]);
@@ -36,7 +36,7 @@ function processSegment(
   segments: TgdPainterSegmentsData,
   start: ArrayNumber3,
   end: ArrayNumber3,
-  map: Map<number, TgdPainterSegmentsData>,
+  map: Map<number, TgdPainterSegmentsData>
 ) {
   const uv: ArrayNumber2 = [
     (item.type + 0.5) / (MorphoViewerTreeItemType.Unknown + 1),
@@ -46,7 +46,7 @@ function processSegment(
     [...start, structure.useStraightCylinders ? item.radiusEnd : item.radiusStart],
     [...end, item.radiusEnd],
     uv,
-    uv,
+    uv
   );
   /**
    * Singletons are used to paint highlights.

@@ -75,7 +75,7 @@ export class GizmoCanvas {
         depth: 1,
       }),
       new TgdPainterDepth(context, { enabled: true }),
-      painter,
+      painter
     );
     context.paint();
   }

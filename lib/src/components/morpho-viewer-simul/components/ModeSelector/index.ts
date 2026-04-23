@@ -1,1 +1,1 @@
-export { default } from "./ModeSelector"
+export { default } from "./ModeSelector";

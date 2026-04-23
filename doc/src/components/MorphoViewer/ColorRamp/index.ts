@@ -1,1 +1,1 @@
-export * from './ColorRamp';
+export * from "./ColorRamp";

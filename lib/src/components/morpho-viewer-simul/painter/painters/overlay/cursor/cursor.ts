@@ -17,7 +17,7 @@ export class PainterCursor extends TgdPainter {
 
   constructor(
     context: TgdContext,
-    private readonly spikingManager: SpikingManager,
+    private readonly spikingManager: SpikingManager
   ) {
     super();
     this.name = "PainterCursor";

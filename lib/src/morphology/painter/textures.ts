@@ -17,7 +17,7 @@ export function getRegionsTextureCanvas(
     basalDendrite: string;
     unknown: string;
   }>,
-  customColors: string[] | null,
+  customColors: string[] | null
 ): HTMLCanvasElement {
   const w = 1;
   const h = 5;
@@ -39,7 +39,7 @@ export function getDistancesTextureCanvas(
     basalDendrite = "#f00",
     apicalDendrite = "#f0f",
   }: Partial<ColorsInterface>,
-  customColors: string[] | null,
+  customColors: string[] | null
 ): HTMLCanvasElement {
   const w = 256;
   const h = 5;

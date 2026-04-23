@@ -48,7 +48,7 @@ export class Painter extends TgdPainterGroup {
   constructor(
     private readonly context: TgdContext,
     private readonly data: MorphologyData,
-    spikingManager: SpikingManager,
+    spikingManager: SpikingManager
   ) {
     super();
     this.palette = new TgdTexture2D(context).loadBitmap(tgdCanvasCreatePalette(PALETTE)).setParams({
@@ -61,7 +61,7 @@ export class Painter extends TgdPainterGroup {
         blend: "off",
         cull: "back",
         children: [this.groupSegments, this.groupHover],
-      }),
+      })
     );
     const { dataset3D, datasetDendrogram } = data;
     const material = new TgdMaterialDiffuse({
@@ -93,7 +93,7 @@ export class Painter extends TgdPainterGroup {
         blend: "alpha",
         cull: "off",
         children: [painterSpikingOverlay],
-      }),
+      })
       //   makeDebugPainter(context)
     );
     context.paint();
@@ -136,8 +136,8 @@ export class Painter extends TgdPainterGroup {
     groupSynapses.delete();
     if (synapses && synapses.length > 0) {
       for (const group of synapses) {
-        const painter = new PainterSynapses(context, group, this.data)
-        painter.mix = this.mix
+        const painter = new PainterSynapses(context, group, this.data);
+        painter.mix = this.mix;
         groupSynapses.add(painter);
       }
     }

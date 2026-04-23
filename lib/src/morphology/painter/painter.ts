@@ -26,7 +26,7 @@ export class SwcPainter extends TgdPainterGroup {
 
   constructor(
     public readonly context: TgdContext,
-    nodes: CellNodes,
+    nodes: CellNodes
   ) {
     super();
     const texture = (this.texture = new TgdTexture2D(context, {
@@ -39,18 +39,15 @@ export class SwcPainter extends TgdPainterGroup {
     const material = new TgdMaterialDiffuse({
       color: texture,
       lockLightsToCamera: true,
-      alphaCut: 1
+      alphaCut: 1,
     });
     const { neurites, soma } = makeData(nodes);
-    const painterNeurites = (this.painterNeurites = new TgdPainterSegments(
-      context,
-      {
-        dataset: neurites.makeDataset,
-        minRadius: 2,
-        roundness: 8,
-        material,
-      },
-    ));
+    const painterNeurites = (this.painterNeurites = new TgdPainterSegments(context, {
+      dataset: neurites.makeDataset,
+      minRadius: 2,
+      roundness: 8,
+      material,
+    }));
     const painterSoma = new TgdPainterSegments(context, {
       dataset: soma.makeDataset,
       minRadius: 2,
@@ -120,15 +117,8 @@ export class SwcPainter extends TgdPainterGroup {
     if (textureIsOutOfDate) {
       texture.loadBitmap(
         colorBy === "section"
-          ? getRegionsTextureCanvas(
-              this.somaVisible,
-              this.colors ?? {},
-              customColorsForSection,
-            )
-          : getDistancesTextureCanvas(
-              this.colors ?? {},
-              customColorsForDistance,
-            ),
+          ? getRegionsTextureCanvas(this.somaVisible, this.colors ?? {}, customColorsForSection)
+          : getDistancesTextureCanvas(this.colors ?? {}, customColorsForDistance)
       );
       this.textureIsOutOfDate = false;
     }
@@ -137,7 +127,7 @@ export class SwcPainter extends TgdPainterGroup {
   resetColors(
     colors: ColorsInterface,
     customColorsForSection: string[] | null,
-    customColorsForDistance: string[] | null,
+    customColorsForDistance: string[] | null
   ) {
     this.textureIsOutOfDate = true;
     this.customColorsForSection = customColorsForSection;

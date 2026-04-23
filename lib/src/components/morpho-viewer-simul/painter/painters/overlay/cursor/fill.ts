@@ -18,7 +18,7 @@ export class PainterCursorFill extends TgdPainter {
 
   constructor(
     public readonly context: TgdContext,
-    public readonly spikingManager: SpikingManager,
+    public readonly spikingManager: SpikingManager
   ) {
     super();
     const uniformBlock = (this.uniformBlock = new TgdUniformBufferObject(context, {

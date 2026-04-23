@@ -86,16 +86,14 @@ export class CellNodes {
           parent.children.push(branch);
         } else {
           console.error(
-            `Node #${node.index} has #${node.parent} as a parent, which is not yet defined!`,
+            `Node #${node.index} has #${node.parent} as a parent, which is not yet defined!`
           );
         }
       }
     });
     const tree = branches.get(root.index);
     if (!tree) {
-      throw Error(
-        "Impossible error! There must be a bug in CellNodes.buildTree().",
-      );
+      throw Error("Impossible error! There must be a bug in CellNodes.buildTree().");
     }
     return tree;
   }
@@ -104,13 +102,12 @@ export class CellNodes {
 function computeDistanceFromSoma(
   node: CellNode,
   mapNodes: Map<number, CellNode>,
-  mapDistances: Map<number, number>,
+  mapDistances: Map<number, number>
 ): number {
   // Root has a distance of 0 from the Soma.
   if (node.parent < 0) return 0;
 
-  if (mapDistances.has(node.index))
-    return mapDistances.get(node.index) as number;
+  if (mapDistances.has(node.index)) return mapDistances.get(node.index) as number;
 
   const parent = mapNodes.get(node.parent);
   // Should never be the case, but if we are not
@@ -129,10 +126,7 @@ function computeDistanceFromSoma(
 
 function computeNodesCenterAndBBox(nodes: CellNode[]) {
   const [firstNode] = nodes;
-  if (!firstNode)
-    throw Error(
-      "Unable to compute bounding box because the nodes array is empty!",
-    );
+  if (!firstNode) throw Error("Unable to compute bounding box because the nodes array is empty!");
 
   const center = new TgdVec3(firstNode.x, firstNode.y, firstNode.z);
   const min = new TgdVec3(center);
@@ -163,7 +157,7 @@ function computeNodesCenterAndBBox(nodes: CellNode[]) {
     bbox: new TgdVec3(
       Math.max(Math.abs(min[0]), Math.abs(max[0])),
       Math.max(Math.abs(min[1]), Math.abs(max[1])),
-      Math.max(Math.abs(min[2]), Math.abs(max[2])),
+      Math.max(Math.abs(min[2]), Math.abs(max[2]))
     ),
   };
 }

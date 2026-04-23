@@ -14,7 +14,8 @@
         "routes": "build-react-routes ./src/app/",
         "demo": "tsx ./scripts/demo/index.ts ./src/app",
         "generate": "npm run routes && npm run demo",
-        "lint": "oxlint src/"
+        "format": "biome format --write src/",
+        "lint": "biome check src/"
     },
     "dependencies": {
         "@bbp/morphoviewer": "file:../lib",
@@ -32,10 +33,10 @@
         "tslib": "^2.8.1"
     },
     "devDependencies": {
-        "@biomejs/biome": "^2.4.4",
+        "@biomejs/biome": "^2.4.12",
         "@mdx-js/loader": "^3.1.1",
-        "@rspack/cli": "^1.7.5",
-        "@rspack/core": "^1.7.5",
+        "@rspack/cli": "^1.7.11",
+        "@rspack/core": "^1.7.11",
         "@types/mdx": "^2.0.13",
         "@types/node": "^25.2.2",
         "@types/prismjs": "^1.26.5",
@@ -51,8 +52,6 @@
         "lowlight": "^3.3.0",
         "mini-css-extract-plugin": "^2.10.0",
         "npm": "^11.10.1",
-        "oxfmt": "^0.35.0",
-        "oxlint": "^1.50.0",
         "rehype-highlight": "^7.0.2",
         "rehype-highlight-code-lines": "^1.2.1",
         "remark-emoji": "^5.0.2",
@@ -62,7 +61,6 @@
         "ts-loader": "^9.5.4",
         "tsx": "^4.21.0",
         "typescript": "5.9.3",
-        "typescript-eslint": "^8.54.0",
         "webpack-shell-plugin-next": "^2.3.3",
         "workbox-webpack-plugin": "^7.4.0"
     },

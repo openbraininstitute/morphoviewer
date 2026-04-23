@@ -21,7 +21,7 @@ export class FramebufferTicks extends TgdPainterFramebuffer {
 
   constructor(
     public readonly context: TgdContext,
-    { texture }: FramebufferTicksOptions,
+    { texture }: FramebufferTicksOptions
   ) {
     const ticks = new PainterTicks(context);
     super(context, {
@@ -60,7 +60,7 @@ export class PainterTicks extends TgdPainterProgram {
       {
         divisor: 1,
         usage: "DYNAMIC_DRAW",
-      },
+      }
     );
     const uniformBlock = new TgdUniformBufferObject(context, {
       uniforms: {
@@ -150,7 +150,7 @@ export class PainterTicks extends TgdPainterProgram {
     const { dataset } = this;
     const inverseSize = 1 / (spike.timeMaxInSeconds - spike.timeMinInSeconds);
     const data = spike.spikesInSeconds.map(
-      (t) => 2 * (t - spike.timeMinInSeconds) * inverseSize - 1,
+      (t) => 2 * (t - spike.timeMinInSeconds) * inverseSize - 1
     );
     this.setAttributeValues(dataset, "attShift", new Float32Array(data));
     this.context.paint();

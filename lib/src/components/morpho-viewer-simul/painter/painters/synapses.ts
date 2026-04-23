@@ -29,7 +29,7 @@ export class PainterSynapses extends TgdPainterGroup {
     const dataPointDendrogram = makeDataPoint(
       synapses.sections,
       data.structure,
-      data.segmentsDendrogram,
+      data.segmentsDendrogram
     );
     const cloud = new TgdPainterPointsCloudMorphing(context, {
       name: `TgdPainterPointsCloud[${synapses.color}]`,
@@ -58,7 +58,7 @@ export class PainterSynapses extends TgdPainterGroup {
 function makeDataPoint(
   sections: Record<string, number[]>,
   structure: Structure,
-  segments: Map<number, TgdPainterSegmentsData>,
+  segments: Map<number, TgdPainterSegmentsData>
 ): { point: Float32Array } {
   let counter = 0;
   const dataPoint: number[] = [];
@@ -75,7 +75,7 @@ function makeDataPoint(
         targetSegment.getXYZR0(0),
         targetSegment.getXYZR1(0),
         offset,
-        counter++,
+        counter++
       );
       dataPoint.push(x, y, z, 1);
     }
@@ -87,7 +87,7 @@ function computePositionOnSegmentSurface(
   start: ArrayNumber4,
   end: ArrayNumber4,
   offset: number,
-  randomSeed: number,
+  randomSeed: number
 ): [x: number, y: number, z: number] {
   const [x0, y0, z0, r0] = start;
   const [x1, y1, z1, r1] = end;
@@ -115,7 +115,7 @@ function computePositionOnSphereSurface(
   y: number,
   z: number,
   r: number,
-  randomSeed: number,
+  randomSeed: number
 ): [x: number, y: number, z: number] {
   const lat = randomSeed;
   const lng = randomSeed * 7.4656519;

@@ -7,12 +7,7 @@ import type { CellNodes } from "./nodes";
 export class Segments {
   private _data: TgdPainterSegmentsData | null = null;
   private _count = 0;
-  private readonly nodesXYZR: [
-    x: number,
-    y: number,
-    z: number,
-    radius: number,
-  ][] = [];
+  private readonly nodesXYZR: [x: number, y: number, z: number, radius: number][] = [];
   private readonly nodesUV: [u: number, v: number][] = [];
   private readonly nodesInfluence: number[] = [];
   private readonly attAxyzr: number[][] = [];
@@ -101,7 +96,7 @@ export class Segments {
   private pushA(
     xyzr: [x: number, y: number, z: number, radius: number],
     uv: [u: number, v: number],
-    influence: number,
+    influence: number
   ) {
     this.attAxyzr.push(xyzr);
     this.attAuv.push(uv);
@@ -111,7 +106,7 @@ export class Segments {
   private pushB(
     xyzr: [x: number, y: number, z: number, radius: number],
     uv: [u: number, v: number],
-    influence: number,
+    influence: number
   ) {
     this.attBxyzr.push(xyzr);
     this.attBuv.push(uv);

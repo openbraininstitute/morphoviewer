@@ -50,7 +50,7 @@
   filter: grayscale(100%);
 }
 
-.SwitchRoot[data-state='checked'] {
+.SwitchRoot[data-state="checked"] {
   background-color: var(--custom-switch-color-front);
   filter: grayscale(0);
 }
@@ -67,7 +67,7 @@
   background-color: var(--custom-switch-color-front);
 }
 
-.SwitchThumb[data-state='checked'] {
+.SwitchThumb[data-state="checked"] {
   transform: translateX(calc(var(--custom-width) - var(--custom-padding) - var(--size)));
   background-color: var(--custom-switch-color-back);
 }

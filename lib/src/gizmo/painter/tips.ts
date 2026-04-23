@@ -9,8 +9,8 @@ import {
   tgdCanvasCreateWithContext2D,
 } from "@tolokoban/tgd";
 
-import {FRAG} from "./shader.frag";
-import {VERT} from "./shader.vert";
+import { FRAG } from "./shader.frag";
+import { VERT } from "./shader.vert";
 
 export class TipsPainter extends TgdPainter {
   public readonly camera = new TgdCameraPerspective({
@@ -37,25 +37,14 @@ export class TipsPainter extends TgdPainter {
       attUV: "vec2",
     });
     // prettier-ignore
-    dataset.set("attPos", new Float32Array([
-             1,  0,  0,
-             0,  1,  0,
-             0,  0,  1,
-            -1,  0,  0,
-             0, -1,  0,
-             0,  0, -1,
-        ]))
+    dataset.set(
+      "attPos",
+      new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0, 0, 0, -1, 0, 0, 0, -1])
+    );
     const X = 1 / 3;
     const Y = 1 / 2;
     // prettier-ignore
-    dataset.set("attUV", new Float32Array([
-              0, 0,
-              X, 0,
-            2*X, 0,
-              0, Y,
-              X, Y,
-            2*X, Y,
-        ]))
+    dataset.set("attUV", new Float32Array([0, 0, X, 0, 2 * X, 0, 0, Y, X, Y, 2 * X, Y]));
     const prg = new TgdProgram(context.gl, { vert: VERT, frag: FRAG });
     const vao = new TgdVertexArray(context.gl, prg, [dataset]);
     this.prg = prg;
@@ -101,7 +90,7 @@ function paintDisk(
   size: number,
   text: string,
   colorBack: string,
-  colorText = "#fff",
+  colorText = "#fff"
 ) {
   const x = (col + 0.5) * size;
   const y = (row + 0.5) * size;

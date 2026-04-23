@@ -1,1 +1,1 @@
-export { default } from './add-recording-dialog';
+export { default } from "./add-recording-dialog";

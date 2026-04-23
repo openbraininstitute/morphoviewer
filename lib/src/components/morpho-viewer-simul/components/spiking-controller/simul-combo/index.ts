@@ -1,1 +1,1 @@
-export { default } from "./simul-combo"
+export { default } from "./simul-combo";

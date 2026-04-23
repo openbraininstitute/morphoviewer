@@ -9,7 +9,7 @@ import React from "react";
 
 export function useMorphologyTree(
   example: string,
-  straightCylinders: boolean,
+  straightCylinders: boolean
 ): [MorphoViewerTree | undefined | string, Morphology | undefined] {
   const [morpho, setMorpho] = React.useState<Morphology | undefined>(undefined);
   const [tree, setTree] = React.useState<MorphoViewerTree | undefined | string>(undefined);

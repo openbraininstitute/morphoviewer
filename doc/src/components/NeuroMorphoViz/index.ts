@@ -1,1 +1,1 @@
-export * from "./NeuroMorphoViz"
+export * from "./NeuroMorphoViz";

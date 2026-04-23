@@ -44,10 +44,7 @@ export abstract class Initializer {
     }
   }
 
-  protected abstract initialize(
-    canvas: HTMLCanvasElement,
-    data: MorphologyData,
-  ): void;
+  protected abstract initialize(canvas: HTMLCanvasElement, data: MorphologyData): void;
 
   abstract delete(): void;
 }

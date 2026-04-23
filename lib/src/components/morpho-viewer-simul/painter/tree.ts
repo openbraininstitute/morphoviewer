@@ -4,10 +4,7 @@ import { MorphoViewerTreeItemType } from "../types/public";
 
 import type { StructureItem } from "./structure";
 
-export function builTree(
-  items: StructureItem[],
-  soma: StructureItem | null,
-): StructureItem {
+export function builTree(items: StructureItem[], soma: StructureItem | null): StructureItem {
   const map = new Map<string, StructureItem>();
   for (const item of items) map.set(key3D(item.end), item);
   for (const item of items) {

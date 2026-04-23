@@ -41,7 +41,7 @@ export class PainterSpiking extends TgdPainterGroup {
   constructor(
     private readonly context: TgdContext,
     data: MorphologyData,
-    private readonly spikingManager: SpikingManager,
+    private readonly spikingManager: SpikingManager
   ) {
     super({ name: "PainterSpiking" });
     this.painterSegments = this.createPainterSegments(context, data);

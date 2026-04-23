@@ -24,13 +24,8 @@ export function parseSwc(content: string) {
     const items = line.split(/\s+/);
     if (items.length < 7) continue;
 
-    const [index, rawType, x, y, z, radius, parent] = items.map((s) =>
-      Number(s),
-    );
-    const type =
-      rawType > 0 && rawType < 5
-        ? (rawType as CellNodeType)
-        : CellNodeType.Unknown;
+    const [index, rawType, x, y, z, radius, parent] = items.map((s) => Number(s));
+    const type = rawType > 0 && rawType < 5 ? (rawType as CellNodeType) : CellNodeType.Unknown;
     nodes.push({
       index,
       parent,
