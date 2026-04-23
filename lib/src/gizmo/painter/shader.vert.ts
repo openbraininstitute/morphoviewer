@@ -1,4 +1,4 @@
-#version 300 es
+export const VERT = `#version 300 es
 
 precision mediump float;
 
@@ -22,3 +22,4 @@ void main() {
     point = uniProjectionMatrix * point;
     gl_PointSize = uniScreenHeight * abs(gl_Position.y / gl_Position.w - point.y / point.w);
 }
+`
