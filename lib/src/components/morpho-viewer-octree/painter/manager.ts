@@ -106,7 +106,7 @@ export class OctreeManager {
         depth: "less",
         cull: "back",
         children: [this.group],
-      }),
+      })
     );
     this.group.removeAll();
     this.resetMeshLoading();

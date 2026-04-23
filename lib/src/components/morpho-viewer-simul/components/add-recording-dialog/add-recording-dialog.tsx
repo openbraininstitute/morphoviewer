@@ -29,7 +29,7 @@ export default function AddRecordingDialog(props: AddRecordingDialogProps) {
       item: null,
       offset: 0,
     },
-    painterManager.eventTap,
+    painterManager.eventTap
   );
   React.useEffect(() => {
     if (item) {

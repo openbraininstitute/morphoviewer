@@ -20,12 +20,12 @@
   gap: 0.5em;
 }
 
-.main > input[type='color'] {
+.main > input[type="color"] {
   display: none;
 }
 
 .main .color {
-  content: '';
+  content: "";
   border-radius: 0.25em;
   width: 1em;
   height: 1em;

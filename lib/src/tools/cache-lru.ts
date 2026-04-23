@@ -2,8 +2,7 @@ export class CacheLRU<T> implements Map<string, T> {
   private map = new Map<string, T>();
 
   constructor(public readonly capacity: number) {
-    if (capacity < 1)
-      throw new Error("[CacheLRU] capacity must be at least 1!");
+    if (capacity < 1) throw new Error("[CacheLRU] capacity must be at least 1!");
   }
 
   clear(): void {
@@ -14,10 +13,7 @@ export class CacheLRU<T> implements Map<string, T> {
     return this.map.delete(key);
   }
 
-  forEach(
-    callbackfn: (value: T, key: string, map: Map<string, T>) => void,
-    thisArg?: any,
-  ): void {
+  forEach(callbackfn: (value: T, key: string, map: Map<string, T>) => void, thisArg?: any): void {
     this.map.forEach(callbackfn, thisArg);
   }
 

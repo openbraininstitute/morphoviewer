@@ -1,1 +1,1 @@
-export { SwcPainter } from "./painter"
+export { SwcPainter } from "./painter";

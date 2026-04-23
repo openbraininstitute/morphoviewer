@@ -70,7 +70,7 @@ export class LegendPainter {
 
       const tip = new TgdVec4(
         painterManager.getSectionCoordinates(sectionId, target.offset),
-        1,
+        1
       ).applyMatrix(painterManager.getCameraMatrix());
       tip.scale(1 / tip.w);
       const isInjection = target.origin === "injection";

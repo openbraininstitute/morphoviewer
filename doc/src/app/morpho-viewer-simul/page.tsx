@@ -45,7 +45,7 @@ const recordingsState = new AtomicState<MorphoViewerElectrodeRecording[]>(
       id: "MorphoViewerElectrodeRecording[]",
       guard: isMorphoViewerElectrodeRecordingArray,
     },
-  },
+  }
 );
 const injectionState = new AtomicState<MorphoViewerElectrodeInjection | undefined>(undefined, {
   storage: {
@@ -62,12 +62,12 @@ export default function Page() {
   const [showSynapses, setShowSynapses] = useLocalStorageState(
     false,
     "MorphoViewerSimul/showSynapses",
-    (v) => (typeof v === "boolean" ? v : false),
+    (v) => (typeof v === "boolean" ? v : false)
   );
   const [camera, setCamera] = useLocalStorageState<MorphoViewerSimulCamera | null>(
     null,
     "MorphoViewerSimul/camera",
-    ensureMorphoViewerSimulCamera,
+    ensureMorphoViewerSimulCamera
   );
   const [controller, setController] = React.useState<MorphoViewerSimulController | null>(null);
   const [recordings, setRecordings] = recordingsState.useState();
@@ -78,7 +78,7 @@ export default function Page() {
   const [spikes, setSpikes] = useLocalStorageState(
     [],
     "MorphoViewerSimul/spikes",
-    ensureMorphoViewerSpikeRecordArray,
+    ensureMorphoViewerSpikeRecordArray
   );
   const handleRemove = (rec: MorphoViewerElectrodeRecording): void => {
     setRecordings(recordings.filter((item) => item !== rec));
@@ -87,19 +87,19 @@ export default function Page() {
     "landscape",
     "MorphoViewerSimul/resolution",
     (data: unknown) =>
-      isString(data) && ["landscape", "portrait", "small"].includes(data) ? data : "landscape",
+      isString(data) && ["landscape", "portrait", "small"].includes(data) ? data : "landscape"
   );
   const [treeSegment, setTreeSegment] = React.useState<MorphoViewerTreeItem | undefined>(undefined);
   const morphoSegment = React.useMemo(
     () => findMorphoSegment(treeSegment, morphology),
-    [treeSegment, morphology],
+    [treeSegment, morphology]
   );
   const [treeSegmentParent, setTreeSegmentParent] = React.useState<
     MorphoViewerTreeItem | undefined
   >(undefined);
   const morphoSegmentParent = React.useMemo(
     () => findMorphoSegment(treeSegmentParent, morphology),
-    [treeSegmentParent, morphology],
+    [treeSegmentParent, morphology]
   );
   const handleSegmentClick = (item: {
     segment: MorphoViewerTreeItem;
@@ -276,7 +276,7 @@ export default function Page() {
                   value={rec.offset}
                   onChange={(offset) => {
                     setRecordings(
-                      recordings.map((item) => (item === rec ? { ...item, offset } : item)),
+                      recordings.map((item) => (item === rec ? { ...item, offset } : item))
                     );
                   }}
                 />
@@ -298,7 +298,7 @@ export default function Page() {
 }
 
 function isMorphoViewerElectrodeRecordingArray(
-  data: unknown,
+  data: unknown
 ): data is MorphoViewerElectrodeRecording[] {
   return isType(data, [
     "array",
@@ -347,7 +347,7 @@ function ensureMorphoViewerSimulCamera(data: unknown): MorphoViewerSimulCamera |
 
 function findMorphoSegment(
   item: MorphoViewerTreeItem | undefined,
-  morphology: Morphology | undefined,
+  morphology: Morphology | undefined
 ): MorphologySection | undefined {
   if (!item || !morphology) return undefined;
 

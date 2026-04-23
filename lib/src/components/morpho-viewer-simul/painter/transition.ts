@@ -39,7 +39,7 @@ export class TransitionManager extends TgdPainterGroup {
 
   constructor(
     public readonly context: TgdContext,
-    { clearColor = "#004" }: Partial<TransitionManagerOptions> = {},
+    { clearColor = "#004" }: Partial<TransitionManagerOptions> = {}
   ) {
     super({ name: "TransitionManager" });
     this.clear = new TgdPainterClear(context, { color: [0, 0, 0, 1], depth: 1 });

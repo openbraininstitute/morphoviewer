@@ -32,7 +32,7 @@ export function findSoma(tree: MorphoViewerTree) {
 
 export function parentOrphansToSoma(
   morphology: MorphoViewerTree,
-  somaTreeItem: MorphoViewerTreeItem | null,
+  somaTreeItem: MorphoViewerTreeItem | null
 ) {
   const singleRoot = somaTreeItem ?? morphology.roots[0];
   if (!singleRoot) return;

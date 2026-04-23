@@ -1,1 +1,1 @@
-export * from './offscreen-painter';
+export * from "./offscreen-painter";

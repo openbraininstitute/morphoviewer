@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 /**
  * A boolean state that will automatically switch back to `false`

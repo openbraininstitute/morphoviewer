@@ -1,4 +1,4 @@
-import { CSSProperties } from 'react';
+import { CSSProperties } from "react";
 
 type Props = {
   className?: string;
@@ -10,8 +10,8 @@ export function IconCenter({ className, style }: Props) {
     <svg
       className={className}
       style={{
-        width: '1.5em',
-        height: '1.5em',
+        width: "1.5em",
+        height: "1.5em",
         ...style,
       }}
       viewBox="0 0 24 24"
@@ -19,7 +19,7 @@ export function IconCenter({ className, style }: Props) {
       xmlns="http://www.w3.org/2000/svg"
     >
       <title>image-filter-center-focus</title>
-      <path d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M19,19H15V21H19A2,2 0 0,0 21,19V15H19M19,3H15V5H19V9H21V5A2,2 0 0,0 19,3M5,5H9V3H5A2,2 0 0,0 3,5V9H5M5,15H3V19A2,2 0 0,0 5,21H9V19H5V15Z" />{' '}
+      <path d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M19,19H15V21H19A2,2 0 0,0 21,19V15H19M19,3H15V5H19V9H21V5A2,2 0 0,0 19,3M5,5H9V3H5A2,2 0 0,0 3,5V9H5M5,15H3V19A2,2 0 0,0 5,21H9V19H5V15Z" />{" "}
     </svg>
   );
 }

@@ -53,7 +53,7 @@
     "formatter": {
       "semicolons": "always",
       "bracketSameLine": false,
-      "quoteStyle": "single",
+      "quoteStyle": "double",
       "trailingCommas": "es5"
     }
   },

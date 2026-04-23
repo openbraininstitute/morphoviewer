@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
-import { MorphologyCanvas } from '@bbp/morphoviewer';
+import { useEffect, useRef, useState } from "react";
+import { MorphologyCanvas } from "@bbp/morphoviewer";
 
-import { useMorphoViewerSettings } from '../hooks/settings';
-import { classNames } from '@/util/utils';
+import { useMorphoViewerSettings } from "../hooks/settings";
+import { classNames } from "@/util/utils";
 
-import styles from './scalebar.module.css';
+import styles from "./scalebar.module.css";
 
 interface VerticalScalebarProps {
   className?: string;
@@ -20,7 +20,7 @@ export function Scalebar({ className, painter }: VerticalScalebarProps) {
     const canvas = ref.current;
     if (!canvas || !scalebar) return;
 
-    paint(canvas, scalebar, settings.isDarkMode ? '#fffe' : '#000e');
+    paint(canvas, scalebar, settings.isDarkMode ? "#fffe" : "#000e");
   }, [scalebar, settings]);
 
   if (!scalebar) return null;
@@ -55,7 +55,7 @@ function useScalebar(painter: MorphologyCanvas): ScalebarAttributes | null {
 }
 
 function paint(canvas: HTMLCanvasElement, scalebar: ScalebarAttributes, color: string) {
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
   const w = canvas.clientWidth;

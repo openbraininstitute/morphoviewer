@@ -9,10 +9,7 @@ interface CustomEventDispatchable<T> extends CustomEvent<T> {
   dispatch(arg: T): void;
 }
 
-export function useEventValue<T>(
-  initialValue: T,
-  event?: CustomEvent<T> | null,
-): T {
+export function useEventValue<T>(initialValue: T, event?: CustomEvent<T> | null): T {
   const [value, setValue] = React.useState<T>(initialValue);
   React.useEffect(() => {
     if (!event) return;
@@ -25,7 +22,7 @@ export function useEventValue<T>(
 
 export function useEventState<T>(
   initialValue: T,
-  event?: CustomEventDispatchable<T> | null,
+  event?: CustomEventDispatchable<T> | null
 ): [T, (value: T) => void] {
   const [value, setValue] = React.useState<T>(initialValue);
   React.useEffect(() => {
@@ -43,7 +40,5 @@ export function useEventState<T>(
 }
 
 export function classNames(...args: unknown[]): string {
-  return args
-    .filter((arg) => typeof arg === "string" && arg.trim().length > 0)
-    .join(" ");
+  return args.filter((arg) => typeof arg === "string" && arg.trim().length > 0).join(" ");
 }

@@ -22,4 +22,4 @@ void main() {
     point = uniProjectionMatrix * point;
     gl_PointSize = uniScreenHeight * abs(gl_Position.y / gl_Position.w - point.y / point.w);
 }
-`
+`;

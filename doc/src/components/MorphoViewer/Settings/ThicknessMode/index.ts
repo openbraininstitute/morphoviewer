@@ -1,1 +1,1 @@
-export * from './ThicknessMode';
+export * from "./ThicknessMode";

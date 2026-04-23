@@ -1,1 +1,1 @@
-export * from './button-reset-camera';
+export * from "./button-reset-camera";

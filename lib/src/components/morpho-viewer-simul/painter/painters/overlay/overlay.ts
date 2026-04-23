@@ -28,7 +28,7 @@ export class PainterSpikingOverlay extends TgdPainterGroup {
 
   constructor(
     public readonly context: TgdContext,
-    private readonly spikingManager: SpikingManager,
+    private readonly spikingManager: SpikingManager
   ) {
     super({ name: "PainterSpikingOverlay" });
     this.painterCursor = new PainterCursor(context, spikingManager);

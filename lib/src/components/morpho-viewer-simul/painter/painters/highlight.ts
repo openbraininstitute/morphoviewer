@@ -15,7 +15,7 @@ import {
 export class PainterHover extends TgdPainterGroup {
   constructor(
     public readonly context: TgdContext,
-    segments: TgdPainterSegmentsData,
+    segments: TgdPainterSegmentsData
   ) {
     super();
     this.add(
@@ -39,7 +39,7 @@ export class PainterHover extends TgdPainterGroup {
             }),
           }),
         ],
-      }),
+      })
     );
   }
 }

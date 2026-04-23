@@ -13,20 +13,14 @@ export class MorphologyData {
 
   public readonly datasetDendrogram: TgdDataset;
 
-  public readonly segmentsDendrogram = new Map<
-    number,
-    TgdPainterSegmentsData
-  >();
+  public readonly segmentsDendrogram = new Map<number, TgdPainterSegmentsData>();
 
   constructor(morphology: MorphoViewerTree) {
     fixLoopsInTree(morphology);
     this.structure = new Structure(morphology);
     const segments3D = makeSegments3D(this.structure, this.segments3D);
     this.dataset3D = segments3D.makeDataset();
-    const segmentsDendrogram = makeSegmentsDendrogram(
-      this.structure,
-      this.segmentsDendrogram,
-    );
+    const segmentsDendrogram = makeSegmentsDendrogram(this.structure, this.segmentsDendrogram);
     this.datasetDendrogram = segmentsDendrogram.makeDataset();
   }
 }

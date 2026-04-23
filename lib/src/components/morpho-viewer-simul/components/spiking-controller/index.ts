@@ -1,1 +1,1 @@
-export { default } from "./spiking-controller"
+export { default } from "./spiking-controller";

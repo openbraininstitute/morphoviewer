@@ -1,10 +1,10 @@
-import { MorphologyCanvas } from '@bbp/morphoviewer';
+import { MorphologyCanvas } from "@bbp/morphoviewer";
 
-import { useMorphoViewerSettings } from '../../hooks/settings';
-import { Switch } from '@/components/common/Switch';
-import { classNames } from '@/util/utils';
+import { useMorphoViewerSettings } from "../../hooks/settings";
+import { Switch } from "@/components/common/Switch";
+import { classNames } from "@/util/utils";
 
-import styles from './thickness-mode.module.css';
+import styles from "./thickness-mode.module.css";
 
 interface ThicknessModeProps {
   className?: string;

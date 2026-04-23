@@ -88,8 +88,7 @@ export class MorphologyCanvas extends AbstractCanvas {
    * from this list of colors, according to property `v` of each CellNode.
    */
   set customColorsForSection(colors: string[] | null) {
-    this._customColorsForSection =
-      !colors || colors.length === 0 ? null : colors;
+    this._customColorsForSection = !colors || colors.length === 0 ? null : colors;
     this.handleColorsChange();
   }
 
@@ -101,8 +100,7 @@ export class MorphologyCanvas extends AbstractCanvas {
    * from this list of colors, according to property `u` of each CellNode.
    */
   set customColorsForDistance(colors: string[] | null) {
-    this._customColorsForDistance =
-      !colors || colors.length === 0 ? null : colors;
+    this._customColorsForDistance = !colors || colors.length === 0 ? null : colors;
     this.handleColorsChange();
   }
 
@@ -163,10 +161,7 @@ export class MorphologyCanvas extends AbstractCanvas {
     this.resetCamera(journey.to, 300);
   };
 
-  public readonly resetCamera = (
-    newOrientation?: Readonly<TgdQuat>,
-    transition = 0,
-  ) => {
+  public readonly resetCamera = (newOrientation?: Readonly<TgdQuat>, transition = 0) => {
     const { context } = this;
     if (!context) return;
 
@@ -174,10 +169,7 @@ export class MorphologyCanvas extends AbstractCanvas {
     const { nodesManager: nodes } = this;
     if (nodes) {
       // const [sx, sy] = nodes.bbox
-      const [sx, sy] = computeBoundingBox(
-        nodes,
-        newOrientation ?? new TgdQuat(),
-      );
+      const [sx, sy] = computeBoundingBox(nodes, newOrientation ?? new TgdQuat());
       const morphoWidth = Math.max(1e-6, Math.abs(sx));
       const morphoHeight = Math.max(1e-6, Math.abs(sy));
       this.morphoWidthAtTarget = morphoWidth;
@@ -282,11 +274,7 @@ export class MorphologyCanvas extends AbstractCanvas {
 
   private readonly handleColorsChange = () => {
     const { colors, customColorsForSection, customColorsForDistance } = this;
-    this.painter?.resetColors(
-      colors,
-      customColorsForSection,
-      customColorsForDistance,
-    );
+    this.painter?.resetColors(colors, customColorsForSection, customColorsForDistance);
     this.eventColorsChange.dispatch({
       apicalDendrite: colors.apicalDendrite,
       axon: colors.axon,
@@ -335,22 +323,15 @@ export class MorphologyCanvas extends AbstractCanvas {
     const segments = new SwcPainter(context, nodes);
     segments.minRadius = this._minRadius;
     if (this.colors)
-      segments.resetColors(
-        this.colors,
-        this.customColorsForSection,
-        this.customColorsForDistance,
-      );
+      segments.resetColors(this.colors, this.customColorsForSection, this.customColorsForDistance);
     this.painter = segments;
     context.add(
       new TgdPainterLogic(() => {
-        context.camera.fitSpaceAtTarget(
-          this.morphoWidthAtTarget,
-          this.morphoHeightAtTarget,
-        );
+        context.camera.fitSpaceAtTarget(this.morphoWidthAtTarget, this.morphoHeightAtTarget);
       }),
       clear,
       depth,
-      this.painter,
+      this.painter
     );
     const { orbiter } = this;
     if (orbiter) orbiter.onZoomRequest = this.handleZoomRequest;
@@ -360,9 +341,7 @@ export class MorphologyCanvas extends AbstractCanvas {
    * We accept the zoom only if the canvas is in fullscreen
    * or if the Ctrl key is pressed.
    */
-  private readonly handleZoomRequest = (
-    evt: TgdControllerCameraOrbitZoomRequest,
-  ): boolean => {
+  private readonly handleZoomRequest = (evt: TgdControllerCameraOrbitZoomRequest): boolean => {
     const { context } = this;
     if (!context) return false;
 
@@ -375,10 +354,7 @@ export class MorphologyCanvas extends AbstractCanvas {
   };
 }
 
-function computeBoundingBox(
-  nodes: CellNodes,
-  orientation: Readonly<TgdQuat>,
-): [number, number] {
+function computeBoundingBox(nodes: CellNodes, orientation: Readonly<TgdQuat>): [number, number] {
   let x = 0;
   let y = 0;
   const mat = new TgdMat3().fromQuat(orientation).transpose();

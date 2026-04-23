@@ -25,7 +25,7 @@ export default function PageMorphoViewerOctree() {
           const resp = await fetch(url);
           if (!resp.ok) {
             throw new Error(
-              `Unable to get info file: ${url}!\nError #${resp.status}: ${resp.statusText}`,
+              `Unable to get info file: ${url}!\nError #${resp.status}: ${resp.statusText}`
             );
           }
           const data = await resp.json();
@@ -47,7 +47,7 @@ export default function PageMorphoViewerOctree() {
           const resp = await fetch(url);
           if (!resp.ok) {
             console.error(
-              `Unable to get info file: ${url}!\nError #${resp.status}: ${resp.statusText}`,
+              `Unable to get info file: ${url}!\nError #${resp.status}: ${resp.statusText}`
             );
             return null;
           }

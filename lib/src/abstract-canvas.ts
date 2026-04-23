@@ -148,11 +148,7 @@ export abstract class AbstractCanvas {
           gl.canvas.width = width;
           gl.canvas.height = height;
           gl.viewport(0, 0, width, height);
-          console.log(
-            "🐞 [abstract-canvas@151] width, height =",
-            width,
-            height,
-          ); // @FIXME: Remove this line written on 2026-02-12 at 18:08
+          console.log("🐞 [abstract-canvas@151] width, height =", width, height); // @FIXME: Remove this line written on 2026-02-12 at 18:08
         },
       });
       const camera = this._camera;
@@ -160,10 +156,7 @@ export abstract class AbstractCanvas {
       this.context.eventPaint.addListener(this.handlePixelScaleDispatch);
       const { cameraController } = this.options;
       if (cameraController) {
-        const orbiter = new TgdControllerCameraOrbit(
-          this.context,
-          cameraController,
-        );
+        const orbiter = new TgdControllerCameraOrbit(this.context, cameraController);
         this.orbiter = orbiter;
       }
       this.init();

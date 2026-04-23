@@ -1,1 +1,1 @@
-export * from "./spikes-settings"
+export * from "./spikes-settings";

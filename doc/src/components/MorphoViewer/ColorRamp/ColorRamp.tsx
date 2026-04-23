@@ -1,10 +1,10 @@
-import React from 'react';
-import { MorphologyCanvas } from '@bbp/morphoviewer';
+import React from "react";
+import { MorphologyCanvas } from "@bbp/morphoviewer";
 
-import { useMorphoViewerSettings } from '../hooks/settings';
-import { classNames } from '@/util/utils';
+import { useMorphoViewerSettings } from "../hooks/settings";
+import { classNames } from "@/util/utils";
 
-import styles from './color-ramp.module.css';
+import styles from "./color-ramp.module.css";
 
 interface ColorRampProps {
   className?: string;
@@ -13,7 +13,7 @@ interface ColorRampProps {
 
 export function ColorRamp({ className, painter }: ColorRampProps) {
   const [settings] = useMorphoViewerSettings(painter);
-  if (settings.colorBy === 'section') return null;
+  if (settings.colorBy === "section") return null;
 
   return (
     <div className={classNames(styles.main, className)}>
