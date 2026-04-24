@@ -4,6 +4,7 @@ import {
   type MorphoViewerSmallCircuitCellData,
   morphoViewerConvertMorphologyIntoTree,
 } from "@bbp/morphoviewer";
+import { ViewSpinner } from "@tolokoban/ui";
 import React from "react";
 
 import { useCircuit } from "./data";
@@ -11,7 +12,8 @@ import { useCircuit } from "./data";
 import styles from "./page.module.css";
 
 export default function Page() {
-  const circuit = useCircuit(1);
+  const circuit = useCircuit(50);
+  const [progress, setProgress] = React.useState(0);
   const [selectedCells, setSelectedCells] = React.useState<string[]>([]);
   const [highlightedCellId, setHighlightedCellId] = React.useState("");
   const highlightedCellIds = React.useMemo(
@@ -33,7 +35,7 @@ export default function Page() {
 
   return (
     <div className={styles.page}>
-      <div>
+      <div className={styles.viewerContainer}>
         <MorphoViewerSmallCircuit
           className={styles.viewer}
           backgroundColor="#000"
@@ -42,7 +44,17 @@ export default function Page() {
           onCellHover={handleCellHover}
           onCellClick={handleCellClick}
           highlightedCellIds={highlightedCellIds}
+          onLoadProgress={setProgress}
         />
+        {progress < 1 && (
+          <div className={styles.progress}>
+            <div>
+              <ViewSpinner />
+              <div>Loading morphologies... </div>
+              <strong>{(100 * progress).toFixed(0)} %</strong>
+            </div>{" "}
+          </div>
+        )}
       </div>
       <div>
         <h1>&lt;MorphoViewerSmallCircuit /&gt;</h1>
@@ -55,7 +67,7 @@ async function loadCell(id: string): Promise<MorphoViewerSmallCircuitCellData | 
   try {
     console.log("loadCell:", id);
     const url = `./assets/${id}.json`;
-    const resp = await fetch(url);
+    const resp = await throttling(fetch(url), 5000);
     if (!resp.ok) {
       console.error(`Unable to load ${url}\nError ${resp.status}: ${resp.statusText}`);
     }
@@ -69,4 +81,12 @@ async function loadCell(id: string): Promise<MorphoViewerSmallCircuitCellData | 
     console.error(`Unable to load cell "${id}":`, error);
     return null;
   }
+}
+
+async function throttling<T>(promise: Promise<T>, delay: number): Promise<T> {
+  const sleep = new Promise((resolve) => {
+    globalThis.setTimeout(resolve, Math.random() * delay);
+  });
+  const [result] = await Promise.all([promise, sleep]);
+  return result;
 }

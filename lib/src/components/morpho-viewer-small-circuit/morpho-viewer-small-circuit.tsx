@@ -6,10 +6,8 @@ import { classNames } from "@/utils";
 import { ButtonCameraReset } from "../button-reset-camera";
 import { IconClose } from "../icons/close";
 import { IconFullscreen } from "../icons/fullscreen";
-import { usePainterManager } from "./painter/manager";
-
 import type { MorphoViewerSmallCircuitProps } from ".";
-import type { PainterManager } from "./painter";
+import { type PainterManager, usePainterManager } from "./painter";
 
 import styles from "./morpho-viewer-small-circuit.module.css";
 
