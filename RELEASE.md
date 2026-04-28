@@ -1,17 +1,16 @@
-# Release Notes — v0.24.16
+# Release Notes
 
-By default `<MorphioViewerSimul />` starts in 3D mode, and can then be switched to Dendrogram mode.
-The synapses stick to the neurites when transitionning between these modes, but only if they are added in 3D mode.
-If you add synapses when in Dendrogram mode, they appear in 3D view, creating an inconstancy in the view.
+## Package rename
 
-This release fix this issue.
+The npm package has been renamed from `@bbp/morphoviewer` to `@openbraininstitute/morphoviewer`.
 
-## Bug Fixes
+## CI/CD improvements
 
-- Preserve synapses when transitioning between views (use existing view synapses instead of resetting)
-- Apply mix value to newly created synapse painters so they render correctly
+- Simplified the npm publish workflow into a single job (removed separate build/test step)
+- Upgraded GitHub Actions from v3 to v4 (`actions/checkout`, `actions/setup-node`)
+- Auto-publish on push to `main` (in addition to manual `workflow_dispatch`)
+- Publish now uses `--access public`
 
-## Refactoring
+## Misc
 
-- Convert GLSL shader files (.frag, .vert) to TypeScript modules for gizmo tips painter because it was forcing the bundler of the library client to add special rules for them.
-- Remove unused `TgdVec3` import from tips painter
+- Improved `.gitignore` to better handle `.DS_Store` files
