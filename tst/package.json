@@ -1,0 +1,33 @@
+{
+    "name": "morphoviewer-tst",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "dev": "rspack serve --mode=development",
+        "build": "rspack --mode=production",
+        "routes": "build-react-routes ./src/frontend/app/",
+        "start": "WEBKIT_DISABLE_DMABUF_RENDERER=1 npm run tauri dev",
+        "tauri": "tauri"
+    },
+    "dependencies": {
+        "@tauri-apps/api": "^2.10.1",
+        "@tolokoban/tgd": "^2.0.128",
+        "@tolokoban/type-guards": "^0.9.0",
+        "@tolokoban/ui": "^0.25.4",
+        "react": "^19.2.5",
+        "react-dom": "^19.2.5",
+        "react-markdown": "^10.1.0",
+        "remark-gfm": "^4.0.1"
+    },
+    "devDependencies": {
+        "@rspack/cli": "^1.7.11",
+        "@rspack/core": "^1.7.11",
+        "@tauri-apps/cli": "^2.10.1",
+        "@types/react": "^19.2.14",
+        "@types/react-dom": "^19.2.3",
+        "build-react-routes": "^0.10.8",
+        "css-loader": "^6.11.0",
+        "ts-loader": "^9.5.7",
+        "typescript": "^5.9.3"
+    }
+}
