@@ -1,16 +1,27 @@
-# Release Notes
+# Release Notes — v0.24.17
 
-## Package rename
+## New Features
 
-The npm package has been renamed from `@bbp/morphoviewer` to `@openbraininstitute/morphoviewer`.
+- Add `onLoadProgress` callback to `<MorphoViewerSmallCircuit />` component, reporting cell loading progress as a value between `0.0` and `1.0`
+- Demo page now shows a loading spinner with percentage while morphologies are being fetched
 
-## CI/CD improvements
+## Improvements
 
-- Simplified the npm publish workflow into a single job (removed separate build/test step)
-- Upgraded GitHub Actions from v3 to v4 (`actions/checkout`, `actions/setup-node`)
-- Auto-publish on push to `main` (in addition to manual `workflow_dispatch`)
-- Publish now uses `--access public`
+- Camera dynamically adapts as cells are loaded, updating the bounding box incrementally instead of computing it only from soma positions
+- Bounding box now accounts for full morphology geometry (neurites and soma segments) for more accurate framing
+- Adjust zoom range (min: 0.5, max: 20) and default zoom (2) for better initial view of circuits
+- Enable back-face culling on cell and highlighted cell rendering for better performance
+- Demo page increased default circuit size from 1 to 50 cells
+- Add request throttling in demo to simulate realistic loading conditions
 
-## Misc
+## Bug Fixes
 
-- Improved `.gitignore` to better handle `.DS_Store` files
+- Fix camera framing by using morphology bounding boxes instead of only soma radii
+
+## Refactoring
+
+- Move `usePainterManager` export to `painter/index.ts` barrel file
+- Consolidate imports in `morpho-viewer-small-circuit.tsx`
+- `createCellFromTree` now returns both the painter node and its bounding box
+- Add `applyTransfoToBBox` utility to transform bounding boxes by cell orientation and position
+- Move `@biomejs/biome` dependency to the workspace root, removing it from `lib/` and `doc/`

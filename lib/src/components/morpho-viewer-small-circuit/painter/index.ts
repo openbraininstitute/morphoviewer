@@ -1,1 +1,1 @@
-export type { PainterManager } from "./manager";
+export { PainterManager, usePainterManager } from "./manager";

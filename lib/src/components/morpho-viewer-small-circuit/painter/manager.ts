@@ -19,15 +19,18 @@ import {
   webglPresetDepth,
 } from "@tolokoban/tgd";
 import React from "react";
+
 import { CacheLRU } from "@/tools/cache-lru";
+
+import { CameraManager } from "./camera";
+import { OffscreenPainter } from "./offscreen-painter";
+import { PainterCell } from "./painter-cell";
+
 import type {
   MorphoViewerSmallCircuitCell,
   MorphoViewerSmallCircuitCellData,
   MorphoViewerSmallCircuitProps,
 } from "..";
-import { CameraManager } from "./camera";
-import { OffscreenPainter } from "./offscreen-painter";
-import { PainterCell } from "./painter-cell/painter-cell";
 
 interface Framebuffer {
   textureColor0?: TgdTexture2D;
@@ -37,6 +40,13 @@ export class PainterManager {
   public readonly eventRestingPosition = new TgdEvent<boolean>();
   public readonly eventCellHover = new TgdEvent<MorphoViewerSmallCircuitCell | undefined>();
   public readonly eventCellClick = new TgdEvent<MorphoViewerSmallCircuitCell | undefined>();
+  /**
+   * This callback is called when the loading starts (with a value of __0__),
+   * then every time a cell is loaded.
+   *
+   * @param progress Percentage of loaded cells so far. Between `0.0` and `1.0`.
+   */
+  public onLoadProgress?(progress: number): void;
 
   /**
    * Used for the highlights, because we don't want to render at full resolution
@@ -60,6 +70,15 @@ export class PainterManager {
   });
   private loadCell: null | ((id: string) => Promise<MorphoViewerSmallCircuitCellData | null>) =
     null;
+  /**
+   * Number of cells in the current circuit.
+   */
+  private cellCountTotal = 0;
+  /**
+   * Number of cells loaded with full morphology.
+   * If the load fails, this number will be incremented anyway.
+   */
+  private cellCountLoaded = 0;
   private framebufferCircuit: Framebuffer | null = null;
   private textureFramebufferCircuit: TgdTexture2D | null = null;
   private framebufferHighlightedCells: Framebuffer | null = null;
@@ -68,6 +87,7 @@ export class PainterManager {
   private textureFramebufferBlur: TgdTexture2D | null = null;
   private loadedCells = new CacheLRU<Promise<MorphoViewerSmallCircuitCellData | null>>(24);
   private circuitSignature = "";
+  private bbox = new TgdBoundingBox();
 
   readonly cameraReset = () => this.cameraManager?.resetCamera();
 
@@ -101,6 +121,9 @@ export class PainterManager {
     const { loadCell, loadedCells } = this;
     if (!loadCell) return;
 
+    this.onLoadProgress?.(0);
+    this.cellCountTotal = this.circuit.length;
+    this.cellCountLoaded = 0;
     const camera = new TgdCameraPerspective({
       zoom: 1,
     });
@@ -109,17 +132,26 @@ export class PainterManager {
       loadCell,
       loadedCells,
     });
-    const bbox = new TgdBoundingBox();
     const { cellsForHighights: highlightingCells } = this;
     highlightingCells.clear();
     this.groupHighlithedCells.removeAll(false);
+    this.bbox = new TgdBoundingBox();
     for (const cell of this.circuit) {
       const [x, y, z] = cell.center;
-      bbox.addSphere(x, y, z, cell.somaRadius * 2);
+      const r = cell.somaRadius;
+      this.bbox.addSphere(x, y, z, r * 5);
       const painterCell = new PainterCell(context, {
         cell,
         loadCell,
         matrerial: "full",
+        onCellLoaded: (bbox) => {
+          if (bbox) {
+            this.bbox.addBBox(bbox);
+            this.adaptCameraFromBBox();
+          }
+          this.cellCountLoaded++;
+          this.onLoadProgress?.(this.cellCountLoaded / this.cellCountTotal);
+        },
       });
       this.groupCells.add(painterCell);
       const highlightedCell = new PainterCell(context, {
@@ -129,6 +161,18 @@ export class PainterManager {
       });
       highlightingCells.set(cell.id, highlightedCell);
     }
+    this.updateHightedCells();
+    context.camera = camera;
+    this.adaptCameraFromBBox();
+    context.paint();
+  }
+
+  private adaptCameraFromBBox() {
+    const { context } = this;
+    if (!context) return;
+
+    const { bbox } = this;
+    const { camera } = context;
     const bboxW = Math.abs(bbox.max[0] - bbox.min[0]);
     const bboxH = Math.abs(bbox.max[1] - bbox.min[1]);
     camera.transfo.position = bbox.center;
@@ -136,14 +180,11 @@ export class PainterManager {
     camera.fitSpaceAtTarget(bboxW * scale, bboxH * scale);
     camera.near = 1;
     camera.far = camera.transfo.distance * 2;
-    camera.zoom = 1;
+    camera.zoom = 2;
     const { cameraManager } = this;
     if (cameraManager) {
       cameraManager.target = camera.getCurrentState();
     }
-    this.updateHightedCells();
-    context.paint();
-    context.camera = camera;
   }
 
   public get highlightedCellIds() {
@@ -207,7 +248,7 @@ export class PainterManager {
     context.inputs.pointer.eventTap.addListener(this.handlePointerTap);
     this.context = context;
     this.cameraManager = new CameraManager(context, this.eventRestingPosition);
-    const clear = (this.painterClear = new TgdPainterClear(context, {
+    const clear = new TgdPainterClear(context, {
       color: [
         this.backgroundColor.R,
         this.backgroundColor.G,
@@ -215,7 +256,8 @@ export class PainterManager {
         this.backgroundColor.A,
       ],
       depth: 1,
-    }));
+    });
+    this.painterClear = clear;
     // context.add(
     //     this.createramebufferCircuit(context, clear),
     //     this.createFramebufferHighlightedCells(context),
@@ -223,12 +265,11 @@ export class PainterManager {
     //     this.createMix(context),
     // )
 
-    // @TODO: Add a layer for highlighting the cells.
-    // Maybe justv the same cell "added" on the background.
     context.add(
       clear,
       new TgdPainterState(context, {
         depth: "less",
+        cull: "back",
         children: [this.groupCells],
       }),
       // Highlighted cells
@@ -236,6 +277,7 @@ export class PainterManager {
       new TgdPainterState(context, {
         depth: "less",
         blend: "add",
+        cull: "back",
         children: [this.groupHighlithedCells],
       })
     );
@@ -385,12 +427,16 @@ export function usePainterManager({
   onCellHover,
   onCellClick,
   highlightedCellIds,
+  onLoadProgress,
 }: MorphoViewerSmallCircuitProps) {
   const ref = React.useRef<PainterManager | null>(null);
   if (!ref.current) {
     ref.current = new PainterManager();
   }
   const manager = ref.current;
+  React.useEffect(() => {
+    manager.onLoadProgress = onLoadProgress;
+  }, [onLoadProgress, manager]);
   React.useEffect(() => {
     manager.background = backgroundColor ?? "#000";
   }, [backgroundColor, manager]);

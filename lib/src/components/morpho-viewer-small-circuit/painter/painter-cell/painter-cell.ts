@@ -1,5 +1,6 @@
 import {
   type ArrayNumber4,
+  TgdBoundingBox,
   TgdColor,
   type TgdContext,
   TgdGeometrySphereIco,
@@ -11,17 +12,26 @@ import {
   TgdPainterGroup,
   TgdPainterMesh,
   TgdQuat,
+  TgdTransfo,
   TgdVec4,
 } from "@tolokoban/tgd";
-import type { MorphoViewerTree } from "@/components/morpho-viewer-simul";
+
 import { int16ToVec3 } from "@/utils";
-import type { MorphoViewerSmallCircuitCell, MorphoViewerSmallCircuitCellData } from "../../types";
+
 import { createCellFromTree } from "./factory/tree";
+
+import type { MorphoViewerTree } from "@/components/morpho-viewer-simul";
+import type { MorphoViewerSmallCircuitCell, MorphoViewerSmallCircuitCellData } from "../../types";
 
 export interface PainterCellOptions {
   matrerial?: PainterCellMaterialName;
   cell: MorphoViewerSmallCircuitCell;
   loadCell(id: string): Promise<MorphoViewerSmallCircuitCellData | null>;
+  /**
+   * This callback is called when the morphology of the cell has been loaded.
+   * In case of failure, `bbox` will be `null`.
+   */
+  onCellLoaded?(bbox: TgdBoundingBox | null): void;
 }
 
 export type PainterCellMaterialName = "full" | "flat" | number;
@@ -90,13 +100,13 @@ export class PainterCell extends TgdPainterGroup {
 
   private async loadCell() {
     const { context, material } = this;
-    const { cell, loadCell } = this.options;
+    const { cell, loadCell, onCellLoaded } = this.options;
 
     try {
       const [path] = cell.id.split("?");
       const data = await loadCell(path);
       if (isCellAsTree(data)) {
-        const mesh = createCellFromTree(
+        const { node, bbox } = createCellFromTree(
           context,
           material,
           data.data,
@@ -104,14 +114,16 @@ export class PainterCell extends TgdPainterGroup {
         );
         const [x, y, z] = cell.center;
         const quat = new TgdQuat(cell.orientation);
-        mesh.transfo.setPosition(x, y, z);
-        mesh.transfo.orientation = quat;
+        node.transfo.setPosition(x, y, z);
+        node.transfo.orientation = quat;
+        onCellLoaded?.(applyTransfoToBBox(node.transfo, bbox));
         this.removeAll();
-        this.add(mesh);
+        this.add(node);
         context.paint();
       }
     } catch (error) {
       console.error(`Error loading cell "${cell.id}":`, error);
+      onCellLoaded?.(null);
     }
   }
 }
@@ -135,4 +147,25 @@ function ensureCellHasColor(cell: MorphoViewerSmallCircuitCell): ArrayNumber4 {
     cell.color = color.toString();
   }
   return [color.R, color.G, color.B, color.A];
+}
+
+function applyTransfoToBBox(transfo: TgdTransfo, bbox: TgdBoundingBox): TgdBoundingBox | null {
+  const { matrix } = transfo;
+  const [x0, y0, z0] = bbox.min;
+  const [x1, y1, z1] = bbox.max;
+  const points: TgdVec4[] = [
+    new TgdVec4(x0, y0, z0, 1),
+    new TgdVec4(x0, y0, z1, 1),
+    new TgdVec4(x0, y1, z0, 1),
+    new TgdVec4(x0, y1, z1, 1),
+    new TgdVec4(x1, y0, z0, 1),
+    new TgdVec4(x1, y0, z1, 1),
+    new TgdVec4(x1, y1, z0, 1),
+    new TgdVec4(x1, y1, z1, 1),
+  ].map((vec) => vec.applyMatrix(matrix));
+  const transformedBBox = new TgdBoundingBox();
+  for (const [x, y, z] of points) {
+    transformedBBox.addPoint(x, y, z);
+  }
+  return transformedBBox;
 }

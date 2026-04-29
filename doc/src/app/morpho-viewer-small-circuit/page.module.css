@@ -1,8 +1,42 @@
 div.page {
-  padding: 1em;
+    padding: 1em;
 
-  div.viewer {
-    width: 1000px;
-    height: 750px;
-  }
+    div.viewerContainer {
+        position: relative;
+        width: fit-content;
+        height: fit-content;
+
+        div.progress {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            display: grid;
+            place-items: center;
+
+            >div {
+                display: flex;
+                flex-wrap: nowrap;
+                flex-direction: row;
+                justify-content: flex-start;
+                align-items: center;
+                gap: 1em;
+                padding: 1em;
+                border-radius: 99vmax;
+                background-color: #000a;
+                box-shadow: 0 0 .25em #fff6;
+                backdrop-filter: blur(8px);
+
+                >strong {
+                    margin-right: 1em;
+                }
+            }
+        }
+    }
+
+    div.viewer {
+        width: 1000px;
+        height: 750px;
+    }
 }
