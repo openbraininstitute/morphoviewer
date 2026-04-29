@@ -1,8 +1,4 @@
-# @bbp/morphoviewer
-
-<p align="center">
-  <a href="https://www.epfl.ch/research/domains/bluebrain/">Blue Brain Project</a>
-</p>
+# @openbraininstitute/morphoviewer
 
 [See it in action](https://openbraininstitute.github.io/morphoviewer/).
 
