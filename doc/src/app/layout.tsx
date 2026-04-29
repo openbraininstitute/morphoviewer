@@ -1,4 +1,4 @@
-import { version } from "@bbp/morphoviewer";
+import { version } from "@openbraininstitute/morphoviewer";
 import { IconMenu, ViewStrip } from "@tolokoban/ui";
 
 import Styles from "./layout.module.css";
@@ -10,7 +10,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <a href="#/">
           <IconMenu />
         </a>
-        <span className={Styles.version}>@bbp/morphoviewer v{version}</span>
+        <span className={Styles.version}>@openbraininstitute/morphoviewer v{version}</span>
       </nav>
       <main>{children}</main>
     </ViewStrip>

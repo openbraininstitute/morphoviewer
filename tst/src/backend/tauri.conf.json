@@ -1,0 +1,21 @@
+{
+    "productName": "morphoviewer-tst",
+    "version": "0.1.0",
+    "identifier": "com.morphoviewer.tst",
+    "build": {
+        "frontendDist": "../frontend/dist",
+        "devUrl": "http://localhost:14920",
+        "beforeDevCommand": "npm run dev",
+        "beforeBuildCommand": "npm run build"
+    },
+    "app": {
+        "windows": [
+            {
+                "label": "main",
+                "title": "MorphoViewer Test",
+                "width": 1024,
+                "height": 768
+            }
+        ]
+    }
+}

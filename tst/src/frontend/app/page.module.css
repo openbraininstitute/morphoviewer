@@ -1,0 +1,31 @@
+.page {
+    li {
+        display: flex;
+        flex-wrap: nowrap;
+        flex-direction: row;
+        justify-content: flex-start;
+        align-items: flex-start;
+        gap: 1em;
+    }
+
+    p.error {
+        background-color: #f30;
+        color: #fff;
+        padding: .5em
+    }
+
+    table {
+        border-collapse: collapse;
+
+        th,
+        td {
+            border: 1px solid #0009;
+            padding: 4px 8px;
+        }
+
+        th {
+            background-color: #09f;
+            color: #000;
+        }
+    }
+}

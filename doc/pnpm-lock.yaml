@@ -8,7 +8,7 @@ importers:
 
   .:
     dependencies:
-      '@bbp/morphoviewer':
+      '@openbraininstitute/morphoviewer':
         specifier: file:..
         version: file:..(react@19.2.4)
       '@mdx-js/react':
@@ -648,7 +648,7 @@ packages:
     resolution: {integrity: sha512-LwdZHpScM4Qz8Xw2iKSzS+cfglZzJGvofQICy7W7v4caru4EaAmyUuO6BGrbyQ2mYV11W0U8j5mBhd14dd3B0A==}
     engines: {node: '>=6.9.0'}
 
-  '@bbp/morphoviewer@file:..':
+  '@openbraininstitute/morphoviewer@file:..':
     resolution: {directory: .., type: directory}
     peerDependencies:
       react: ^19.2.4
@@ -5046,7 +5046,7 @@ snapshots:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
 
-  '@bbp/morphoviewer@file:..(react@19.2.4)':
+  '@openbraininstitute/morphoviewer@file:..(react@19.2.4)':
     dependencies:
       '@tolokoban/tgd': file:../../../github/game/tgd2
       fflate: 0.8.2
