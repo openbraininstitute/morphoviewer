@@ -1,14 +1,16 @@
 /* eslint-disable no-param-reassign */
+
+import { MorphologyCanvas } from "@openbraininstitute/morphoviewer";
+import { IconReset } from "@tolokoban/ui";
 import { useEffect, useState } from "react";
-import { MorphologyCanvas } from "@bbp/morphoviewer";
+
+import { Switch } from "@/components/common/Switch";
+import { classNames } from "@/util/utils";
 
 import { MorphoViewerSettings, useMorphoViewerSettings } from "../../hooks/settings";
 import { ColorInput } from "./ColorInput";
-import { classNames } from "@/util/utils";
-import { Switch } from "@/components/common/Switch";
 
 import styles from "./colors-legend.module.css";
-import { IconReset } from "@tolokoban/ui";
 
 interface ColorsLegendProps {
   className?: string;

@@ -1,7 +1,8 @@
-import { MorphoViewerOctree } from "@bbp/morphoviewer";
+import { MorphoViewerOctree } from "@openbraininstitute/morphoviewer";
 import { assertType } from "@tolokoban/type-guards";
 import { ViewLabel, ViewOptions } from "@tolokoban/ui";
 import React from "react";
+
 import Styles from "./page.module.css";
 
 export default function PageMorphoViewerOctree() {

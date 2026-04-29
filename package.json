@@ -1,5 +1,5 @@
 {
-    "name": "@bbp/morphoviewer",
+    "name": "@openbraininstitute/morphoviewer",
     "version": "0.24.18",
     "description": "Class to display SWC morphology files in 3D",
     "main": "./lib/dist/index.js",
@@ -20,7 +20,7 @@
         "webgl2"
     ],
     "scripts": {
-        "clean": "rm -rf dist node_modules package-lock.json lib/node_modules lib/package-lock.json doc/node_modules doc/package-lock.json && npm run version",
+        "clean": "rm -rf dist node_modules package-lock.json lib/node_modules lib/package-lock.json lib/dist doc/node_modules doc/package-lock.json doc/dist doc/public/docs && npm run version",
         "prebuild": "npm run version",
         "build": "cd lib && npm install && npm run build && cd .. && npm pack",
         "minor": "npm version minor -no-git-tag-version --force && node version.mjs",

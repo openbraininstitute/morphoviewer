@@ -1,7 +1,7 @@
 "use client";
 
 /* eslint-disable no-param-reassign */
-import { GizmoCanvas, MorphologyCanvas } from "@bbp/morphoviewer";
+import { GizmoCanvas, MorphologyCanvas } from "@openbraininstitute/morphoviewer";
 import { useEffect, useRef } from "react";
 
 import { ColorRamp } from "./ColorRamp";
@@ -16,7 +16,9 @@ import { Warning } from "./Warning";
 // import { useEnhancedSomaService } from './hooks/neuro-morpho-viz-service';
 
 import { IconFullscreen } from "@tolokoban/ui";
+
 import { classNames } from "@/util/utils";
+
 import styles from "./morpho-viewer.module.css";
 
 interface MorphoViewerProps {

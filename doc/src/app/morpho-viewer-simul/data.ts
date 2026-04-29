@@ -1,4 +1,4 @@
-import type { MorphoViewerSynapsesGroup } from "@bbp/morphoviewer";
+import type { MorphoViewerSynapsesGroup } from "@openbraininstitute/morphoviewer";
 
 export const SYNAPSES: MorphoViewerSynapsesGroup[] = [
   {

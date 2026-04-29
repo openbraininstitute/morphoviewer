@@ -3,7 +3,7 @@ import {
   type MorphoViewerSmallCircuitCell,
   type MorphoViewerSmallCircuitCellData,
   morphoViewerConvertMorphologyIntoTree,
-} from "@bbp/morphoviewer";
+} from "@openbraininstitute/morphoviewer";
 import { ViewSpinner } from "@tolokoban/ui";
 import React from "react";
 

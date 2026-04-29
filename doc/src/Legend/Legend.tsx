@@ -1,8 +1,8 @@
+import { colorContrast, MorphologyCanvas } from "@openbraininstitute/morphoviewer";
 import React from "react";
-import { MorphologyCanvas, colorContrast } from "@bbp/morphoviewer";
 
-import { classNames } from "@/util/utils";
 import { ColorInput } from "@/ColorInput";
+import { classNames } from "@/util/utils";
 
 import styles from "./legend.module.css";
 

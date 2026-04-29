@@ -1,8 +1,9 @@
+import { MorphologyCanvas } from "@openbraininstitute/morphoviewer";
 import React from "react";
-import { MorphologyCanvas } from "@bbp/morphoviewer";
+
+import { classNames } from "@/util/utils";
 
 import { useMorphoViewerSettings } from "../hooks/settings";
-import { classNames } from "@/util/utils";
 
 import styles from "./color-ramp.module.css";
 
