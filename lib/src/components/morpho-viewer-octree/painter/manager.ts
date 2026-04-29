@@ -1,15 +1,15 @@
 import {
   type ArrayNumber3,
   type TgdAnimation,
-  type TgdCameraState,
   TgdContext,
   TgdControllerCameraOrbit,
   TgdDataGlb,
   TgdGeometryBox,
   type TgdMaterial,
   TgdMaterialDiffuse,
-  TgdMaterialFaceOrientation,
   TgdPainterClear,
+  TgdPainterGizmo,
+  type TgdPainterGizmoOptions,
   TgdPainterGroup,
   TgdPainterLOD,
   TgdPainterMesh,
@@ -21,10 +21,18 @@ import {
   tgdEasingFunctionInOutQuad,
 } from "@tolokoban/tgd";
 import React from "react";
+
 import { morphoViewerOctreeBlockToId } from "../tools";
-import type { MorphoViewerOctreeProps } from "../types";
 import { makeCamera } from "./camera";
 
+import type { MorphoViewerOctreeProps } from "../types";
+
+const DEFAULT_GIZMO_PROPS: TgdPainterGizmoOptions = {
+  alignX: +1,
+  alignY: -1,
+  size: 128,
+  margin: 8,
+};
 export class OctreeManager {
   public loadInfo: MorphoViewerOctreeProps["loadInfo"] | null = null;
   public loadBlock: MorphoViewerOctreeProps["loadBlock"] | null = null;
@@ -33,6 +41,7 @@ export class OctreeManager {
   private _canvas: HTMLCanvasElement | null = null;
   private context: TgdContext | null = null;
   private readonly group = new TgdPainterGroup({ name: "Group" });
+  private readonly groupGizmo = new TgdPainterGroup({ name: "GroupGizmo" });
   private promisedInfo: ReturnType<MorphoViewerOctreeProps["loadInfo"]> | null = null;
   private readonly availableBlocks = new Set<string>();
   private readonly material = new TgdMaterialDiffuse({
@@ -48,6 +57,40 @@ export class OctreeManager {
     position: Readonly<TgdVec3>;
   } = { width: 1, height: 1, near: 1, far: 10, position: new TgdVec3() };
   private animations: TgdAnimation[] = [];
+  private _gizmo: false | TgdPainterGizmoOptions = false;
+  private painterGizmo: TgdPainterGizmo | null = null;
+
+  constructor() {
+    this.groupGizmo.active = !!this._gizmo;
+  }
+
+  get gizmo(): false | TgdPainterGizmoOptions {
+    return this._gizmo;
+  }
+  set gizmo(gizmo: boolean | Partial<TgdPainterGizmoOptions> | undefined) {
+    if (this._gizmo === gizmo) return;
+
+    if (gizmo === true) {
+      this._gizmo = DEFAULT_GIZMO_PROPS;
+    } else if (gizmo === false) {
+      this._gizmo = false;
+    } else {
+      this._gizmo = {
+        ...DEFAULT_GIZMO_PROPS,
+        ...gizmo,
+      };
+    }
+    this.groupGizmo.active = !!this._gizmo;
+    if (this.painterGizmo) {
+      const { alignX, alignY, size, margin } =
+        this._gizmo === false ? DEFAULT_GIZMO_PROPS : this._gizmo;
+      console.log("🐞 [manager@87] this._gizmo =", this._gizmo); // @FIXME: Remove this line written on 2026-04-29 at 16:53
+      this.painterGizmo.alignX = alignX;
+      this.painterGizmo.alignY = alignY;
+      this.painterGizmo.size = size;
+      this.painterGizmo.margin = margin;
+    }
+  }
 
   resetCamera() {
     const { context } = this;
@@ -87,16 +130,12 @@ export class OctreeManager {
     this.orbit?.detach();
     if (!canvas) return;
 
-    const context = (this.context = new TgdContext(canvas, {
+    const context = new TgdContext(canvas, {
       antialias: true,
       alpha: false,
       depth: true,
-    }));
-    context.inputs.pointer.eventTapMultiple.addListener(() => {
-      const zoom = context.camera.zoom;
-      console.log("🐞 [manager@102] zoom =", zoom); // @FIXME: Remove this line written on 2026-03-03 at 15:54
-      context.paint();
     });
+    this.context = context;
     context.add(
       new TgdPainterClear(context, {
         color: [0, 0, 0, 1],
@@ -106,8 +145,13 @@ export class OctreeManager {
         depth: "less",
         cull: "back",
         children: [this.group],
-      })
+      }),
+      this.groupGizmo
     );
+    this.groupGizmo.removeAll();
+    const painterGizmo = new TgdPainterGizmo(context, DEFAULT_GIZMO_PROPS);
+    this.painterGizmo = painterGizmo;
+    this.groupGizmo.add(painterGizmo);
     this.group.removeAll();
     this.resetMeshLoading();
   }
@@ -207,6 +251,7 @@ export function useOctreeManager({
   meshId,
   loadInfo,
   loadBlock,
+  gizmo,
 }: MorphoViewerOctreeProps): OctreeManager {
   const ref = React.useRef<OctreeManager | null>(null);
   if (!ref.current) ref.current = new OctreeManager();
@@ -217,6 +262,7 @@ export function useOctreeManager({
     manager.loadInfo = loadInfo;
     manager.loadBlock = loadBlock;
     manager.meshId = meshId;
-  }, [meshId, loadInfo, loadBlock]);
+    manager.gizmo = gizmo ?? false;
+  }, [meshId, loadInfo, loadBlock, gizmo]);
   return ref.current;
 }
