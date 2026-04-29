@@ -29,3 +29,9 @@ The development of this software was supported by funding to the Blue Brain Proj
 
 Copyright (c) 2024 Blue Brain Project/EPFL
 Copyright (c) 2025 Open Brain Institute
+
+## Release notes
+
+### v0.24.18
+
+- Add Tauri-based testing tool (`tst/`) for checking LOD blocks bounding boxes
