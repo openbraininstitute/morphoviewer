@@ -2,7 +2,7 @@ import {
   MorphoViewerSpikeRecord,
   type MorphoViewerTree,
   morphoViewerConvertMorphologyIntoTree,
-} from "@bbp/morphoviewer";
+} from "@openbraininstitute/morphoviewer";
 import { tgdCalcRandom } from "@tolokoban/tgd";
 import { assertType$ } from "@tolokoban/type-guards";
 import React from "react";

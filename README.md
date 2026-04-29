@@ -32,6 +32,15 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.24.20
+
+- Add optional `gizmo` prop to `MorphoViewerOctree` for displaying an axes orientation controller
+  - Accepts `boolean` or a `Partial<TgdPainterGizmoOptions>` object (`alignX`, `alignY`, `size`, `margin`)
+  - Dynamically updates gizmo position, size, and visibility at runtime
+- Add `GizmoSettings` panel in the doc app for interactive gizmo configuration
+- Add nested route `/morpho-viewer-octree/gizmo-settings` in the doc app
+- Upgrade `@tolokoban/tgd` dependency from `^2.0.126` to `^2.0.130` to fix a bug in Gizmo resizing
+
 ### v0.24.18
 
 - Add Tauri-based testing tool (`tst/`) for checking LOD blocks bounding boxes

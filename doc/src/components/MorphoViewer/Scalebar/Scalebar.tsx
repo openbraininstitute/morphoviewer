@@ -1,8 +1,9 @@
+import { MorphologyCanvas } from "@openbraininstitute/morphoviewer";
 import { useEffect, useRef, useState } from "react";
-import { MorphologyCanvas } from "@bbp/morphoviewer";
+
+import { classNames } from "@/util/utils";
 
 import { useMorphoViewerSettings } from "../hooks/settings";
-import { classNames } from "@/util/utils";
 
 import styles from "./scalebar.module.css";
 

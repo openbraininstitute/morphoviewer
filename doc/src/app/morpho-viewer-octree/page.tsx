@@ -1,11 +1,15 @@
-import { MorphoViewerOctree } from "@bbp/morphoviewer";
+import { MorphoViewerOctree, type MorphoViewerOctreeProps } from "@openbraininstitute/morphoviewer";
 import { assertType } from "@tolokoban/type-guards";
 import { ViewLabel, ViewOptions } from "@tolokoban/ui";
 import React from "react";
+
+import { GizmoSettings } from "./gizmo-settings";
+
 import Styles from "./page.module.css";
 
 export default function PageMorphoViewerOctree() {
   const [meshId, setMeshId] = React.useState("1");
+  const [gizmo, setGizmo] = React.useState<boolean | MorphoViewerOctreeProps["gizmo"]>(true);
 
   return (
     <div className={Styles.morphoViewerOctree}>
@@ -15,10 +19,12 @@ export default function PageMorphoViewerOctree() {
           <div key="1">Example #1</div>
           <div key="2">Example #2</div>
         </ViewOptions>
+        <GizmoSettings value={gizmo} onChange={setGizmo} />
       </header>
       <MorphoViewerOctree
         className={Styles.octree}
         meshId={meshId}
+        gizmo={gizmo}
         loadInfo={async (meshId: string) => {
           const url = `./assets/octree/${meshId}/lod.json`;
           console.debug("Loading info:", url);

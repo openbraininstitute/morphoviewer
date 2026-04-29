@@ -1,6 +1,6 @@
 {
-    "name": "@bbp/morphoviewer",
-    "version": "0.24.18",
+    "name": "@openbraininstitute/morphoviewer",
+    "version": "0.24.20",
     "description": "Class to display SWC files in 3D on a canvas",
     "main": "./dist/index.js",
     "module": "./dist/index.js",
@@ -31,7 +31,7 @@
     "author": "Fabien PETITJEAN <fabien.petitjean@epfl.ch>",
     "license": "ISC",
     "dependencies": {
-        "@tolokoban/tgd": "^2.0.126",
+        "@tolokoban/tgd": "^2.0.130",
         "fflate": "^0.8.2",
         "tslib": "^2.8.1"
     },

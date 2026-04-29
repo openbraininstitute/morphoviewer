@@ -1,6 +1,7 @@
-import type { MorphoViewerSmallCircuitCell } from "@bbp/morphoviewer";
 import { assertType$ } from "@tolokoban/type-guards";
 import React from "react";
+
+import type { MorphoViewerSmallCircuitCell } from "@openbraininstitute/morphoviewer";
 
 export function useCircuit(maxNumberOfCells: number) {
   const [circuit, setCircuit] = React.useState<MorphoViewerSmallCircuitCell[]>([]);

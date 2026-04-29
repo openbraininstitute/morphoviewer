@@ -1,15 +1,15 @@
-import { MorphologyCanvas } from "@bbp/morphoviewer";
+import { MorphologyCanvas } from "@openbraininstitute/morphoviewer";
+import { IconClose, IconGear } from "@tolokoban/ui";
 import { useState } from "react";
+
+import { classNames } from "@/util/utils";
 
 import { ColorMode } from "./ColorMode";
 import { ColorsLegend } from "./ColorsLegend";
 import { DendriteThickness } from "./DendriteThickness";
 import { ThicknessMode } from "./ThicknessMode";
 
-import { classNames } from "@/util/utils";
-
 import styles from "./settings.module.css";
-import { IconClose, IconGear } from "@tolokoban/ui";
 
 interface SettingsProps {
   className?: string;

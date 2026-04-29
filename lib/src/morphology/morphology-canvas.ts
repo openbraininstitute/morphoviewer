@@ -25,7 +25,7 @@ import { CellNodes } from "./painter/nodes";
  * Here is an example of how to use this class in a React project:
  *
  * ```tsx
- * import { MorphologyCanvas } from "@bbp/morphoviewer"
+ * import { MorphologyCanvas } from "@openbraininstitute/morphoviewer"
  *
  * export function MyMorphoViewer({ swc }: { swc: string }) {
  *   const refViewer = React.useRef<MorphologyCanvas | null>(null)

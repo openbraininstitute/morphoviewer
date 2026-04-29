@@ -6,11 +6,11 @@ import {
   MorphoViewerSimulController,
   MorphoViewerSpikeRecord,
   MorphoViewerTreeItem,
-} from "@bbp/morphoviewer";
+} from "@openbraininstitute/morphoviewer";
 import {
   Morphology,
   MorphologySection,
-} from "@bbp/morphoviewer/dist/components/morpho-viewer-simul/types/private";
+} from "@openbraininstitute/morphoviewer/dist/components/morpho-viewer-simul/types/private";
 import AtomicState from "@tolokoban/react-state";
 import { isString, isType, isType$ } from "@tolokoban/type-guards";
 import {
@@ -24,10 +24,13 @@ import {
   ViewSwitch,
 } from "@tolokoban/ui";
 import React from "react";
+
 import { classNames } from "@/utils";
+
 import { SpikesSettings } from "./_/spikes-settings";
 import { SYNAPSES } from "./data";
 import { useMorphologyTree } from "./hook";
+
 import styles from "./page.module.css";
 
 const recordingsState = new AtomicState<MorphoViewerElectrodeRecording[]>(

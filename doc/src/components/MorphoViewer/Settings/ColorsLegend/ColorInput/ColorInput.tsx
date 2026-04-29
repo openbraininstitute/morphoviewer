@@ -1,10 +1,11 @@
+import { TgdColor } from "@openbraininstitute/morphoviewer";
+import { IconShow } from "@tolokoban/ui";
 import { ChangeEvent, InputEvent, useRef } from "react";
-import { TgdColor } from "@bbp/morphoviewer";
-import { classNames } from "@/util/utils";
+
 import EyeSlashIcon from "@/components/icons/EyeSlashIcon";
+import { classNames } from "@/util/utils";
 
 import styles from "./color-input.module.css";
-import { IconShow } from "@tolokoban/ui";
 
 interface ColorInputProps {
   className?: string;

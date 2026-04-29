@@ -1,6 +1,8 @@
-import { MorphoViewerSpikeRecord } from "@bbp/morphoviewer";
+import { MorphoViewerSpikeRecord } from "@openbraininstitute/morphoviewer";
 import { IconPause, IconPlay, ViewPanel, ViewSlider, ViewSwitch } from "@tolokoban/ui";
+
 import { classNames } from "@/utils";
+
 import { makeRandomSpikes } from "../../hook";
 
 import styles from "./spikes-settings.module.css";

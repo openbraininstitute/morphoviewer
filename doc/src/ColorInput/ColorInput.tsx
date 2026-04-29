@@ -1,8 +1,9 @@
+import { TgdColor } from "@openbraininstitute/morphoviewer";
+import React from "react";
+
 import { classNames } from "@/util/utils";
 
 import styles from "./color-input.module.css";
-import React from "react";
-import { TgdColor } from "@bbp/morphoviewer";
 
 export interface ColorInputProps {
   className?: string;
