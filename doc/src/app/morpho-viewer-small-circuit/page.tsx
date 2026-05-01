@@ -2,10 +2,13 @@ import {
   MorphoViewerSmallCircuit,
   type MorphoViewerSmallCircuitCell,
   type MorphoViewerSmallCircuitCellData,
+  type MorphoViewerSmallCircuitProps,
   morphoViewerConvertMorphologyIntoTree,
 } from "@openbraininstitute/morphoviewer";
 import { ViewSpinner } from "@tolokoban/ui";
 import React from "react";
+
+import { GizmoSettings } from "@/components/gizmo-settings";
 
 import { useCircuit } from "./data";
 
@@ -13,6 +16,7 @@ import styles from "./page.module.css";
 
 export default function Page() {
   const circuit = useCircuit(50);
+  const [gizmo, setGizmo] = React.useState<boolean | MorphoViewerSmallCircuitProps["gizmo"]>(true);
   const [progress, setProgress] = React.useState(0);
   const [selectedCells, setSelectedCells] = React.useState<string[]>([]);
   const [highlightedCellId, setHighlightedCellId] = React.useState("");
@@ -40,6 +44,7 @@ export default function Page() {
           className={styles.viewer}
           backgroundColor="#000"
           circuit={circuit}
+          gizmo={gizmo}
           loadCell={loadCell}
           onCellHover={handleCellHover}
           onCellClick={handleCellClick}
@@ -58,6 +63,7 @@ export default function Page() {
       </div>
       <div>
         <h1>&lt;MorphoViewerSmallCircuit /&gt;</h1>
+        <GizmoSettings value={gizmo} onChange={setGizmo} />
       </div>
     </div>
   );
@@ -67,7 +73,7 @@ async function loadCell(id: string): Promise<MorphoViewerSmallCircuitCellData | 
   try {
     console.log("loadCell:", id);
     const url = `./assets/${id}.json`;
-    const resp = await throttling(fetch(url), 5000);
+    const resp = await throttling(fetch(url), 10000, 5000);
     if (!resp.ok) {
       console.error(`Unable to load ${url}\nError ${resp.status}: ${resp.statusText}`);
     }
@@ -83,9 +89,9 @@ async function loadCell(id: string): Promise<MorphoViewerSmallCircuitCellData | 
   }
 }
 
-async function throttling<T>(promise: Promise<T>, delay: number): Promise<T> {
+async function throttling<T>(promise: Promise<T>, delay: number, min: number): Promise<T> {
   const sleep = new Promise((resolve) => {
-    globalThis.setTimeout(resolve, Math.random() * delay);
+    globalThis.setTimeout(resolve, min + Math.random() * delay);
   });
   const [result] = await Promise.all([promise, sleep]);
   return result;

@@ -11,6 +11,8 @@ import {
   TgdPainterClear,
   TgdPainterFilter,
   TgdPainterFramebufferWithAntiAliasing,
+  TgdPainterGizmo,
+  TgdPainterGizmoOptions,
   TgdPainterGroup,
   TgdPainterMix,
   TgdPainterState,
@@ -36,6 +38,14 @@ interface Framebuffer {
   textureColor0?: TgdTexture2D;
   delete(): void;
 }
+
+const DEFAULT_GIZMO_PROPS: TgdPainterGizmoOptions = {
+  alignX: +1,
+  alignY: -1,
+  size: 128,
+  margin: 8,
+};
+
 export class PainterManager {
   public readonly eventRestingPosition = new TgdEvent<boolean>();
   public readonly eventCellHover = new TgdEvent<MorphoViewerSmallCircuitCell | undefined>();
@@ -88,8 +98,38 @@ export class PainterManager {
   private loadedCells = new CacheLRU<Promise<MorphoViewerSmallCircuitCellData | null>>(24);
   private circuitSignature = "";
   private bbox = new TgdBoundingBox();
+  private _gizmo: false | TgdPainterGizmoOptions = false;
+  private painterGizmo: TgdPainterGizmo | null = null;
+  private readonly groupGizmo = new TgdPainterGroup({ name: "GroupGizmo" });
 
   readonly cameraReset = () => this.cameraManager?.resetCamera();
+
+  get gizmo(): false | TgdPainterGizmoOptions {
+    return this._gizmo;
+  }
+  set gizmo(gizmo: boolean | Partial<TgdPainterGizmoOptions> | undefined) {
+    if (this._gizmo === gizmo) return;
+
+    if (gizmo === true) {
+      this._gizmo = DEFAULT_GIZMO_PROPS;
+    } else if (gizmo === false) {
+      this._gizmo = false;
+    } else {
+      this._gizmo = {
+        ...DEFAULT_GIZMO_PROPS,
+        ...gizmo,
+      };
+    }
+    this.groupGizmo.active = !!this._gizmo;
+    if (this.painterGizmo) {
+      const { alignX, alignY, size, margin } =
+        this._gizmo === false ? DEFAULT_GIZMO_PROPS : this._gizmo;
+      this.painterGizmo.alignX = alignX;
+      this.painterGizmo.alignY = alignY;
+      this.painterGizmo.size = size;
+      this.painterGizmo.margin = margin;
+    }
+  }
 
   setCircuit(
     circuit: MorphoViewerSmallCircuitCell[],
@@ -264,7 +304,10 @@ export class PainterManager {
     //     this.createFramebufferBlur(context),
     //     this.createMix(context),
     // )
-
+    this.groupGizmo.removeAll();
+    const painterGizmo = new TgdPainterGizmo(context, DEFAULT_GIZMO_PROPS);
+    this.painterGizmo = painterGizmo;
+    this.groupGizmo.add(painterGizmo);
     context.add(
       clear,
       new TgdPainterState(context, {
@@ -279,7 +322,8 @@ export class PainterManager {
         blend: "add",
         cull: "back",
         children: [this.groupHighlithedCells],
-      })
+      }),
+      this.groupGizmo
     );
     this.updateCircuit();
   }
@@ -428,6 +472,7 @@ export function usePainterManager({
   onCellClick,
   highlightedCellIds,
   onLoadProgress,
+  gizmo,
 }: MorphoViewerSmallCircuitProps) {
   const ref = React.useRef<PainterManager | null>(null);
   if (!ref.current) {
@@ -462,5 +507,9 @@ export function usePainterManager({
       manager.eventCellClick.removeListener(onCellClick);
     };
   }, [onCellClick, manager]);
+  React.useEffect(() => {
+    manager.gizmo = gizmo ?? false;
+  }, [gizmo, manager]);
+
   return ref.current;
 }

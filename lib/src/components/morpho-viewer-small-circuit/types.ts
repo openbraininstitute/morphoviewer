@@ -1,3 +1,5 @@
+import { TgdPainterGizmoOptions } from "@tolokoban/tgd";
+
 import type { MorphoViewerTree } from "../morpho-viewer-simul";
 
 export interface MorphoViewerSmallCircuitCell {
@@ -33,4 +35,15 @@ export interface MorphoViewerSmallCircuitProps {
    * @param progress Percentage of loaded cells so far. Between `0.0` and `1.0`.
    */
   onLoadProgress?(progress: number): void;
+  /**
+   * Display the axes controller gizmo.
+   * - `false`: do not show the Gizmo
+   * - `true`: show it with default options
+   * - `Partial<object>`:
+   *   - `alignX`: -1 meand left and +1 means right
+   *   - `alignY`: -1 meand bottom and +1 means top
+   *   - `size`: size of the Gizmo side in pixels
+   *   - `margin`: margin from the borders of the viewer (in pixels)
+   */
+  gizmo?: boolean | TgdPainterGizmoOptions;
 }
