@@ -24,9 +24,9 @@ div.page {
                 gap: 1em;
                 padding: 1em;
                 border-radius: 99vmax;
-                background-color: #000a;
+                background-color: #0006;
                 box-shadow: 0 0 .25em #fff6;
-                backdrop-filter: blur(8px);
+                backdrop-filter: blur(4px);
 
                 >strong {
                     margin-right: 1em;

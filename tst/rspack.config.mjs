@@ -1,6 +1,7 @@
+import * as Rspack from "@rspack/core"
+
 import { execSync } from "node:child_process"
 import Path from "node:path"
-import * as Rspack from "@rspack/core"
 
 const __dirname = Path.dirname(new URL(import.meta.url).pathname)
 

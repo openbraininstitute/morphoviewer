@@ -3,7 +3,7 @@ import { assertType } from "@tolokoban/type-guards";
 import { ViewLabel, ViewOptions } from "@tolokoban/ui";
 import React from "react";
 
-import { GizmoSettings } from "./gizmo-settings";
+import { GizmoSettings } from "@/components/gizmo-settings";
 
 import Styles from "./page.module.css";
 

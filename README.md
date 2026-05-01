@@ -32,6 +32,16 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.24.21
+
+- Add optional `gizmo` prop to `MorphoViewerSmallCircuit` for displaying an axes orientation controller
+  - Accepts `boolean` or a `Partial<TgdPainterGizmoOptions>` object (`alignX`, `alignY`, `size`, `margin`)
+  - Dynamically updates gizmo position, size, and visibility at runtime
+- Reuse `GizmoSettings` component in the `MorphoViewerSmallCircuit` doc page for interactive gizmo configuration
+- Move `GizmoSettings` component to shared `doc/src/components/gizmo-settings/` directory
+- Remove leftover `console.log` debug statements from `OctreeManager`
+- Fix import ordering in `tst/rspack.config.mjs`
+
 ### v0.24.20
 
 - Add optional `gizmo` prop to `MorphoViewerOctree` for displaying an axes orientation controller
@@ -43,4 +53,4 @@ Copyright (c) 2025 Open Brain Institute
 
 ### v0.24.18
 
-- Add Tauri-based testing tool (`tst/`) for checking LOD blocks bounding boxes
+- Add Tauri-based testing tool (`tst/`) for checking LOD blocks bounding boxes potential misalignements

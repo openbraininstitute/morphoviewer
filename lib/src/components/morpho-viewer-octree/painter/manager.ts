@@ -33,6 +33,7 @@ const DEFAULT_GIZMO_PROPS: TgdPainterGizmoOptions = {
   size: 128,
   margin: 8,
 };
+
 export class OctreeManager {
   public loadInfo: MorphoViewerOctreeProps["loadInfo"] | null = null;
   public loadBlock: MorphoViewerOctreeProps["loadBlock"] | null = null;
@@ -84,7 +85,6 @@ export class OctreeManager {
     if (this.painterGizmo) {
       const { alignX, alignY, size, margin } =
         this._gizmo === false ? DEFAULT_GIZMO_PROPS : this._gizmo;
-      console.log("🐞 [manager@87] this._gizmo =", this._gizmo); // @FIXME: Remove this line written on 2026-04-29 at 16:53
       this.painterGizmo.alignX = alignX;
       this.painterGizmo.alignY = alignY;
       this.painterGizmo.size = size;
@@ -170,7 +170,6 @@ export class OctreeManager {
     if (!info) return;
 
     const { camera, width, height } = makeCamera(info.bbox);
-    console.log("🐞 [manager@128] camera.near, camera.far =", camera.near, camera.far); // @FIXME: Remove this line written on 2026-03-03 at 15:52
     context.camera = camera;
     this.initialCameraState = {
       width,
@@ -182,11 +181,7 @@ export class OctreeManager {
     this.orbit?.detach();
     this.orbit = new TgdControllerCameraOrbit(context, {
       inertiaOrbit: 1000,
-      // minZoom: 0.1,
-      // maxZoom: 100,
       onZoomRequest: (event) => {
-        console.log("🐞 [manager@142] event.zoom =", event.zoom); // @FIXME: Remove this line written on 2026-03-03 at 15:48
-        console.log("🐞 [manager@143] camera.zoom =", camera.zoom); // @FIXME: Remove this line written on 2026-03-03 at 15:51
         return true;
       },
     });
@@ -215,8 +210,6 @@ export class OctreeManager {
             asset,
             material: this.material,
           });
-          const bbox = mesh.computeBoundingBox();
-          console.log("🐞 [manager@130] bbox =", bbox); // @FIXME: Remove this line written on 2026-03-03 at 11:13
           return mesh;
         }
         return null;
