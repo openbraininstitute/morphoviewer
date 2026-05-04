@@ -4,12 +4,13 @@ import React from "react";
 import { classNames } from "@/utils";
 
 import { ButtonCameraReset } from "../button-reset-camera";
+import ControlsLayout from "../controls-layer";
+import { ControlAction } from "../controls-layer/controls-layout";
 import { IconClose } from "../icons/close";
 import { IconFullscreen } from "../icons/fullscreen";
 import type { MorphoViewerSmallCircuitProps } from ".";
-import { type PainterManager, usePainterManager } from "./painter";
-
 import styles from "./morpho-viewer-small-circuit.module.css";
+import { type PainterManager, usePainterManager } from "./painter";
 
 /**
  * @example
@@ -49,52 +50,82 @@ import styles from "./morpho-viewer-small-circuit.module.css";
  * ```
  */
 export function MorphoViewerSmallCircuit(props: MorphoViewerSmallCircuitProps) {
-  const ref = React.useRef<HTMLDivElement | null>(null);
-  const manager = usePainterManager(props);
-  const handleToggleFullscreen = () => {
-    const div = ref.current;
-    if (!div) return;
+	const ref = React.useRef<HTMLDivElement | null>(null);
+	const manager = usePainterManager(props);
+	const handleToggleFullscreen = () => {
+		const div = ref.current;
+		if (!div) return;
 
-    tgdFullscreenToggle(div);
-  };
+		tgdFullscreenToggle(div);
+	};
 
-  return (
-    <div
-      ref={ref}
-      className={classNames(props.className, styles.morphoViewerSmallCircuit)}
-      style={{
-        background: props.backgroundColor ?? "#000",
-      }}
-    >
-      <Canvas painterManager={manager} />
-      <header>
-        <div />
-        <ButtonCameraReset painterManager={manager} />
-        <div className={styles.flex}>
-          <button type="button" onClick={handleToggleFullscreen}>
-            <IconFullscreen />
-          </button>
-          {props.onClose && (
-            <button type="button" onClick={props.onClose}>
-              <IconClose />
-            </button>
-          )}
-        </div>
-      </header>
-    </div>
-  );
+	const handleControls = (action: ControlAction): void => {
+		switch (action) {
+			case "fullscreen":
+				handleToggleFullscreen();
+				break;
+			case "reset-camera":
+				manager.cameraReset();
+				break;
+			case "close":
+				props.onClose?.();
+				break;
+			case "minimize":
+				props.onMinimize?.();
+				break;
+		}
+	};
+
+	return (
+		<div
+			ref={ref}
+			className={classNames(props.className, styles.morphoViewerSmallCircuit)}
+			style={{
+				background: props.backgroundColor ?? "#000",
+			}}
+		>
+			<Canvas painterManager={manager} />
+			<ControlsLayout
+				content={props.controls ?? getDefaultControls(props)}
+				onClick={handleControls}
+			/>
+			{/* <header>
+				<div />
+				<ButtonCameraReset painterManager={manager} />
+				<div className={styles.flex}>
+					<button type="button" onClick={handleToggleFullscreen}>
+						<IconFullscreen />
+					</button>
+					{props.onClose && (
+						<button type="button" onClick={props.onClose}>
+							<IconClose />
+						</button>
+					)}
+				</div>
+			</header> */}
+		</div>
+	);
 }
 
-const Canvas = React.memo(({ painterManager }: { painterManager: PainterManager }) => {
-  return (
-    <canvas
-      key="canvas"
-      ref={(canvas: HTMLCanvasElement | null) => {
-        painterManager.canvas = canvas;
-        return () => {
-          painterManager.canvas = null;
-        };
-      }}
-    />
-  );
-});
+const Canvas = React.memo(
+	({ painterManager }: { painterManager: PainterManager }) => {
+		return (
+			<canvas
+				key="canvas"
+				ref={(canvas: HTMLCanvasElement | null) => {
+					painterManager.canvas = canvas;
+					return () => {
+						painterManager.canvas = null;
+					};
+				}}
+			/>
+		);
+	},
+);
+
+function getDefaultControls(props: MorphoViewerSmallCircuitProps) {
+	return [
+		"reset-camera",
+		["fullscreen", props.onClose && "close", props.onMinimize && "minimize"],
+	];
+}

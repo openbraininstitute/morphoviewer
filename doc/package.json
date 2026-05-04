@@ -1,6 +1,6 @@
 {
     "name": "extended-swc-viewer",
-    "version": "0.24.21",
+    "version": "0.24.22",
     "private": false,
     "homepage": "./",
     "sideEffects": [
