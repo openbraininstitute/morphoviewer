@@ -30,6 +30,15 @@
     ],
     "author": "Fabien PETITJEAN <fabien.petitjean@epfl.ch>",
     "license": "ISC",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/openbraininstitute/morphoviewer.git",
+        "directory": "lib"
+    },
+    "homepage": "https://openbraininstitute.github.io/morphoviewer/",
+    "bugs": {
+        "url": "https://github.com/openbraininstitute/morphoviewer/issues"
+    },
     "dependencies": {
         "@tolokoban/tgd": "^2.0.130",
         "fflate": "^0.8.2",
