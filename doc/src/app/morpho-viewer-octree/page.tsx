@@ -5,7 +5,28 @@ import {
 import { assertType } from "@tolokoban/type-guards";
 import { ViewLabel, ViewOptions } from "@tolokoban/ui";
 import React from "react";
-				</ViewOptions>, GizmoSettings
+
+import { GizmoSettings } from "@/components/gizmo-settings";
+
+import Styles from "./page.module.css";
+
+export default function PageMorphoViewerOctree() {
+	const [meshId, setMeshId] = React.useState("1");
+	const [gizmo, setGizmo] = React.useState<
+		boolean | MorphoViewerOctreeProps["gizmo"]
+	>(true);
+
+	return (
+		<div className={Styles.morphoViewerOctree}>
+			<header>
+				<ViewLabel>Choose the mesh:</ViewLabel>
+				<ViewOptions value={meshId} onChange={setMeshId}>
+					<div key="1">Example #1</div>
+					<div key="2">Example #2</div>
+				</ViewOptions>
+				<GizmoSettings value={gizmo} onChange={setGizmo} />
+			</header>
+			<MorphoViewerOctree
 				className={Styles.octree}
 				meshId={meshId}
 				gizmo={gizmo}
@@ -28,7 +49,9 @@ import React from "react";
 					});
 					return {
 						bbox: data.bbox as BBox,
-						blockIds: data.files.map((filename) => filename.split(".")[0]),
+						blockIds: data.files.map(
+							(filename) => filename.split(".")[0],
+						),
 					};
 				}}
 				loadBlock={async (meshId: string, blockId: string) => {
