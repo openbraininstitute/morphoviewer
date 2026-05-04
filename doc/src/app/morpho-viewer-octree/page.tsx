@@ -49,9 +49,7 @@ export default function PageMorphoViewerOctree() {
 					});
 					return {
 						bbox: data.bbox as BBox,
-						blockIds: data.files.map(
-							(filename) => filename.split(".")[0],
-						),
+						blockIds: data.files.map((filename) => filename.split(".")[0]),
 					};
 				}}
 				loadBlock={async (meshId: string, blockId: string) => {
