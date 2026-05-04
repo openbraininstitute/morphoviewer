@@ -89,20 +89,6 @@ export function MorphoViewerSmallCircuit(props: MorphoViewerSmallCircuitProps) {
 				content={props.controls ?? getDefaultControls(props)}
 				onClick={handleControls}
 			/>
-			{/* <header>
-				<div />
-				<ButtonCameraReset painterManager={manager} />
-				<div className={styles.flex}>
-					<button type="button" onClick={handleToggleFullscreen}>
-						<IconFullscreen />
-					</button>
-					{props.onClose && (
-						<button type="button" onClick={props.onClose}>
-							<IconClose />
-						</button>
-					)}
-				</div>
-			</header> */}
 		</div>
 	);
 }

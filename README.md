@@ -32,6 +32,18 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.24.22
+
+- Add new `ControlsLayout` component (`lib/src/components/controls-layer/`) for configurable viewer header controls
+  - Supports built-in actions: `fullscreen`, `reset-camera`, `minimize`, `close`
+  - Accepts arbitrary `React.ReactNode` elements alongside named actions
+  - Groups can be nested in arrays for flex-based layout with `space-between` justification
+- Add `controls` prop to `MorphoViewerSmallCircuit` to allow custom header control layouts
+  - Falls back to a default layout (`reset-camera`, `fullscreen`, `close`, `minimize`) when not provided
+- Add `onMinimize` callback prop to `MorphoViewerSmallCircuit`
+- Replace hardcoded `<header>` markup in `MorphoViewerSmallCircuit` with the new `ControlsLayout` component
+- Update `MorphoViewerSmallCircuit` doc page to demonstrate the configurable controls
+
 ### v0.24.21
 
 - Add optional `gizmo` prop to `MorphoViewerSmallCircuit` for displaying an axes orientation controller
