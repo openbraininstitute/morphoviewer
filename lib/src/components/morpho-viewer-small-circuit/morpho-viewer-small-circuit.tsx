@@ -3,11 +3,9 @@ import React from "react";
 
 import { classNames } from "@/utils";
 
-import { ButtonCameraReset } from "../button-reset-camera";
 import ControlsLayout from "../controls-layer";
 import { ControlAction } from "../controls-layer/controls-layout";
-import { IconClose } from "../icons/close";
-import { IconFullscreen } from "../icons/fullscreen";
+import MorphoViewerScalebar from "../morpho-viewer-scalebar";
 import type { MorphoViewerSmallCircuitProps } from ".";
 import styles from "./morpho-viewer-small-circuit.module.css";
 import { type PainterManager, usePainterManager } from "./painter";
@@ -89,6 +87,7 @@ export function MorphoViewerSmallCircuit(props: MorphoViewerSmallCircuitProps) {
 				content={props.controls ?? getDefaultControls(props)}
 				onClick={handleControls}
 			/>
+			<MorphoViewerScalebar spacePerPixel={manager.spacePerPixel} />
 		</div>
 	);
 }
@@ -98,6 +97,7 @@ const Canvas = React.memo(
 		return (
 			<canvas
 				key="canvas"
+				className={styles.webgl}
 				ref={(canvas: HTMLCanvasElement | null) => {
 					painterManager.canvas = canvas;
 					return () => {

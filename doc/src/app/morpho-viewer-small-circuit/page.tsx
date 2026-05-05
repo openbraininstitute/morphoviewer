@@ -15,7 +15,7 @@ import { useCircuit } from "./data";
 import styles from "./page.module.css";
 
 export default function Page() {
-	const circuit = useCircuit(50);
+	const circuit = useCircuit(20);
 	const [gizmo, setGizmo] = React.useState<
 		boolean | MorphoViewerSmallCircuitProps["gizmo"]
 	>(true);
@@ -42,6 +42,11 @@ export default function Page() {
 			setSelectedCells([...selectedCells, cell.id]);
 		}
 	};
+	console.log(
+		"🐞 [page@45] highlightedCellIds =",
+		JSON.stringify(highlightedCellIds.length),
+	); // @FIXME: Remove this line written on 2026-05-05 at 13:45
+	console.log("🐞 [page@49] selectedCells =", selectedCells.length); // @FIXME: Remove this line written on 2026-05-05 at 13:47
 
 	return (
 		<div className={styles.page}>
@@ -95,7 +100,7 @@ async function loadCell(
 	try {
 		console.log("loadCell:", id);
 		const url = `./assets/${id}.json`;
-		const resp = await throttling(fetch(url), 10000, 5000);
+		const resp = await throttling(fetch(url), 10, 5);
 		if (!resp.ok) {
 			console.error(
 				`Unable to load ${url}\nError ${resp.status}: ${resp.statusText}`,
