@@ -32,6 +32,20 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.24.23
+
+- Add new `MorphoViewerScalebar` component (`lib/src/components/morpho-viewer-scalebar/`) for displaying a dynamic scale bar
+  - Renders graduated tick marks with auto-scaled units (m, mm, μm, nm, pm, fm)
+  - Accepts a `spacePerPixel` event to reactively update when the camera zooms
+  - Supports custom positioning via an optional `className` prop
+- Add optional `scalebar` prop to `MorphoViewerSmallCircuit` and `MorphoViewerOctree`
+  - Accepts `boolean` or a CSS class name string for custom styling
+- Switch camera from perspective to orthographic projection for `MorphoViewerSmallCircuit` and `MorphoViewerOctree`
+  - Enables accurate scale bar measurements
+- Add `space-per-pixel` behavior (`lib/src/behaviors/`) to broadcast camera zoom level changes
+- Rename `controls-layer/` directory to `controls-layout/` for consistency
+- Fix CSS specificity issues by scoping canvas styles to a `.webgl` class
+
 ### v0.24.22
 
 - Add new `ControlsLayout` component (`lib/src/components/controls-layer/`) for configurable viewer header controls
