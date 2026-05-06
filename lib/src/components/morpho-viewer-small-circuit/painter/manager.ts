@@ -12,7 +12,7 @@ import {
     TgdPainterFilter,
     TgdPainterFramebufferWithAntiAliasing,
     TgdPainterGizmo,
-    TgdPainterGizmoOptions,
+    type TgdPainterGizmoOptions,
     TgdPainterGroup,
     TgdPainterMix,
     TgdPainterState,
@@ -22,15 +22,18 @@ import {
 } from "@tolokoban/tgd"
 import React from "react"
 
+import { watchSpacePerPixel } from "@/behaviors"
 import { CacheLRU } from "@/tools/cache-lru"
+
+import { CameraManager } from "./camera"
+import { OffscreenPainter } from "./offscreen-painter"
+import { PainterCell } from "./painter-cell"
+
 import type {
     MorphoViewerSmallCircuitCell,
     MorphoViewerSmallCircuitCellData,
     MorphoViewerSmallCircuitProps,
 } from ".."
-import { CameraManager } from "./camera"
-import { OffscreenPainter } from "./offscreen-painter"
-import { PainterCell } from "./painter-cell"
 
 interface Framebuffer {
     textureColor0?: TgdTexture2D
@@ -103,11 +106,8 @@ export class PainterManager {
     private _gizmo: false | TgdPainterGizmoOptions = false;
     private painterGizmo: TgdPainterGizmo | null = null;
     private readonly groupGizmo = new TgdPainterGroup({ name: "GroupGizmo" });
-    private _spacePerPixel = -1
 
     readonly cameraReset = () => this.cameraManager?.resetCamera();
-
-    get spacePerPixel() { return this._spacePerPixel }
 
     get gizmo(): false | TgdPainterGizmoOptions {
         return this._gizmo
@@ -261,15 +261,6 @@ export class PainterManager {
         this.context?.paint()
     }
 
-    private readonly handleScalebarComputation = (context: TgdContext) => {
-        const spacePerPixel = context.camera.spaceHeightAtTarget / context.height
-        if (spacePerPixel === this._spacePerPixel) return
-
-        this._spacePerPixel = spacePerPixel
-        this.eventScalebar.dispatch(spacePerPixel)
-    }
-
-
     get background() {
         return this._background
     }
@@ -298,7 +289,7 @@ export class PainterManager {
         if (!canvas) return
 
         const context = new TgdContext(canvas)
-        context.eventPaint.addListener(this.handleScalebarComputation)
+        watchSpacePerPixel(context, this.eventScalebar)
         context.inputs.pointer.eventHover.addListener(this.handlePointerHover)
         context.inputs.pointer.eventTap.addListener(this.handlePointerTap)
         this.context = context

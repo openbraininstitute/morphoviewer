@@ -9,8 +9,8 @@ import {
     tgdEasingFunctionInOutCubic,
 } from "@tolokoban/tgd"
 
-const ZOOM_MIN = 0.5
-const ZOOM_MAX = 20
+const ZOOM_MIN = 0.25
+const ZOOM_MAX = 100
 
 export class CameraManager {
     public target: Partial<TgdCameraState> = {};

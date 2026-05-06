@@ -1,5 +1,8 @@
 import { TgdPainterGizmoOptions } from "@tolokoban/tgd"
-import { ControlsLayoutProps } from "../controls-layer/controls-layout"
+
+import { ControlsLayoutProps } from "../controls-layout/controls-layout"
+import { PropsForGizmo, PropsForScalebar } from "../types"
+
 import type { MorphoViewerTree } from "../morpho-viewer-simul"
 
 export interface MorphoViewerSmallCircuitCell {
@@ -15,7 +18,7 @@ export type MorphoViewerSmallCircuitCellData = {
     data: MorphoViewerTree
 }
 
-export interface MorphoViewerSmallCircuitProps {
+export type MorphoViewerSmallCircuitProps = PropsForGizmo & PropsForScalebar & {
     className?: string
     backgroundColor?: string
     circuit: MorphoViewerSmallCircuitCell[]
@@ -39,25 +42,5 @@ export interface MorphoViewerSmallCircuitProps {
      * @param progress Percentage of loaded cells so far. Between `0.0` and `1.0`.
      */
     onLoadProgress?(progress: number): void
-    /**
-     * Display the axes controller gizmo.
-     * - `false`: do not show the Gizmo
-     * - `true`: show it with default options
-     * - `Partial<object>`:
-     *   - `alignX`: -1 meand left and +1 means right
-     *   - `alignY`: -1 meand bottom and +1 means top
-     *   - `size`: size of the Gizmo side in pixels
-     *   - `margin`: margin from the borders of the viewer (in pixels)
-     */
-    gizmo?: boolean | TgdPainterGizmoOptions
-    /**
-     * Defines the control that are embedded with the viewer,
-     * in the header.
-     * 
-     * It's a list of blocks that are align with a wrappable flex layout and space between justification.
-     * If a block is an array, then its content is wrapped in a `<div></div>`.
-     * 
-     * Common actions can be defined by a name. Example: `reset-camera`, `fullscreen`, `minimize`, `close`.
-     */
     controls?: ControlsLayoutProps["content"]
 }
