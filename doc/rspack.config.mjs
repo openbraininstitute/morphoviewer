@@ -1,6 +1,7 @@
 import FS from "node:fs"
 import Path from "node:path"
 import * as Rspack from "@rspack/core"
+import { CleanWebpackPlugin } from "clean-webpack-plugin"
 import highlightJs from "highlight.js"
 import rehypeHighlight from "rehype-highlight"
 import rehypeHighlightCodeLines from "rehype-highlight-code-lines"
@@ -32,8 +33,9 @@ export default function (env, argv) {
 	const isProdMode = process.env.NODE_ENV === "production"
 
 	return {
+		cache: false,
+		lazyCompilation: false,
 		output: {
-			clean: true,
 			filename: "scr/[name].[contenthash].js",
 			path: Path.resolve(__dirname, "build"),
 			devtoolModuleFilenameTemplate: "[absolute-resource-path]",
@@ -85,6 +87,9 @@ export default function (env, argv) {
 					parallel: false,
 				},
 			}),
+			new CleanWebpackPlugin({
+				cleanStaleWebpackAssets: false,
+			}),
 			new Rspack.CopyRspackPlugin({
 				patterns: [
 					{
@@ -105,10 +110,8 @@ export default function (env, argv) {
 				},
 				minify: isProdMode,
 			}),
+			new Rspack.CssExtractRspackPlugin(),
 		],
-		experiments: {
-			css: true,
-		},
 		performance: {
 			hints: "warning",
 			maxAssetSize: 300000,
@@ -143,19 +146,9 @@ export default function (env, argv) {
 					test: /\.tsx?$/,
 					use: [
 						{
-							loader: "builtin:swc-loader",
+							loader: "ts-loader",
 							options: {
-								jsc: {
-									parser: {
-										syntax: "typescript",
-										tsx: true,
-									},
-									transform: {
-										react: {
-											runtime: "automatic",
-										},
-									},
-								},
+								transpileOnly: false,
 							},
 						},
 					],
@@ -192,15 +185,25 @@ export default function (env, argv) {
 					type: "asset/source",
 				},
 				{
-					test: /\.module\.css$/,
-					type: "css/module",
-					parser: {
-						namedExports: false,
-					},
-				},
-				{
-					test: /(?<!\.module)\.css$/,
-					type: "css",
+					test: /\.css$/,
+					use: [
+						{
+							loader: Rspack.CssExtractRspackPlugin.loader,
+							options: {},
+						},
+						{
+							loader: "css-loader",
+							options: {
+								modules: {
+									auto: true,
+									namedExport: false,
+									localIdentName: isProdMode
+										? "[hash:base64]"
+										: "[path][name]_[local]_[hash:base64:6]",
+								},
+							},
+						},
+					],
 				},
 				{
 					test: /\.mdx?$/,
