@@ -1,0 +1,10 @@
+table.successGrid {
+    th.empty {
+        border: none;
+        background: none;
+    }
+
+    tr:last-child {
+        font-weight: bolder;
+    }
+}
