@@ -32,6 +32,16 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.24.24
+
+- Improve Octree misalignment tester (`tst/`) with margin-based bounding box comparison to handle float precision errors
+  - Add `SuccessGrid` component displaying per-LOD-level success/failure counts
+  - Add restart button and hide file selector after loading
+  - Use `rehype-raw` for richer Markdown rendering in reports
+- Add loading progress indicator to `MorphoViewerOctree` doc page (bytes loaded, blocks in progress)
+- Remove leftover `console.log` debug statement from `OctreeManager`
+- Split `typedoc` script into `doc` (single run) and `doc:watch` (watch mode)
+
 ### v0.24.23
 
 - Add new `MorphoViewerScalebar` component (`lib/src/components/morpho-viewer-scalebar/`) for displaying a dynamic scale bar

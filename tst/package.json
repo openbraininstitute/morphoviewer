@@ -17,12 +17,13 @@
         "react": "^19.2.5",
         "react-dom": "^19.2.5",
         "react-markdown": "^10.1.0",
+        "rehype-raw": "^7.0.0",
         "remark-gfm": "^4.0.1"
     },
     "devDependencies": {
         "@rspack/cli": "^1.7.11",
         "@rspack/core": "^1.7.11",
-        "@tauri-apps/cli": "^2.10.1",
+        "@tauri-apps/cli": "^2.11.1",
         "@types/react": "^19.2.14",
         "@types/react-dom": "^19.2.3",
         "build-react-routes": "^0.10.8",

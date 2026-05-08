@@ -3,9 +3,11 @@ import { assertType } from "@tolokoban/type-guards";
 import { IconWait, ViewButton, ViewProgress } from "@tolokoban/ui";
 import React, { useState } from "react";
 import Markdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
 
 import { API } from "../api";
+import { SuccessGrid } from "../components/success-grid";
 
 import styles from "./page.module.css";
 
@@ -32,11 +34,15 @@ interface Report {
 export default function Page() {
   const [message, setMessage] = useState("");
   const [files, setFiles] = React.useState<GlbFile[]>([]);
+  const [filesGood, setFilesGood] = React.useState<string[]>([]);
+  const [filesBad, setFilesBad] = React.useState<string[]>([]);
   const [progress, setProgress] = React.useState(0);
   const [markdown, setMarkdown] = React.useState("");
 
   const handleSelectFile = async () => {
     try {
+      setFilesBad([]);
+      setFilesGood([]);
       const path = await API.fileSelect({ allowedExtensions: ["json"] });
       setMessage(path ?? "No file selected");
       if (!path) return;
@@ -49,16 +55,15 @@ export default function Page() {
         files: ["array", "string"],
       });
       const initialBBox = data.bbox;
+      const margin = 1e-5 * Math.abs(initialBBox.max[0] - initialBBox.min[0]);
       setMessage(`Number of blocks: ${data.files.length}`);
       const maxFileLength = data.files.reduce((prev, curr) => Math.max(prev, curr.length - 4), 0);
       const maxLevels = Math.floor(maxFileLength / 3);
       const root = path.split("/").slice(0, -1).join("/");
       const items = data.files.map((f) => ({ path: `${root}/${f}` }));
-      console.log("🐞 [page@44] items =", items); // @FIXME: Remove this line written on 2026-04-28 at 15:12
       const availableBlocks = new Map<string, GlbFile>(
         items.map((item) => [item.path.split("/").slice(-1).join("").split(".")[0], item])
       );
-      console.log("🐞 [page@51] availableBlocks =", availableBlocks); // @FIXME: Remove this line written on 2026-04-28 at 15:12
       setFiles(items);
       const min = new TgdVec3(data.bbox.min[0], data.bbox.min[1], data.bbox.min[2]);
       const max = new TgdVec3(data.bbox.max[0], data.bbox.max[1], data.bbox.max[2]);
@@ -76,9 +81,10 @@ export default function Page() {
         const data = await TgdDataGlb.parse(glbContent.content);
         const geometry = data.makeGeometry();
         const actualBBox = geometry.computeBoundingBox();
-        if (bbox.containsBBox(actualBBox)) {
+        if (enlargeBBox(bbox, margin).containsBBox(actualBBox)) {
           item.success = true;
           report.success.push(item.path.split("/").pop() ?? "N/A");
+          setFilesGood((list) => [...list, extractName(item.path)]);
         } else {
           item.error = `Misaligned bounding box!
 Expected: ${formatBBox(bbox)}
@@ -89,6 +95,7 @@ Received: ${formatBBox(actualBBox)}
             expected: bbox,
             got: actualBBox,
           });
+          setFilesBad((list) => [...list, extractName(item.path)]);
         }
         setFiles(items.slice());
       }
@@ -101,12 +108,20 @@ Received: ${formatBBox(actualBBox)}
 
   return (
     <div className={styles.page}>
-      <ViewButton onClick={handleSelectFile}>Open a LODs description file</ViewButton>
-      {message && <pre>{message}</pre>}
-      {progress > 0 && files.length > 0 && (
+      {files.length === 0 && (
+        <ViewButton onClick={handleSelectFile}>Open a LODs description file</ViewButton>
+      )}
+      {files.length > 0 && progress >= 1 && (
+        <ViewButton onClick={() => globalThis.location.reload()}>Restart</ViewButton>
+      )}
+      {progress > 0 && progress < 1 && files.length > 0 && (
         <ViewProgress value={(100 * progress) / files.length} fullwidth />
       )}
-      <Markdown remarkPlugins={[remarkGfm]}>{markdown}</Markdown>
+      <SuccessGrid filesBad={filesBad} filesGood={filesGood} />
+      {message && <pre>{message}</pre>}
+      <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+        {markdown}
+      </Markdown>
     </div>
   );
 }
@@ -175,7 +190,11 @@ Here is the bounding box defined in \`lods.json\`:
 ${JSON.stringify(bbox, null, 2)}
 \`\`\`
 
-List of correct blocks (${report.success.length}): ${report.success.length === 0 ? "none" : report.success.map((item) => `\`${item}\``).join(", ")}.
+<details>
+<summary>List of correct blocks (${report.success.length}):</summary>
+
+${report.success.length === 0 ? "none" : report.success.map((item) => `\`${item}\``).join(", ")}.
+</details>
 
 Number of misaligned blocks: ${report.error.length}.
 
@@ -197,4 +216,20 @@ ${report.error
   )
   .join("\n")}
 `;
+}
+
+function extractName(path: string): string {
+  return path.split("/").slice(-1).join("").split(".")[0];
+}
+
+/**
+ * We enlarge the BBox to fight float approximations errors.
+ */
+function enlargeBBox(bbox: TgdBoundingBox, margin) {
+  const min = new TgdVec3(bbox.min);
+  const max = new TgdVec3(bbox.max);
+  const vec = new TgdVec3(margin, margin, margin);
+  min.subtract(vec);
+  max.add(vec);
+  return new TgdBoundingBox([min.x, min.y, min.z], [max.x, max.y, max.z]);
 }

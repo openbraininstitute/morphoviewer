@@ -51,7 +51,10 @@ export default function (env, argv) {
                 {
                     test: /\.css$/,
                     use: [
-                        { loader: Rspack.CssExtractRspackPlugin.loader },
+                        {
+                            loader: Rspack.CssExtractRspackPlugin.loader,
+                            options: {},
+                        },
                         {
                             loader: "css-loader",
                             options: {
