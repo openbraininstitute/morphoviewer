@@ -1,6 +1,6 @@
 {
     "name": "@openbraininstitute/morphoviewer",
-    "version": "0.24.23",
+    "version": "0.24.24",
     "description": "Class to display SWC files in 3D on a canvas",
     "main": "./dist/index.js",
     "module": "./dist/index.js",
@@ -11,7 +11,8 @@
     ],
     "scripts": {
         "clean": "rm -rf ./dist .tsbuildinfo",
-        "doc": "typedoc --watch",
+        "doc": "typedoc",
+        "doc:watch": "typedoc --watch",
         "prebuild": "npm run clean",
         "build": "build-typescript-library .",
         "prestart": "npm run clean",
