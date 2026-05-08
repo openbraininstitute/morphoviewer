@@ -204,7 +204,6 @@ export class OctreeManager {
 
                 const blockId = morphoViewerOctreeBlockToId(x, y, z, level)
                 if (!this.availableBlocks.has(blockId)) {
-                    console.log(`Block "${blockId}" is not available!`)
                     return null
                 }
 
