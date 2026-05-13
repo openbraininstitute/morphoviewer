@@ -1,16 +1,22 @@
-import { TgdPainterGizmoOptions } from "@tolokoban/tgd"
-
-import { ControlsLayoutProps } from "../controls-layout/controls-layout"
-import { PropsForGizmo, PropsForScalebar } from "../types"
-
+import type { ControlsLayoutProps } from "../controls-layout"
 import type { MorphoViewerTree } from "../morpho-viewer-simul"
+import type { PropsForGizmo, PropsForScalebar } from "../types"
+
+export interface SectionColors {
+    soma: string
+    axon: string
+    myelin: string
+    apicalDendrite: string
+    basalDendrite: string
+    unknown: string
+}
 
 export interface MorphoViewerSmallCircuitCell {
     id: string
     center: [x: number, y: number, z: number]
     orientation: [x: number, y: number, z: number, w: number]
     somaRadius: number
-    color?: string
+    color?: string | SectionColors
 }
 
 export type MorphoViewerSmallCircuitCellData = {

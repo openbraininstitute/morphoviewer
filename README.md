@@ -32,6 +32,15 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.25.0
+
+- Add **section-based coloring** to `MorphoViewerSmallCircuit`
+  - Cell `color` prop now accepts a `SectionColors` object with per-section colors (soma, axon, myelin, apicalDendrite, basalDendrite, unknown)
+  - Uses a texture palette for rendering distinct colors per morphology section type
+- Add `Myelin` entry to `CellNodeType` enum
+- Add new `morphoViewerConvertSwcIntoTree` utility function for converting SWC file content into a `MorphoViewerTree` structure
+- Export `morphoViewerConvertSwcIntoTree` from the library entry point
+
 ### v0.24.24
 
 - Improve Octree misalignment tester (`tst/`) with margin-based bounding box comparison to handle float precision errors

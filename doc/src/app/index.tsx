@@ -23,7 +23,9 @@ const Page1 = React.lazy(() => import("./api/page"))
 const Page2 = React.lazy(() => import("./morpho-viewer-octree/page"))
 const Page4 = React.lazy(() => import("./morpho-viewer-simul/page"))
 const Page5 = React.lazy(() => import("./morpho-viewer-small-circuit/page"))
-const Page6 = React.lazy(() => import("./morphology/page"))
+const Page6 = React.lazy(() => import("./morpho-viewer-small-circuit/cell/page"))
+const Page7 = React.lazy(() => import("./morpho-viewer-small-circuit/section/page"))
+const Page8 = React.lazy(() => import("./morphology/page"))
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function App({ lang }: { lang?: string }) {
@@ -36,6 +38,8 @@ export default function App({ lang }: { lang?: string }) {
     const pg4 = Page4
     const pg5 = Page5
     const pg6 = Page6
+    const pg7 = Page7
+    const pg8 = Page8
     return (
         <Route path="/" Page={pg0} Layout={ly0} fallback={fb} context={context}>
             <Route path="/api" Page={pg1} fallback={fb} context={context}/>
@@ -43,8 +47,11 @@ export default function App({ lang }: { lang?: string }) {
                 <Route path="/morpho-viewer-octree/gizmo-settings" fallback={fb} context={context}/>
             </Route>
             <Route path="/morpho-viewer-simul" Page={pg4} fallback={fb} context={context}/>
-            <Route path="/morpho-viewer-small-circuit" Page={pg5} fallback={fb} context={context}/>
-            <Route path="/morphology" Page={pg6} fallback={fb} context={context}/>
+            <Route path="/morpho-viewer-small-circuit" Page={pg5} fallback={fb} context={context}>
+                <Route path="/morpho-viewer-small-circuit/cell" Page={pg6} fallback={fb} context={context}/>
+                <Route path="/morpho-viewer-small-circuit/section" Page={pg7} fallback={fb} context={context}/>
+            </Route>
+            <Route path="/morphology" Page={pg8} fallback={fb} context={context}/>
         </Route>
     )
 }
