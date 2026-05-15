@@ -288,7 +288,7 @@ export class PainterManager {
         this._canvas = canvas
         if (!canvas) return
 
-        const context = new TgdContext(canvas)
+        const context = new TgdContext(canvas, { antialias: true, verbose: false })
         watchSpacePerPixel(context, this.eventScalebar)
         context.inputs.pointer.eventHover.addListener(this.handlePointerHover)
         context.inputs.pointer.eventTap.addListener(this.handlePointerTap)

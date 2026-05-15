@@ -32,6 +32,11 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.25.1
+
+- Enable **antialiasing** on `MorphoViewerSmallCircuit` WebGL context for smoother rendering
+- Remove leftover `console.debug` statement from `MorphoViewerSimul`
+
 ### v0.25.0
 
 - Add **section-based coloring** to `MorphoViewerSmallCircuit`
