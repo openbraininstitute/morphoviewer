@@ -1,24 +1,28 @@
 import { tgdFullscreenToggle } from "@tolokoban/tgd";
 import React from "react";
+
 import { useDebugMode } from "@/utils";
+
 import { ButtonCameraReset } from "../button-reset-camera";
 import { IconClose } from "../icons/close";
 import { IconCopy } from "../icons/copy";
 import { IconFullscreen } from "../icons/fullscreen";
+import { IconMinimize } from "../icons/minimize";
 import AddRecordingDialog from "./components/add-recording-dialog";
 import { HintPanel } from "./components/hint";
 import LegendOverlay from "./components/legend-overlay";
 import ModeSelector from "./components/ModeSelector";
+import SpikingController from "./components/spiking-controller";
 import ZoomSlider from "./components/zoom-slider";
-import styles from "./morpho-viewer-simul.module.css";
 import {
   type PainterManager,
   useWebglNeuronSelector as useMorphoViewerSimul,
   usePainterController,
 } from "./painter";
-import SpikingController from "./components/spiking-controller";
+
 import type { MorphoViewerSimulProps } from "./types/public";
-import { IconMinimize } from "../icons/minimize";
+
+import styles from "./morpho-viewer-simul.module.css";
 
 // eslint-disable-next-line react/display-name
 export function MorphoViewerSimul(props: MorphoViewerSimulProps) {
@@ -32,7 +36,6 @@ export function MorphoViewerSimul(props: MorphoViewerSimulProps) {
   };
   const debugMode = useDebugMode();
   const handleCopyMorphologyToClipboard = () => {
-    console.debug("props:", props);
     navigator.clipboard.writeText(JSON.stringify(props.morphology));
   };
 
