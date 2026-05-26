@@ -4,36 +4,26 @@ import {
     TgdColor,
     TgdContext,
     TgdEvent,
-    TgdFilterBlur,
     type TgdInputPointerEventMove,
     type TgdInputPointerEventTap,
-    type TgdPainter,
     TgdPainterClear,
-    TgdPainterFilter,
-    TgdPainterFramebufferWithAntiAliasing,
     TgdPainterGizmo,
     type TgdPainterGizmoOptions,
     TgdPainterGroup,
-    TgdPainterMix,
     TgdPainterState,
     TgdTexture2D,
-    webglPresetBlend,
-    webglPresetDepth,
 } from "@tolokoban/tgd"
 import React from "react"
-
 import { watchSpacePerPixel } from "@/behaviors"
 import { CacheLRU } from "@/tools/cache-lru"
-
-import { CameraManager } from "./camera"
-import { OffscreenPainter } from "./offscreen-painter"
-import { PainterCell } from "./painter-cell"
-
 import type {
     MorphoViewerSmallCircuitCell,
     MorphoViewerSmallCircuitCellData,
     MorphoViewerSmallCircuitProps,
 } from ".."
+import { CameraManager } from "./camera"
+import { OffscreenPainter } from "./offscreen-painter"
+import { PainterCell } from "./painter-cell"
 
 interface Framebuffer {
     textureColor0?: TgdTexture2D
@@ -156,22 +146,26 @@ export class PainterManager {
             this.loadedCells.set(id, promise)
             return promise
         }
-        this.updateCircuit()
+        this.onLoadProgress?.(0)
+        globalThis.requestAnimationFrame(this.updateCircuit)
     }
 
-    private updateCircuit() {
+    private readonly updateCircuit = () => {
         const { context } = this
         if (!context) return
 
         const { loadCell, loadedCells } = this
         if (!loadCell) return
 
+        console.log("UPDATE_CIRCUIT!", this)
+        this.groupCells.removeAll()
         this.onLoadProgress?.(0)
         this.cellCountTotal = this.circuit.length
         this.cellCountLoaded = 0
         const camera = new TgdCameraPerspective({
             zoom: 1,
         })
+        this.offscreen?.delete()
         this.offscreen = new OffscreenPainter(context, {
             circuit: this.circuit,
             loadCell,
@@ -210,6 +204,7 @@ export class PainterManager {
         context.camera = camera
         this.adaptCameraFromBBox()
         context.paint()
+        context.debugHierarchy("updateCircuit()")
     }
 
     private adaptCameraFromBBox() {
@@ -226,10 +221,10 @@ export class PainterManager {
         camera.near = 1
         camera.far = camera.transfo.distance * 2
         camera.zoom = 2
-        const { cameraManager } = this
-        if (cameraManager) {
-            cameraManager.target = camera.getCurrentState()
-        }
+        if (!this.cameraManager) this.cameraManager = new CameraManager(context, this.eventRestingPosition)
+        this.cameraManager.target = camera.getCurrentState()
+        context.paint()
+        console.log('🐞 [manager@227] bbox =', bbox) // @FIXME: Remove this line written on 2026-05-26 at 18:58
     }
 
     public get highlightedCellIds() {
@@ -288,13 +283,16 @@ export class PainterManager {
         this._canvas = canvas
         if (!canvas) return
 
+        console.log("NEW!")
         const context = new TgdContext(canvas, { antialias: true, verbose: false })
         watchSpacePerPixel(context, this.eventScalebar)
         context.inputs.pointer.eventHover.addListener(this.handlePointerHover)
         context.inputs.pointer.eventTap.addListener(this.handlePointerTap)
+        context.inputs.pointer.eventTapMultiple.addListener(this.debug)
         this.context = context
         this.cameraManager = new CameraManager(context, this.eventRestingPosition)
         const clear = new TgdPainterClear(context, {
+            name: "Clear background and depth",
             color: [
                 this.backgroundColor.R,
                 this.backgroundColor.G,
@@ -304,12 +302,6 @@ export class PainterManager {
             depth: 1,
         })
         this.painterClear = clear
-        // context.add(
-        //     this.createramebufferCircuit(context, clear),
-        //     this.createFramebufferHighlightedCells(context),
-        //     this.createFramebufferBlur(context),
-        //     this.createMix(context),
-        // )
         this.groupGizmo.removeAll()
         const painterGizmo = new TgdPainterGizmo(context, DEFAULT_GIZMO_PROPS)
         this.painterGizmo = painterGizmo
@@ -322,9 +314,9 @@ export class PainterManager {
                 children: [this.groupCells],
             }),
             // Highlighted cells
-            new TgdPainterClear(context, { depth: 1 }),
+            // new TgdPainterClear(context, { name: "Clear depth", depth: 1 }),
             new TgdPainterState(context, {
-                depth: "less",
+                depth: "lessOrEqual",
                 blend: "add",
                 cull: "back",
                 children: [this.groupHighlithedCells],
@@ -334,97 +326,8 @@ export class PainterManager {
         this.updateCircuit()
     }
 
-    private createramebufferCircuit(context: TgdContext, clear: TgdPainterClear) {
-        this.textureFramebufferCircuit = new TgdTexture2D(context)
-        this.framebufferCircuit = new TgdPainterFramebufferWithAntiAliasing(context, {
-            textureColor0: this.textureFramebufferCircuit,
-            depthBuffer: true,
-            children: [
-                clear,
-                new TgdPainterState(context, {
-                    depth: webglPresetDepth.less,
-                    children: [this.groupCells],
-                }),
-            ],
-        })
-        return this.framebufferCircuit as TgdPainter
-    }
-
-    private createFramebufferHighlightedCells(context: TgdContext) {
-        const { viewportMatchingScale } = this
-        this.textureFramebufferHighlightedCells = new TgdTexture2D(context)
-        this.framebufferHighlightedCells = new TgdPainterFramebufferWithAntiAliasing(context, {
-            viewportMatchingScale,
-            textureColor0: this.textureFramebufferHighlightedCells,
-            depthBuffer: true,
-            children: [
-                new TgdPainterClear(context, { depth: 1, color: [0, 0, 0, 1] }),
-                new TgdPainterState(context, {
-                    depth: webglPresetDepth.less,
-                    children: [this.groupHighlithedCells],
-                }),
-            ],
-        })
-        return this.framebufferHighlightedCells as TgdPainter
-    }
-
-    private createFramebufferBlur(context: TgdContext) {
-        const { textureFramebufferHighlightedCells } = this
-        if (!textureFramebufferHighlightedCells)
-            throw new Error(
-                "You must call createFramebufferHighlightedCells() before this createFramebufferBlur()!"
-            )
-
-        const { viewportMatchingScale } = this
-        const size = 3
-        this.textureFramebufferBlur = new TgdTexture2D(context)
-        this.framebufferBlur = new TgdPainterFramebufferWithAntiAliasing(context, {
-            viewportMatchingScale,
-            textureColor0: this.textureFramebufferBlur,
-            children: [
-                new TgdPainterClear(context, { color: [0, 0, 0, 1] }),
-                new TgdPainterState(context, {
-                    depth: webglPresetDepth.off,
-                    children: [
-                        new TgdPainterFilter(context, {
-                            flipY: true,
-                            texture: textureFramebufferHighlightedCells,
-                            filters: [
-                                new TgdFilterBlur({
-                                    size,
-                                    direction: 0,
-                                }),
-                                new TgdFilterBlur({
-                                    size,
-                                    direction: 90,
-                                }),
-                            ],
-                        }),
-                    ],
-                }),
-            ],
-        })
-        return this.framebufferBlur as TgdPainter
-    }
-
-    private createMix(context: TgdContext) {
-        const { framebufferCircuit, framebufferBlur } = this
-        if (!framebufferCircuit)
-            throw new Error("Framebuffer for circuit must be created before calling createMix()!")
-        if (!framebufferBlur)
-            throw new Error("Framebuffer for blur must be created before calling createMix()!")
-
-        return new TgdPainterState(context, {
-            depth: webglPresetDepth.off,
-            blend: webglPresetBlend.off,
-            children: [
-                new TgdPainterMix(context, {
-                    texture1: framebufferCircuit.textureColor0,
-                    texture2: framebufferBlur.textureColor0,
-                    strength: 1.5,
-                }),
-            ],
-        })
+    public readonly debug = () => {
+        this.context?.debugHierarchy("<MorphoViewerSmallCircuit />")
     }
 
     private readonly handlePointerHover = (evt: TgdInputPointerEventMove) => {
@@ -447,6 +350,7 @@ export class PainterManager {
     };
 
     private delete() {
+        console.log("DELETE!")
         this.textureFramebufferCircuit?.delete()
         this.textureFramebufferCircuit = null
         this.framebufferCircuit?.delete()

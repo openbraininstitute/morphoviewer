@@ -28,29 +28,34 @@ export function createCellFromTree(
     const bbox = new TgdBoundingBox()
     for (const segments of [segmentsSoma, segmentsNeurites]) {
         for (let i = 0; i < segments.count; i++) {
-            const [x0, y0, z0, r0] = segmentsNeurites.getXYZR0(i)
+            const [x0, y0, z0, r0] = segments.getXYZR0(i)
             bbox.addSphere(x0, y0, z0, r0 * 2)
-            const [x1, y1, z1, r1] = segmentsNeurites.getXYZR1(i)
+            const [x1, y1, z1, r1] = segments.getXYZR1(i)
             bbox.addSphere(x1, y1, z1, r1 * 2)
         }
     }
+    console.log('🐞 [tree@37] segmentsSoma, segmentsNeurites =', segmentsSoma, segmentsNeurites) // @FIXME: Remove this line written on 2026-05-26 at 19:31
+    const painterSoma = new TgdPainterSegments(context, {
+        roundness: forSelection ? 5 : 12,
+        radiusMultiplier: forSelection ? 1.1 : 1,
+        material,
+        dataset: segmentsSoma.makeDataset(),
+    })
+    painterSoma.name = "painterSoma"
+    const painterNeurites = new TgdPainterSegments(context, {
+        roundness: forSelection ? 3 : 5,
+        minRadius: 2,
+        radiusMultiplier: forSelection ? 1.6 : 1,
+        material,
+        dataset: segmentsNeurites.makeDataset(),
+    })
+    painterNeurites.name = "painterNeurites"
     return {
         bbox,
         node: new TgdPainterNode({
             children: [
-                new TgdPainterSegments(context, {
-                    roundness: forSelection ? 5 : 12,
-                    radiusMultiplier: forSelection ? 1.1 : 1,
-                    material,
-                    dataset: segmentsSoma.makeDataset(),
-                }),
-                new TgdPainterSegments(context, {
-                    roundness: forSelection ? 3 : 5,
-                    minRadius: 2,
-                    radiusMultiplier: forSelection ? 1.6 : 1,
-                    material,
-                    dataset: segmentsNeurites.makeDataset(),
-                }),
+                painterSoma,
+                painterNeurites,
             ],
         }),
     }

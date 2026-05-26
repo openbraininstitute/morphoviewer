@@ -45,6 +45,7 @@ export class CameraManager {
     }
 
     delete() {
+        console.log("DELETE CameraManager!")
         this.orbit?.detach()
         this.orbit = null
         this.context.animCancelArray(this.animations)

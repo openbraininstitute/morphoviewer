@@ -1,5 +1,4 @@
 import {
-    type ArrayNumber4,
     TgdBoundingBox,
     TgdColor,
     type TgdContext,
@@ -9,7 +8,6 @@ import {
     TgdMaterialDiffuse,
     TgdMaterialFlat,
     TgdMaterialFlatTexture,
-    TgdMaterialSolid,
     TgdPainterGroup,
     TgdPainterMesh,
     TgdQuat,
@@ -19,13 +17,10 @@ import {
     tgdCanvasCreateFill,
     tgdCanvasCreatePalette,
 } from "@tolokoban/tgd"
-
-import { int16ToVec3 } from "@/utils"
-
-import { createCellFromTree } from "./factory/tree"
-
 import type { MorphoViewerTree } from "@/components/morpho-viewer-simul"
+import { int16ToVec3 } from "@/utils"
 import type { MorphoViewerSmallCircuitCell, MorphoViewerSmallCircuitCellData, SectionColors } from "../../types"
+import { createCellFromTree } from "./factory/tree"
 
 export interface PainterCellOptions {
     matrerial?: PainterCellMaterialName
@@ -51,14 +46,9 @@ export class PainterCell extends TgdPainterGroup {
         private readonly options: PainterCellOptions
     ) {
         super({
-            name: `Cell/${options.cell.id}`,
+            name: `PainterCell / ${options.cell.id}`,
         })
         const { cell } = options
-        const geometry = new TgdGeometrySphereIco({
-            center: cell.center,
-            radius: cell.somaRadius,
-            subdivisions: 2,
-        })
         const texture = createPaletteTexture(context, cell.color)
         this.texturePalette = texture
         this.textureBlack = new TgdTexture2D(context).loadBitmap(tgdCanvasCreateFill(1, 1, "#000"))
@@ -82,7 +72,13 @@ export class PainterCell extends TgdPainterGroup {
                 })
                 break
         }
+        const geometry = new TgdGeometrySphereIco({
+            center: cell.center,
+            radius: cell.somaRadius,
+            subdivisions: 2,
+        })
         const mesh = new TgdPainterMesh(context, {
+            name: `Soma / ${options.cell.id}`,
             geometry,
             material: this.material,
         })
