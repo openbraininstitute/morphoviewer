@@ -32,6 +32,11 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.25.2
+
+- Increase default **minRadius** from `0.25` to `2.5` in `MorphologyCanvas` and from `2` to `2.5` in `SwcPainter` for better rendering of thin neurites
+- Remove leftover `console.log` debug statements from `AbstractCanvas`, `SwcPainter`, and NRRD parser
+
 ### v0.25.1
 
 - Enable **antialiasing** on `MorphoViewerSmallCircuit` WebGL context for smoother rendering

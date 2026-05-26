@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/a11y/noStaticElementInteractions: <explanation> */
 "use client";
 
 /* eslint-disable no-param-reassign */
@@ -19,6 +20,9 @@ import { IconFullscreen } from "@tolokoban/ui";
 
 import { classNames } from "@/util/utils";
 
+import { useGizmoCanvas } from "./hooks/gizmo-canvas";
+import { useMorphoCanvas } from "./hooks/morphology-canvas";
+
 import styles from "./morpho-viewer.module.css";
 
 interface MorphoViewerProps {
@@ -37,10 +41,8 @@ const SHOW_GIZMO = false;
 
 function MorphoViewer({ className, swc, mode }: MorphoViewerProps) {
   const refDiv = useRef<HTMLDivElement | null>(null);
-  const refMorphoCanvas = useRef(new MorphologyCanvas());
-  const morphoCanvas = refMorphoCanvas.current;
-  const refGizmoCanvas = useRef(new GizmoCanvas());
-  const gizmoCanvas = refGizmoCanvas.current;
+  const morphoCanvas = useMorphoCanvas();
+  const gizmoCanvas = useGizmoCanvas();
   const refCanvas = useRef<HTMLCanvasElement | null>(null);
   const [{ isDarkMode }] = useMorphoViewerSettings(morphoCanvas);
   const [warning, setWarning] = useSignal(10000);
@@ -82,6 +84,9 @@ function MorphoViewer({ className, swc, mode }: MorphoViewerProps) {
       className={classNames(styles.main, className, isDarkMode && styles.darkMode)}
       ref={refDiv}
       onDoubleClick={handleFullscreen}
+      onKeyDown={({ key }) => {
+        if (key === "f11") handleFullscreen;
+      }}
       data-testid="morpho-viewer"
     >
       <canvas className={styles.morphoViewer} ref={refCanvas}>

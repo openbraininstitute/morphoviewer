@@ -1,6 +1,6 @@
 {
     "name": "morphoviewer-tst",
-    "version": "0.1.0",
+    "version": "0.25.2",
     "private": true,
     "scripts": {
         "dev": "rspack serve --mode=development",
