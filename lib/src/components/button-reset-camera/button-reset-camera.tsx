@@ -1,8 +1,12 @@
-import type { TgdEvent } from "@tolokoban/tgd";
 import React from "react";
+
 import Tooltip from "@/components/tooltip";
 import { classNames, useEventValue } from "@/utils";
+
 import { IconCenter } from "../icons/center";
+
+import type { TgdEvent } from "@tolokoban/tgd";
+
 import styles from "./button-reset-camera.module.css";
 
 export interface ButtonResetCameraProps {

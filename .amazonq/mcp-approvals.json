@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "approvals": [
+    {
+      "serverName": "tgd2-release-notes",
+      "fingerprint": "sha256:6c735a8d755832b6e77ab74736058148a59b2ce14d008d820c3baeaa561bd6aa",
+      "workspaceHash": "sha256:1b91b841bc4fdc5a3cf0d3d8829737e45579b663c884d5a2eeacf65b8011bfae",
+      "approvedAt": "2026-05-05T13:27:03.654Z"
+    }
+  ]
+}
