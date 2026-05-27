@@ -32,6 +32,14 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.25.3
+
+- Add optional `verbose` prop to `MorphoViewerSmallCircuit` for enabling/disabling debug console output
+- Refactor `MorphoViewerSmallCircuit` rendering pipeline: remove `TgdFilterBlur`, `TgdPainterFilter`, `TgdPainterFramebufferWithAntiAliasing`, and `TgdPainterMix` for a leaner rendering approach
+- Refactor `CameraManager` to use `TgdControllerCameraOrbit` with smooth camera interpolation via `tgdActionCreateCameraInterpolation`
+- Use `TgdValueWaitable` for lazy context initialization in `PainterManager`
+- Add `isDeleted` guard in `OffscreenPainter` to prevent operations after deletion
+
 ### v0.25.2
 
 - Increase default **minRadius** from `0.25` to `2.5` in `MorphologyCanvas` and from `2` to `2.5` in `SwcPainter` for better rendering of thin neurites

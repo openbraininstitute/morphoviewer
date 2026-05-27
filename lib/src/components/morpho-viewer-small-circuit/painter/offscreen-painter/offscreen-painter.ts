@@ -6,10 +6,13 @@ import {
   TgdPainterState,
   webglPresetDepth,
 } from "@tolokoban/tgd";
-import { CacheLRU } from "@/tools/cache-lru";
+
 import { vec3ToInt16 } from "@/utils";
-import type { MorphoViewerSmallCircuitCell, MorphoViewerSmallCircuitCellData } from "../../types";
+
 import { PainterCell } from "../painter-cell";
+
+import type { CacheLRU } from "@/tools/cache-lru";
+import type { MorphoViewerSmallCircuitCell, MorphoViewerSmallCircuitCellData } from "../../types";
 
 export interface OffscreenPainterOptions {
   circuit: MorphoViewerSmallCircuitCell[];
@@ -27,6 +30,7 @@ export class OffscreenPainter {
   private readonly offscreenContext: TgdContext;
   private readonly group = new TgdPainterGroup();
   private readonly circuit: MorphoViewerSmallCircuitCell[];
+  private isDeleted = false;
 
   constructor(
     private readonly onscreenContext: TgdContext,
@@ -39,6 +43,7 @@ export class OffscreenPainter {
       antialias: false,
       alpha: false,
       depth: true,
+      name: "OffscreenPainter",
     });
     this.context = context;
     context.camera = onscreenContext.camera;
@@ -64,6 +69,8 @@ export class OffscreenPainter {
   }
 
   getItemAt(xScreen: number, yScreen: number): MorphoViewerSmallCircuitCell | undefined {
+    if (this.isDeleted) return;
+
     const { circuit, offscreenContext: context } = this;
     const [R, G, B] = context.readPixel(xScreen, yScreen);
     const divider = 1 / 0xff;
@@ -72,6 +79,8 @@ export class OffscreenPainter {
   }
 
   private readonly paint = () => {
+    if (this.isDeleted) return;
+
     const { onscreenContext, offscreenContext, offscreenCanvas } = this;
     offscreenContext.camera = onscreenContext.camera;
     const { canvas } = onscreenContext;
@@ -85,5 +94,6 @@ export class OffscreenPainter {
   delete() {
     this.onscreenContext.eventPaint.removeListener(this.paint);
     this.offscreenContext.delete();
+    this.isDeleted = true;
   }
 }

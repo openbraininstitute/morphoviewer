@@ -5,7 +5,7 @@ import {
   type MorphoViewerSmallCircuitProps,
   morphoViewerConvertMorphologyIntoTree,
 } from "@openbraininstitute/morphoviewer";
-import { ViewSpinner } from "@tolokoban/ui";
+import { ViewLabel, ViewOptions, ViewPanel, ViewSpinner, ViewSwitch } from "@tolokoban/ui";
 import React from "react";
 
 import { GizmoSettings } from "@/components/gizmo-settings";
@@ -15,7 +15,9 @@ import { useCircuit } from "./data";
 import styles from "./page.module.css";
 
 export default function Page() {
-  const circuit = useCircuit(20);
+  const [showComponent, setShowComponent] = React.useState(true);
+  const [circuitId, setCircuitId] = React.useState("small");
+  const circuit = useCircuit(circuitId);
   const [gizmo, setGizmo] = React.useState<boolean | MorphoViewerSmallCircuitProps["gizmo"]>(true);
   const [progress, setProgress] = React.useState(0);
   const [selectedCells, setSelectedCells] = React.useState<string[]>([]);
@@ -39,26 +41,40 @@ export default function Page() {
 
   return (
     <div className={styles.page}>
+      <ViewPanel display="flex" justifyContent="flex-start" alignItems="center" gap="M">
+        <ViewLabel value="Show viewer" />
+        <ViewSwitch value={showComponent} onChange={setShowComponent} />
+      </ViewPanel>
       <div className={styles.viewerContainer}>
-        <MorphoViewerSmallCircuit
-          className={styles.viewer}
-          controls={[
-            <strong key="title">Here is a title</strong>,
-            "reset-camera",
-            ["fullscreen", "minimize", "close"],
-          ]}
-          backgroundColor="#000"
-          circuit={circuit}
-          gizmo={gizmo}
-          scalebar
-          loadCell={loadCell}
-          onCellHover={handleCellHover}
-          onCellClick={handleCellClick}
-          highlightedCellIds={highlightedCellIds}
-          onLoadProgress={setProgress}
-          onMinimize={() => alert("onMinimize()")}
-          onClose={() => alert("onClose()")}
-        />
+        {!showComponent && (
+          <div className={[styles.unmounted, styles.viewer].join(" ")}>
+            <div>Viewer has been unmounted...</div>
+          </div>
+        )}
+        {showComponent && (
+          <MorphoViewerSmallCircuit
+            className={styles.viewer}
+            controls={[
+              <ViewOptions value={circuitId} onChange={setCircuitId} key="type">
+                <div key="small">Small</div>
+                <div key="big">Big</div>
+              </ViewOptions>,
+              "reset-camera",
+              ["fullscreen", "minimize", "close"],
+            ]}
+            backgroundColor="#444"
+            circuit={circuit}
+            gizmo={gizmo}
+            scalebar
+            loadCell={loadCell}
+            onCellHover={handleCellHover}
+            onCellClick={handleCellClick}
+            highlightedCellIds={highlightedCellIds}
+            onLoadProgress={setProgress}
+            onMinimize={() => alert("onMinimize()")}
+            onClose={() => alert("onClose()")}
+          />
+        )}
         {progress < 1 && (
           <div className={styles.progress}>
             <div>
