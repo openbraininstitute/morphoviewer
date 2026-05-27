@@ -11,7 +11,7 @@ test-coverage/
 .VSCodeCounter/
 **/.DS_Store
 .DS_Store
-**/.DS_Store/
-.DS_Store/
+doc/.DS_Store
 .release-notes/
 .release-notes
+.amazonq/
