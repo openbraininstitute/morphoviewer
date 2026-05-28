@@ -32,6 +32,10 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.25.4
+
+- Fix **event listener leak** in `MorphoViewerSmallCircuit` camera adaptation: the paint event listener was never removed, causing infinite re-registration on each paint cycle
+
 ### v0.25.3
 
 - Add optional `verbose` prop to `MorphoViewerSmallCircuit` for enabling/disabling debug console output
