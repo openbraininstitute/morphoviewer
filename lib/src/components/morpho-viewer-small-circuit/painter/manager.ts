@@ -243,7 +243,7 @@ export class PainterManager {
          * the camera.
          */
         const listener = () => {
-          context.eventPaint.addListener(listener);
+          context.eventPaint.removeListener(listener);
           this.adaptCameraFromBBox();
         };
         context.eventPaint.addListener(listener);
