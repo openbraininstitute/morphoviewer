@@ -1,0 +1,12 @@
+.page {
+    padding: 1em;
+
+    >div.viewer {
+        position: relative;
+        width: 1000px;
+        height: 750px;
+        display: grid;
+        place-items: center;
+        background-color: #000;
+    }
+}

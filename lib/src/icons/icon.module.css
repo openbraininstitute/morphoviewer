@@ -1,0 +1,19 @@
+svg.icon {
+  width: var(--custom-icon-size, 1.5em);
+  height: var(--custom-icon-size, 1.5em);
+  background-color: transparent;
+  fill: currentColor;
+}
+
+svg.spin {
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
