@@ -3,7 +3,7 @@ import React from "react";
 
 import { classNames } from "@/utils";
 
-import { ControlAction, ControlsLayout } from "../controls-layout";
+import { type ControlAction, ControlsLayout } from "../controls-layout";
 import MorphoViewerScalebar from "../morpho-viewer-scalebar";
 import { type PainterManager, useManager as usePainterManager } from "./manager";
 

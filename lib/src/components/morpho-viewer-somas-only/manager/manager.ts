@@ -72,26 +72,21 @@ class PainterManager {
     context.camera.screenWidth = context.width;
     context.camera.screenHeight = context.height;
     const resettedCamera = context.camera.clone();
-    const [width, height, depth] = bbox.size;
+    const [width, height] = bbox.size;
     if (
       width < 1 ||
       height < 1 ||
       resettedCamera.screenWidth < 1 ||
       resettedCamera.screenHeight < 1
-    )
+    ) {
       return;
+    }
 
-    resettedCamera.transfo.setOrientation([0, 0, 0, 1]);
-    resettedCamera.transfo.position = bbox.center;
-    resettedCamera.fitSpaceAtTarget(width, height);
+    resettedCamera.fitBoundingBox(bbox);
     if (Number.isNaN(resettedCamera.transfo.distance)) {
       // Can be NaN if the screen size has not yet been defined.
       return;
     }
-
-    resettedCamera.near = 1;
-    resettedCamera.far =
-      Math.max(resettedCamera.transfo.distance, Math.max(width, height, depth)) * 2;
     const state = resettedCamera.getCurrentState();
     context.animSchedule({
       duration: 0.5,
@@ -141,7 +136,7 @@ class PainterManager {
       inertiaZoom: 300,
     });
     context.paint();
-    globalThis.setTimeout(this.cameraReset);
+    context.execAfterNextPaint(this.cameraReset);
   }
 
   private delete() {
