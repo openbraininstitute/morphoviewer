@@ -35,6 +35,7 @@ export class PainterCellInfos extends TgdPainterGroup {
     const painterPointsCloud = new TgdPainterPointsCloud(context, {
       ...painterPointsCloudOptions,
       texture: texturePalette,
+      fragCode: TgdPainterPointsCloud.fragCodeSphere(),
     });
     super({
       name: "PainterCellInfos",
