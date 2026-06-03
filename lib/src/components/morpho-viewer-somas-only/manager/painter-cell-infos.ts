@@ -54,7 +54,6 @@ function parseCellInfos(
   cellInfos: MorphoViewerCellInfo[],
   bbox: TgdBoundingBox
 ): TgdPainterPointsCloudOptions {
-  console.log("🐞 [painter-cell-infos@57] cellInfos =", cellInfos); // @FIXME: Remove this line written on 2026-05-29 at 17:43
   const dataPoint: number[] = [];
   const dataUV: number[] = [];
   const radius = 15;

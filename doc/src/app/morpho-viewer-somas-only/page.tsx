@@ -18,7 +18,15 @@ export default function Page() {
       </ViewOptions>
       <div className={styles.viewer}>
         {!cellInfos && <MorphoViewerSpinner label="Circuit" />}
-        {cellInfos && <MorphoViewerSomasOnly cellInfos={cellInfos} />}
+        {cellInfos && (
+          <MorphoViewerSomasOnly
+            cellInfos={cellInfos}
+            onMinimize={() => alert("onMinimize()")}
+            onClose={() => alert("onClose()")}
+            scalebar
+            gizmo
+          />
+        )}
       </div>
     </div>
   );

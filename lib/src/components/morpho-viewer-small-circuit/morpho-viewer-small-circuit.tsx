@@ -57,7 +57,6 @@ export function MorphoViewerSmallCircuit(props: MorphoViewerSmallCircuitProps) {
 
     tgdFullscreenToggle(div);
   };
-
   const handleControls = (action: ControlAction): void => {
     switch (action) {
       case "fullscreen":

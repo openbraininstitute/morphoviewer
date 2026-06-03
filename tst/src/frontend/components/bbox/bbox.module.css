@@ -1,0 +1,9 @@
+.bbox {
+    display: grid;
+    grid-template-columns: auto 1fr 1fr 1fr;
+    gap: .25em;
+    padding: .5em;
+    margin: .5em;
+    border-radius: .25em;
+    background-color: antiquewhite;
+}

@@ -17,6 +17,7 @@ import {
 import React from "react";
 
 import { watchSpacePerPixel } from "@/behaviors";
+import { PainterGizmo } from "@/painters/gizmo";
 import { CacheLRU } from "@/tools/cache-lru";
 
 import { CameraManager } from "./camera";
@@ -33,13 +34,6 @@ interface Framebuffer {
   textureColor0?: TgdTexture2D;
   delete(): void;
 }
-
-const DEFAULT_GIZMO_PROPS: TgdPainterGizmoOptions = {
-  alignX: +1,
-  alignY: -1,
-  size: 128,
-  margin: 8,
-};
 
 export class PainterManager {
   public readonly eventRestingPosition = new TgdEvent<boolean>();
@@ -95,10 +89,15 @@ export class PainterManager {
   private loadedCellsCache = new CacheLRU<Promise<MorphoViewerSmallCircuitCellData | null>>(24);
   private circuitSignature = "";
   private bbox = new TgdBoundingBox();
-  private _gizmo: false | TgdPainterGizmoOptions = false;
-  private painterGizmo: TgdPainterGizmo | null = null;
-  private readonly groupGizmo = new TgdPainterGroup({ name: "GroupGizmo" });
   private _verbose = false;
+  private readonly painterGizmo = new PainterGizmo();
+
+  get gizmo() {
+    return this.painterGizmo.options;
+  }
+  set gizmo(gizmo: TgdPainterGizmoOptions | boolean | null | undefined) {
+    this.painterGizmo.options = gizmo ?? false;
+  }
 
   readonly cameraReset = () => this.cameraManager?.resetCamera();
 
@@ -110,33 +109,6 @@ export class PainterManager {
 
     this._verbose = verbose;
     if (this.context.value) this.context.value.verbose = verbose;
-  }
-
-  get gizmo(): false | TgdPainterGizmoOptions {
-    return this._gizmo;
-  }
-  set gizmo(gizmo: boolean | Partial<TgdPainterGizmoOptions> | undefined) {
-    if (this._gizmo === gizmo) return;
-
-    if (gizmo === true) {
-      this._gizmo = DEFAULT_GIZMO_PROPS;
-    } else if (gizmo === false) {
-      this._gizmo = false;
-    } else {
-      this._gizmo = {
-        ...DEFAULT_GIZMO_PROPS,
-        ...gizmo,
-      };
-    }
-    this.groupGizmo.active = !!this._gizmo;
-    if (this.painterGizmo) {
-      const { alignX, alignY, size, margin } =
-        this._gizmo === false ? DEFAULT_GIZMO_PROPS : this._gizmo;
-      this.painterGizmo.alignX = alignX;
-      this.painterGizmo.alignY = alignY;
-      this.painterGizmo.size = size;
-      this.painterGizmo.margin = margin;
-    }
   }
 
   setCircuit(
@@ -358,10 +330,6 @@ export class PainterManager {
       depth: 1,
     });
     this.painterClear = clear;
-    this.groupGizmo.removeAll();
-    const painterGizmo = new TgdPainterGizmo(context, DEFAULT_GIZMO_PROPS);
-    this.painterGizmo = painterGizmo;
-    this.groupGizmo.add(painterGizmo);
     context.add(
       clear,
       new TgdPainterState(context, {
@@ -370,14 +338,14 @@ export class PainterManager {
         children: [this.groupCells],
       }),
       // Highlighted cells
-      // new TgdPainterClear(context, { name: "Clear depth", depth: 1 }),
-      //   new TgdPainterState(context, {
-      //     depth: "lessOrEqual",
-      //     blend: "add",
-      //     cull: "back",
-      //     children: [this.groupHighlithedCells],
-      //   }),
-      this.groupGizmo
+      new TgdPainterClear(context, { name: "Clear depth", depth: 1 }),
+      new TgdPainterState(context, {
+        depth: "lessOrEqual",
+        blend: "add",
+        cull: "back",
+        children: [this.groupHighlithedCells],
+      }),
+      this.painterGizmo
     );
   }
 

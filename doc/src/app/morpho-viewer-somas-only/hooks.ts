@@ -12,7 +12,6 @@ export function useCellInfos(dataId: string) {
     setCellInfos(undefined);
     loadNodes(dataId).then(setCellInfos).catch(console.error);
   }, [dataId]);
-  console.log("🐞 [hooks@15] cellInfos =", cellInfos); // @FIXME: Remove this line written on 2026-05-29 at 17:45
   return cellInfos;
 }
 
@@ -32,6 +31,5 @@ async function loadNodes(dataId: string): Promise<CellInfo[]> {
       position: ["array", "number", { min: 3, max: 3 }],
     },
   ]);
-  console.log("🐞 [hooks@34] data =", data); // @FIXME: Remove this line written on 2026-05-29 at 17:44
   return data;
 }

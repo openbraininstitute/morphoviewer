@@ -1,11 +1,17 @@
 import type { ArrayNumber3 } from "@tolokoban/tgd";
+import type { ControlsLayoutProps } from "../controls-layout";
+import type { PropsForGizmo, PropsForScalebar } from "../types";
 
 export interface MorphoViewerCellInfo {
   morphologyId: string;
   position: ArrayNumber3;
 }
 
-export interface MorphoViewerSomasOnlyProps {
-  className?: string;
-  cellInfos: MorphoViewerCellInfo[];
-}
+export type MorphoViewerSomasOnlyProps = PropsForGizmo &
+  PropsForScalebar & {
+    className?: string;
+    cellInfos: MorphoViewerCellInfo[];
+    onClose?(): void;
+    onMinimize?(): void;
+    controls?: ControlsLayoutProps["content"];
+  };

@@ -1,25 +1,44 @@
 import {
   TgdBoundingBox,
+  TgdCameraOrthographic,
   TgdCameraPerspective,
   TgdContext,
   TgdControllerCameraOrbit,
+  TgdEvent,
   TgdPainterClear,
-  TgdPainterGizmo,
+  type TgdPainterGizmoOptions,
   TgdPainterState,
   tgdActionCreateCameraInterpolation,
 } from "@tolokoban/tgd";
 import React from "react";
+
+import { watchSpacePerPixel } from "@/behaviors";
+import { PainterGizmo } from "@/painters/gizmo";
 
 import { PainterCellInfos } from "./painter-cell-infos";
 
 import type { MorphoViewerCellInfo, MorphoViewerSomasOnlyProps } from "../types";
 
 class PainterManager {
+  /**
+   * Dispatch the `spacePerPixel`.
+   */
+  public readonly eventScalebar = new TgdEvent<number>();
+
   private _canvas: HTMLCanvasElement | null = null;
   private _cellInfos: MorphoViewerCellInfo[] = [];
   private context: TgdContext | null = null;
   private orbit: TgdControllerCameraOrbit | null = null;
   private bbox = new TgdBoundingBox();
+  private scalebarCleanup: (() => void) | null = null;
+  private readonly painterGizmo = new PainterGizmo();
+
+  get gizmo() {
+    return this.painterGizmo.options;
+  }
+  set gizmo(gizmo: TgdPainterGizmoOptions | boolean | null | undefined) {
+    this.painterGizmo.options = gizmo ?? false;
+  }
 
   get canvas(): HTMLCanvasElement | null {
     return this._canvas;
@@ -50,20 +69,33 @@ class PainterManager {
     const { context, bbox } = this;
     if (!context) return;
 
-    const camera = context.camera.clone();
-    const [width, height] = bbox.size;
-    console.log("🐞 [manager@55] width, height =", width, height); // @FIXME: Remove this line written on 2026-05-29 at 18:04
-    camera.fitSpaceAtTarget(width, height);
-    camera.far = camera.transfo.distance * 2;
-    const state = camera.getCurrentState();
-    console.log(
-      "🐞 [manager@58] context.camera.getCurrentState() =",
-      context.camera.getCurrentState()
-    ); // @FIXME: Remove this line written on 2026-05-29 at 18:01
-    console.log("🐞 [manager@59] state =", state); // @FIXME: Remove this line written on 2026-05-29 at 18:02
+    context.camera.screenWidth = context.width;
+    context.camera.screenHeight = context.height;
+    const resettedCamera = context.camera.clone();
+    const [width, height, depth] = bbox.size;
+    if (
+      width < 1 ||
+      height < 1 ||
+      resettedCamera.screenWidth < 1 ||
+      resettedCamera.screenHeight < 1
+    )
+      return;
+
+    resettedCamera.transfo.setOrientation([0, 0, 0, 1]);
+    resettedCamera.transfo.position = bbox.center;
+    resettedCamera.fitSpaceAtTarget(width, height);
+    if (Number.isNaN(resettedCamera.transfo.distance)) {
+      // Can be NaN if the screen size has not yet been defined.
+      return;
+    }
+
+    resettedCamera.near = 1;
+    resettedCamera.far =
+      Math.max(resettedCamera.transfo.distance, Math.max(width, height, depth)) * 2;
+    const state = resettedCamera.getCurrentState();
     context.animSchedule({
       duration: 0.5,
-      action: tgdActionCreateCameraInterpolation(camera, state),
+      action: tgdActionCreateCameraInterpolation(context.camera, state),
     });
   };
 
@@ -81,6 +113,7 @@ class PainterManager {
 
     const context = new TgdContext(canvas, { alpha: false, antialias: true, depth: true });
     this.context = context;
+    this.scalebarCleanup = watchSpacePerPixel(context, this.eventScalebar);
     const clear = new TgdPainterClear(context, {
       color: [0, 0, 0, 1],
       depth: 1,
@@ -90,24 +123,23 @@ class PainterManager {
       depth: "less",
       children: [painterCellInfos],
     });
-    // const gizmo = new TgdPainterGizmo(context);
-    // context.add(clear, state, gizmo);
-    context.add(clear, state);
-    const camera = new TgdCameraPerspective();
+    this.painterGizmo.context = context;
+    context.add(clear, state, this.painterGizmo);
+    const camera = new TgdCameraOrthographic();
     const { bbox } = painterCellInfos;
     this.bbox = bbox;
     camera.transfo.position = bbox.center;
-    const [width, height] = bbox.size;
+    const [width, height, depth] = bbox.size;
     camera.fitSpaceAtTarget(width, height);
     camera.near = 1;
-    camera.far = camera.transfo.distance * 2;
+    camera.far = Math.max(camera.transfo.distance, Math.max(width, height, depth)) * 2;
+    camera.debug();
     context.camera = camera;
     this.orbit = new TgdControllerCameraOrbit(context, {
       inertiaOrbit: 1000,
       inertiaPanning: 1000,
       inertiaZoom: 300,
     });
-    bbox.debug();
     context.paint();
     globalThis.setTimeout(this.cameraReset);
   }
@@ -118,6 +150,7 @@ class PainterManager {
       return;
     }
 
+    this.scalebarCleanup?.();
     this.orbit?.detach();
     this.orbit = null;
     this.context.delete();
@@ -127,12 +160,15 @@ class PainterManager {
 
 export type { PainterManager };
 
-export function useManager({ cellInfos }: MorphoViewerSomasOnlyProps): PainterManager {
+export function useManager({ cellInfos, gizmo }: MorphoViewerSomasOnlyProps): PainterManager {
   const refManager = React.useRef<PainterManager | null>(null);
   if (!refManager.current) refManager.current = new PainterManager();
   const manager = refManager.current;
   React.useEffect(() => {
     manager.cellInfos = cellInfos;
   }, [cellInfos, manager]);
+  React.useEffect(() => {
+    manager.gizmo = gizmo;
+  }, [gizmo, manager]);
   return refManager.current;
 }
