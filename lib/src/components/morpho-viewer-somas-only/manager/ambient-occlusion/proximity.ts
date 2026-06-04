@@ -7,9 +7,12 @@ export class Proximity {
   private readonly inverseStepsY: number;
   private readonly stepsZ: number;
   private readonly inverseStepsZ: number;
-  private readonly grid: Readonly<ArrayNumber3>[][][][] = [];
+  private readonly stepsYZ: number;
+  private readonly grid: Int32Array;
+  private readonly nextPoint: Int32Array;
 
   constructor(
+    private readonly points: Float32Array,
     private readonly bbox: { min: ArrayNumber3; max: ArrayNumber3 },
     private readonly radius: number
   ) {
@@ -23,79 +26,64 @@ export class Proximity {
     const sizeZ = bbox.max[2] - bbox.min[2];
     this.stepsZ = Math.ceil(sizeZ * inverseRadius);
     this.inverseStepsZ = this.stepsZ / sizeZ;
-  }
+    this.stepsYZ = this.stepsY * this.stepsZ;
+    const count = this.stepsX * this.stepsY * this.stepsZ;
+    this.grid = new Int32Array(count).fill(-1);
+    this.nextPoint = new Int32Array(count).fill(-1);
 
-  getNeighbours(x: number, y: number, z: number): Readonly<ArrayNumber4>[] {
-    const idxX = this.indexX(x);
-    if (idxX < 0 || idxX >= this.stepsX) return [];
-
-    const gridYZ = this.grid[idxX];
-    if (!gridYZ) return [];
-
-    const idxY = this.indexY(y);
-    if (idxY < 0 || idxY >= this.stepsY) return [];
-
-    const gridZ = gridYZ[idxY];
-    if (!gridZ) return [];
-
-    const idxZ = this.indexZ(z);
-    if (idxZ < 0 || idxZ >= this.stepsZ) return [];
-
-    const points = gridZ[idxZ];
-    if (!points) return [];
-
-    const result: Readonly<ArrayNumber4>[] = [];
-    const radius2 = this.radius ** 2;
-    const inverseRadius2 = 1 / radius2;
-    for (const [xx, yy, zz] of points) {
-      const dx = xx - x;
-      const dy = yy - y;
-      const dz = zz - z;
-      const dist = dx * dx + dy * dy + dz * dz;
-      if (dist === 0 || dist >= radius2) continue;
-
-      result.push([xx, yy, zz, 1 - inverseRadius2 * dist]);
+    for (let k = 0; k < points.length; k += 4) {
+      const x = points[k];
+      const y = points[k + 1];
+      const z = points[k + 2];
+      const index = this.index(x, y, z);
+      this.nextPoint[index] = this.grid[index];
+      this.grid[index] = k;
     }
-    return result;
   }
 
-  addPoint(point: Readonly<ArrayNumber3>) {
-    const [x, y, z] = point;
-    const idxX = this.indexX(x);
-    const idxY = this.indexY(y);
-    const idxZ = this.indexZ(z);
-    const shifts = [-1, 0, +1];
-    for (const shiftX of shifts) {
-      const iX = idxX + shiftX;
-      if (iX < 0 || iX >= this.stepsX) continue;
-
-      const gridYZ = getOrAdd(this.grid, iX);
-      for (const shiftY of shifts) {
-        const iY = idxY + shiftY;
-        if (iY < 0 || iY >= this.stepsY) continue;
-
-        const gridZ = getOrAdd(gridYZ, iY);
-        for (const shiftZ of shifts) {
-          const iZ = idxZ + shiftZ;
-          if (iZ < 0 || iZ >= this.stepsZ) continue;
-
-          const voxel = getOrAdd(gridZ, iZ);
-          voxel.push(point);
+  forEachNeighbor(
+    pointIndex: number,
+    action: (x: number, y: number, z: number, radius: number, distSquare: number) => void
+  ) {
+    const { points, radius, grid, nextPoint } = this;
+    const x = points[pointIndex];
+    const y = points[pointIndex + 1];
+    const z = points[pointIndex + 2];
+    const indexX = Math.floor((x - this.bbox.min[0]) * this.inverseStepsX);
+    const indexY = Math.floor((y - this.bbox.min[1]) * this.inverseStepsY);
+    const indexZ = Math.floor((z - this.bbox.min[2]) * this.inverseStepsZ);
+    const startX = Math.max(0, indexX - 1);
+    const endX = Math.min(this.stepsX - 1, indexX + 1);
+    const startY = Math.max(0, indexY - 1);
+    const endY = Math.min(this.stepsY - 1, indexY + 1);
+    const startZ = Math.max(0, indexZ - 1);
+    const endZ = Math.min(this.stepsZ - 1, indexZ + 1);
+    const radiusSquare = radius * radius;
+    for (let nX = startX; nX <= endX; nX++) {
+      for (let nY = startY; nY <= endY; nY++) {
+        for (let nZ = startZ; nZ <= endZ; nZ++) {
+          const cellIndex = nX * this.stepsYZ + nY * this.stepsZ + nZ;
+          let neighborIndex = grid[cellIndex];
+          while (neighborIndex > -1) {
+            const xx = points[neighborIndex] - x;
+            const yy = points[neighborIndex + 1] - y;
+            const zz = points[neighborIndex + 2] - z;
+            const distSquare = xx * xx + yy * yy + zz * zz;
+            if (distSquare < radiusSquare && distSquare > 0) {
+              const rr = points[neighborIndex + 3];
+              action(xx, yy, zz, rr, distSquare);
+            }
+            neighborIndex = nextPoint[neighborIndex];
+          }
         }
       }
     }
   }
 
-  private readonly indexX = (x: number) => Math.floor((x - this.bbox.min[0]) * this.inverseStepsX);
-  private readonly indexY = (y: number) => Math.floor((y - this.bbox.min[1]) * this.inverseStepsY);
-  private readonly indexZ = (z: number) => Math.floor((z - this.bbox.min[2]) * this.inverseStepsZ);
-}
-
-function getOrAdd<T>(array: T[][], index: number): T[] {
-  const elem = array[index];
-  if (elem) return elem;
-
-  const newItem: T[] = [];
-  array[index] = newItem;
-  return newItem;
+  private index(x: number, y: number, z: number) {
+    const indexX = Math.floor((x - this.bbox.min[0]) * this.inverseStepsX);
+    const indexY = Math.floor((y - this.bbox.min[1]) * this.inverseStepsY);
+    const indexZ = Math.floor((z - this.bbox.min[2]) * this.inverseStepsZ);
+    return indexX * this.stepsYZ + indexY * this.stepsZ + indexZ;
+  }
 }

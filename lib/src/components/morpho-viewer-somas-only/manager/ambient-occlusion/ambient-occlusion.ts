@@ -7,46 +7,51 @@ export function computeAmbientOcclusion(
   radius: number,
   points: Float32Array,
   uvs: Float32Array,
-  intensity = 50
+  intensity = 0.5
 ): Float32Array {
-  const proximity = new Proximity(bbox, radius);
-  for (let i = 0; i < points.length; i += 4) {
-    const x = points[i];
-    const y = points[i + 1];
-    const z = points[i + 2];
-    proximity.addPoint([x, y, z]);
+  if (bbox.min[0] > bbox.max[0]) {
+    // Skip computation for empty bounding boxes.
+    return uvs;
   }
+
+  const proximity = new Proximity(points, bbox, radius);
+  const invRadiusSquare = 1 / (radius * radius);
   let indexUV = 1;
-  for (let i = 0; i < points.length; i += 4) {
-    const x = points[i];
-    const y = points[i + 1];
-    const z = points[i + 2];
-    const neighbours = proximity.getNeighbours(x, y, z);
-    let xpAO = 0;
-    let xnAO = 0;
-    let ypAO = 0;
-    let ynAO = 0;
-    let zpAO = 0;
-    let znAO = 0;
-    for (const [xx, yy, zz, ao] of neighbours) {
-      if (xx < x) xnAO += ao;
-      else xpAO += ao;
-      if (yy < y) ynAO += ao;
-      else ypAO += ao;
-      if (zz < z) znAO += ao;
-      else zpAO += ao;
+  let maxAO = 0;
+  for (let pointIndex = 0; pointIndex < points.length; pointIndex += 4) {
+    let ao = 0;
+    let count = 0;
+    let vecX = 0;
+    let vecY = 0;
+    let vecZ = 0;
+    proximity.forEachNeighbor(
+      pointIndex,
+      (x: number, y: number, z: number, _r: number, distSquare: number) => {
+        count++;
+        const falloff = 1 - distSquare * invRadiusSquare;
+        const invDistQuare = 1 / distSquare;
+        vecX += x * invDistQuare * falloff;
+        vecY += y * invDistQuare * falloff;
+        vecZ += z * invDistQuare * falloff;
+        ao += falloff;
+      }
+    );
+    if (count > 0) {
+      const invCount = 1 / count;
+      vecX *= invCount;
+      vecY *= invCount;
+      vecZ *= invCount;
+      ao *= 1 - (vecX * vecX + vecY * vecY + vecZ * vecZ);
+    } else {
+      ao = 0;
     }
-    const ao =
-      (Math.min(intensity, xnAO) +
-        Math.min(intensity, xpAO) +
-        Math.min(intensity, ynAO) +
-        Math.min(intensity, ypAO) +
-        Math.min(intensity, znAO) +
-        Math.min(intensity, zpAO)) /
-      (intensity * 6);
+    maxAO = Math.max(ao, maxAO);
     uvs[indexUV] = ao;
     indexUV += 2;
   }
-  console.log("🐞 [ambient-occlusion@44] uvs =", uvs); // @FIXME: Remove this line written on 2026-06-03 at 18:08
+  const invMaxAO = 1 / maxAO;
+  for (let i = 1; i < uvs.length; i += 2) {
+    uvs[i] *= invMaxAO;
+  }
   return uvs;
 }

@@ -36,18 +36,8 @@ export class PainterCellInfos extends TgdPainterGroup {
       },
     }).loadBitmap(
       tgdCanvasCreatePalette(
-        [
-          //   "hsl(180, 100%, 90%)",
-          "hsl(200, 100%, 90%)",
-          //   "hsl(220, 100%, 90%)",
-          //   "hsl(180, 100%, 40%)",
-          "hsl(200, 100%, 50%)",
-          "hsl(220, 100%, 60%)",
-          //   "hsl(180, 100%, 10%)",
-          //   "hsl(200, 100%, 15%)",
-          "hsl(220, 100%, 20%)",
-        ],
-        3
+        ["hsl(200, 100%, 80%)", "hsl(200, 100%, 50%)", "hsl(220, 100%, 30%)"],
+        1
       )
     );
     const bbox = new TgdBoundingBox();
@@ -57,9 +47,12 @@ export class PainterCellInfos extends TgdPainterGroup {
       new Float32Array(2 * options.cellInfos.length);
     const painterPointsCloud = new TgdPainterPointsCloud(context, {
       ...painterPointsCloudOptions,
-      dataUV: computeAmbientOcclusion(bbox, 5 * RADIUS, painterPointsCloudOptions.dataPoint, uvs),
+      dataUV: computeAmbientOcclusion(bbox, 10 * RADIUS, painterPointsCloudOptions.dataPoint, uvs),
       texture: texturePalette,
-      fragCode: TgdPainterPointsCloud.fragCodeSphere(),
+      fragCode: TgdPainterPointsCloud.fragCodeSphere({
+        enableSpecular: true,
+        specularExponent: 50,
+      }),
     });
     super({
       name: "PainterCellInfos",

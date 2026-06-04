@@ -128,7 +128,6 @@ class PainterManager {
     camera.fitSpaceAtTarget(width, height);
     camera.near = 1;
     camera.far = Math.max(camera.transfo.distance, Math.max(width, height, depth)) * 2;
-    camera.debug();
     context.camera = camera;
     this.orbit = new TgdControllerCameraOrbit(context, {
       inertiaOrbit: 1000,
