@@ -21,6 +21,7 @@ export const ROUTES: Record<RoutePath, string[]> = {
     "/morpho-viewer-small-circuit": ["/morpho-viewer-small-circuit"],
     "/morpho-viewer-small-circuit/cell": ["/morpho-viewer-small-circuit/cell"],
     "/morpho-viewer-small-circuit/section": ["/morpho-viewer-small-circuit/section"],
+    "/morpho-viewer-somas-only": ["/morpho-viewer-somas-only"],
     "/morphology": ["/morphology"],
 }
 

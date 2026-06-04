@@ -32,6 +32,15 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.26.0
+
+- New points cloud painter that overcome the MacOS limitation of 64px for points sizes.
+- Apply darker colors for more dense zones.
+- Enable **specular lighting** on soma sphere rendering (`specularExponent: 50`)
+- Simplify color palette to 3 gradient stops for cleaner visual appearance
+- Add full **spinner overlay** styling to `MorphoViewerSpinner` component
+- Remove leftover `console.log` and `camera.debug()` debug statements
+
 ### v0.25.4
 
 - Fix **event listener leak** in `MorphoViewerSmallCircuit` camera adaptation: the paint event listener was never removed, causing infinite re-registration on each paint cycle

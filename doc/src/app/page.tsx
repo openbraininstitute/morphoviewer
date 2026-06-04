@@ -3,9 +3,11 @@ import { ViewPanel } from "@tolokoban/ui";
 import ApiURL from "./api.webp";
 import MorphologyURL from "./morphology.webp";
 import OctreeURL from "./octree.webp";
-import styles from "./page.module.css";
 import SimulURL from "./simul.webp";
 import SmallCircuitURL from "./small-circuit.webp";
+import SomasOnlyURL from "./somas-only.webp";
+
+import styles from "./page.module.css";
 
 export default function Page() {
   return (
@@ -28,6 +30,9 @@ export default function Page() {
       </Button>
       <Button href="#/morpho-viewer-octree" image={OctreeURL}>
         MorphoViewerOctree
+      </Button>
+      <Button href="#/morpho-viewer-somas-only" image={SomasOnlyURL}>
+        MorphoViewerSomasOnly
       </Button>
       <Button href="#/morphology" image={MorphologyURL}>
         Morphology
