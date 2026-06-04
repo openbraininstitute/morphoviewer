@@ -10,6 +10,7 @@
         "tauri": "tauri"
     },
     "dependencies": {
+        "@openbraininstitute/morphoviewer": "file:..",
         "@tauri-apps/api": "^2.10.1",
         "@tolokoban/tgd": "^2.0.128",
         "@tolokoban/type-guards": "^0.9.0",

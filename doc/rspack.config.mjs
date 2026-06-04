@@ -146,9 +146,19 @@ export default function (env, argv) {
 					test: /\.tsx?$/,
 					use: [
 						{
-							loader: "ts-loader",
+							loader: "builtin:swc-loader",
 							options: {
-								transpileOnly: false,
+								jsc: {
+									parser: {
+										syntax: "typescript",
+										tsx: true,
+									},
+									transform: {
+										react: {
+											runtime: "automatic",
+										},
+									},
+								},
 							},
 						},
 					],
