@@ -50,6 +50,7 @@ export function useBBoxHandler() {
 }
 
 export function useSelectFileHandler() {
+  const [selectedFile, setSelectedFile] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState("");
   const [files, setFiles] = React.useState<GlbFile[]>([]);
   const [filesGood, setFilesGood] = React.useState<string[]>([]);
@@ -59,11 +60,14 @@ export function useSelectFileHandler() {
 
   const handleSelectFile = React.useCallback(async () => {
     try {
+      setSelectedFile(null);
       setFilesBad([]);
       setFilesGood([]);
       const path = await API.fileSelect({ allowedExtensions: ["json"] });
       setMessage(path ?? "No file selected");
       if (!path) return;
+
+      setSelectedFile(path);
       const data = await API.fileLoadJSON(path);
       assertType(data, {
         bbox: {
@@ -125,6 +129,7 @@ Received: ${formatBBox(actualBBox)}
   }, []);
 
   return {
+    selectedFile,
     handleSelectFile,
     message,
     files,

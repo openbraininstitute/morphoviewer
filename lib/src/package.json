@@ -1,6 +1,6 @@
 {
     "name": "@openbraininstitute/morphoviewer",
-    "version": "0.26.2",
+    "version": "0.26.3",
     "description": "Class to display SWC files in 3D on a canvas",
     "main": "./dist/index.js",
     "module": "./dist/index.js",
@@ -49,7 +49,7 @@
         "@types/jest": "^30.0.0",
         "@types/react": "^19.2.15",
         "babel-jest": "^30.4.1",
-        "build-typescript-library": "^0.10.0",
+        "build-typescript-library": "^0.11.1",
         "jest": "^30.4.2",
         "jest-environment-jsdom": "^30.4.1",
         "ts-jest": "^29.4.11",
