@@ -32,6 +32,13 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.26.3
+
+- Fix missing colors for segments.
+- Add optional **per-block color** support to `MorphoViewerOctree`
+  - `MorphoViewerOctreeMeshType` now accepts an optional `color` string property
+  - Octree blocks with a custom color override the default material at render time
+
 ### v0.26.0
 
 - New points cloud painter that overcome the MacOS limitation of 64px for points sizes.
