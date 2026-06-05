@@ -1,6 +1,6 @@
 {
     "name": "@openbraininstitute/morphoviewer",
-    "version": "0.26.0",
+    "version": "0.26.3",
     "description": "Class to display SWC files in 3D on a canvas",
     "main": "./dist/index.js",
     "module": "./dist/index.js",
@@ -15,6 +15,7 @@
         "doc:watch": "typedoc --watch",
         "prebuild": "npm run clean",
         "build": "build-typescript-library .",
+        "build:debug": "build-typescript-library . --verbose",
         "prestart": "npm run clean",
         "start": "build-typescript-library --watch .",
         "format": "biome format --write src/",
@@ -41,17 +42,20 @@
         "url": "https://github.com/openbraininstitute/morphoviewer/issues"
     },
     "dependencies": {
-        "@tolokoban/tgd": "^2.0.141",
-        "fflate": "^0.8.2",
+        "@tolokoban/tgd": "^2.0.142",
+        "fflate": "^0.8.3",
         "tslib": "^2.8.1"
     },
     "devDependencies": {
+        "@rspack/cli": "^2.0.6",
         "@types/jest": "^30.0.0",
         "@types/react": "^19.2.15",
         "babel-jest": "^30.4.1",
-        "build-typescript-library": "^0.10.0",
+        "build-typescript-library": "^0.12.0",
+        "css-loader": "^7.1.4",
         "jest": "^30.4.2",
         "jest-environment-jsdom": "^30.4.1",
+        "style-loader": "^4.0.0",
         "ts-jest": "^29.4.11",
         "ts-loader": "^9.5.7",
         "ts-patch": "^3.3.0",

@@ -1,4 +1,4 @@
-import { ViewButton, ViewProgress } from "@tolokoban/ui";
+import { ViewButton, ViewPanel, ViewProgress } from "@tolokoban/ui";
 import Markdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
@@ -10,20 +10,35 @@ import { useBBoxHandler, useSelectFileHandler } from "./hooks";
 import styles from "./page.module.css";
 
 export default function Page() {
-  const { handleSelectFile, files, progress, filesBad, filesGood, message, markdown } =
-    useSelectFileHandler();
+  const {
+    handleSelectFile,
+    selectedFile,
+    files,
+    progress,
+    filesBad,
+    filesGood,
+    message,
+    markdown,
+  } = useSelectFileHandler();
   const { bbox, handleComputeBBox } = useBBoxHandler();
 
   return (
     <div className={styles.page}>
-      <ViewButton onClick={handleComputeBBox}>Compute BBox of GLB file</ViewButton>
+      <ViewPanel gap="M" display="flex">
+        <ViewButton onClick={handleComputeBBox}>Compute BBox of GLB file</ViewButton>
+        {selectedFile && (
+          <ViewButton color="primary-5" onClick={makePreviewURL(selectedFile)}>
+            3D view of LODs
+          </ViewButton>
+        )}
+        {files.length === 0 && (
+          <ViewButton onClick={handleSelectFile}>Open a LODs description file</ViewButton>
+        )}
+        {files.length > 0 && progress >= 1 && (
+          <ViewButton onClick={() => globalThis.location.reload()}>Restart</ViewButton>
+        )}
+      </ViewPanel>
       <Bbox bbox={bbox} />
-      {files.length === 0 && (
-        <ViewButton onClick={handleSelectFile}>Open a LODs description file</ViewButton>
-      )}
-      {files.length > 0 && progress >= 1 && (
-        <ViewButton onClick={() => globalThis.location.reload()}>Restart</ViewButton>
-      )}
       {progress > 0 && progress < 1 && files.length > 0 && (
         <ViewProgress value={(100 * progress) / files.length} fullwidth />
       )}
@@ -34,4 +49,8 @@ export default function Page() {
       </Markdown>
     </div>
   );
+}
+
+function makePreviewURL(selectedFile: string): string {
+  return `?${encodeURIComponent(selectedFile)}#/preview`;
 }

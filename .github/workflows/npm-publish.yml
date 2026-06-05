@@ -1,12 +1,12 @@
 name: Publish to npmjs.org
 
 permissions:
-  id-token: write
-  contents: read
+    id-token: write
+    contents: read
 
 on:
     push:
-        branches: [ main ]
+        branches: [main]
     workflow_dispatch:
 
 jobs:
@@ -14,9 +14,15 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v6
+            - uses: pnpm/action-setup@v4
+              with:
+                  version: 10
             - uses: actions/setup-node@v6
               with:
                   node-version: 24
                   registry-url: https://registry.npmjs.org/
-            - run: cd lib && npm install && npm run build
-            - run: npm publish --access public
+            - run: pnpm --version
+            - run: cd lib && pnpm install
+            - run: node --version
+            - run: cd lib && npm run build
+            - run: cd lib && npm publish --access public

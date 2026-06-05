@@ -1,12 +1,16 @@
 {
     "name": "@openbraininstitute/morphoviewer",
-    "version": "0.26.0",
+    "version": "0.26.3",
     "description": "Class to display SWC morphology files in 3D",
     "main": "./lib/dist/index.js",
     "module": "./lib/dist/index.js",
     "types": "./lib/dist",
+    "style": "./lib/dist/styles.css",
     "files": [
         "./lib/dist"
+    ],
+    "sideEffects": [
+        "*.css"
     ],
     "repository": {
         "type": "git",
@@ -20,6 +24,7 @@
         "webgl2"
     ],
     "scripts": {
+        "ci:test": "act push --job publish",
         "clean": "rm -rf dist node_modules package-lock.json lib/node_modules lib/package-lock.json lib/dist doc/node_modules doc/package-lock.json doc/dist doc/public/docs && npm run version",
         "prebuild": "npm run version",
         "build": "cd lib && npm install && npm run build && cd .. && npm pack",
@@ -34,11 +39,15 @@
         "react": "^19.2.4"
     },
     "dependencies": {
-        "@tolokoban/tgd": "^2.0.141",
+        "@tolokoban/tgd": "^2.0.142",
         "fflate": "^0.8.2",
         "tslib": "^2.8.1"
     },
     "devDependencies": {
-        "@biomejs/biome": "^2.4.15"
+        "@biomejs/biome": "^2.4.15",
+        "typescript": "^5.9.3"
+    },
+    "volta": {
+        "node": "24.16.0"
     }
 }
