@@ -21,6 +21,8 @@ jobs:
               with:
                   node-version: 24
                   registry-url: https://registry.npmjs.org/
-            - run: node --version
             - run: pnpm --version
-            - run: cd lib && pnpm install && npm run build && npm publish --access public
+            - run: cd lib && pnpm install
+            - run: node --version
+            - run: cd lib && npm run build
+            - run: cd lib && npm publish --access public
