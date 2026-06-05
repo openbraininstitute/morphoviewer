@@ -9,10 +9,10 @@ importers:
   .:
     dependencies:
       '@tolokoban/tgd':
-        specifier: ^2.0.141
-        version: 2.0.141
+        specifier: ^2.0.142
+        version: 2.0.142
       fflate:
-        specifier: ^0.8.2
+        specifier: ^0.8.3
         version: 0.8.3
       react:
         specifier: ^19.2.5
@@ -34,8 +34,8 @@ importers:
         specifier: ^30.4.1
         version: 30.4.1(@babel/core@7.29.7)
       build-typescript-library:
-        specifier: ^0.11.1
-        version: 0.11.1
+        specifier: ^0.12.0
+        version: 0.12.0
       css-loader:
         specifier: ^7.1.4
         version: 7.1.4(@rspack/core@2.0.6(@swc/helpers@0.5.23))(webpack@5.107.2(postcss@8.5.15))
@@ -569,8 +569,8 @@ packages:
   '@swc/helpers@0.5.23':
     resolution: {integrity: sha512-5lSsMOTXURePglDfvuAQUqkGek9Hg2kksOYay2m0+XR++b2NWYL/4sWyuvVBIs8oKnJaxkdi9whaL/sqN13afw==}
 
-  '@tolokoban/tgd@2.0.141':
-    resolution: {integrity: sha512-M1k2leWnvfZ7hQWxxy2Qz9bHCvOhXy4bnmCuFPyOGoLCYZnQxOUJRcCmsuIQHw18W5vgoDDfTpR+QfCvf8OQVQ==}
+  '@tolokoban/tgd@2.0.142':
+    resolution: {integrity: sha512-bMzRQ2YKdHQ2IcGqz8dEjICQKPa3fFOVmkZnbIQGB9foFfYB/AWF3y3aQhz1NABkZhReI50aXJhdEK9tDL5Tbw==}
 
   '@ts-morph/common@0.28.1':
     resolution: {integrity: sha512-W74iWf7ILp1ZKNYXY5qbddNaml7e9Sedv5lvU1V8lftlitkc9Pq1A+jlH23ltDgWYeZFFEqGCD1Ies9hqu3O+g==}
@@ -950,8 +950,8 @@ packages:
   buffer-from@1.1.2:
     resolution: {integrity: sha512-E+XQCRwSbaaiChtv6k6Dwgc+bx+Bs6vuKJHHl5kox/BaKbhiXzqQOwK4cO22yElGp2OCmjwVhT3HmxgyPGnJfQ==}
 
-  build-typescript-library@0.11.1:
-    resolution: {integrity: sha512-v+bFUc1CfGL9c/9kycgqTnC0eoei/VDSZGYP6lY9hcvxYnHuEADdsEtCRldRVatklrcCYZhQqQXRsh2eBhEnOQ==}
+  build-typescript-library@0.12.0:
+    resolution: {integrity: sha512-BcwiuW+CfSU3XoHS810evu59T9gO9FygQVTzPRvAehzF7nQ/RsCb+zTWcMeRKwdwsXMDZkPUjCbPHx5EQxtI5w==}
     hasBin: true
 
   callsites@3.1.0:
@@ -2996,7 +2996,7 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@tolokoban/tgd@2.0.141':
+  '@tolokoban/tgd@2.0.142':
     dependencies:
       '@loaders.gl/core': 4.4.2
       '@loaders.gl/draco': 4.4.2(@loaders.gl/core@4.4.2)
@@ -3408,7 +3408,7 @@ snapshots:
 
   buffer-from@1.1.2: {}
 
-  build-typescript-library@0.11.1:
+  build-typescript-library@0.12.0:
     dependencies:
       chalk: 5.6.2
       chokidar: 5.0.0

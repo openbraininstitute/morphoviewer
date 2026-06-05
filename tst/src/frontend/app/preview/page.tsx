@@ -3,7 +3,7 @@ import {
   type MorphoViewerOctreeInfo,
   type MorphoViewerOctreeMeshType,
 } from "@openbraininstitute/morphoviewer";
-import { TgdDataGlb } from "@tolokoban/tgd";
+import { TgdDataGlb, tgdCalcRandom } from "@tolokoban/tgd";
 import { assertType$ } from "@tolokoban/type-guards";
 
 import { API } from "../../api";
@@ -39,7 +39,6 @@ async function loadInfo(meshId: string): Promise<MorphoViewerOctreeInfo | null> 
     },
     files: ["array", "string"],
   });
-  console.log("🐞 [page@41] data =", data); // @FIXME: Remove this line written on 2026-06-04 at 15:35
   return {
     bbox: data.bbox,
     blockIds: data.files.map((filename) => filename.split(".")[0]),
@@ -57,5 +56,10 @@ async function loadBlock(
   return {
     type: "glb",
     data: glbContent.content,
+    color: randomColor(),
   };
+}
+
+function randomColor() {
+  return `hsl(${tgdCalcRandom(360)}, ${tgdCalcRandom(50, 100)}%, ${tgdCalcRandom(40, 60)}%)`;
 }
