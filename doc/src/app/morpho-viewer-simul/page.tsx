@@ -2,10 +2,10 @@ import {
   type MorphoViewerElectrodeInjection,
   type MorphoViewerElectrodeRecording,
   MorphoViewerSimul,
-  MorphoViewerSimulCamera,
-  MorphoViewerSimulController,
-  MorphoViewerSpikeRecord,
-  MorphoViewerTreeItem,
+  type MorphoViewerSimulCamera,
+  type MorphoViewerSimulController,
+  type MorphoViewerSpikeRecord,
+  type MorphoViewerTreeItem,
 } from "@openbraininstitute/morphoviewer";
 import {
   Morphology,
@@ -57,7 +57,14 @@ const injectionState = new AtomicState<MorphoViewerElectrodeInjection | undefine
   },
 });
 
-const MORPHOLOGIES = ["01", "02", "03", "cylindrical", "MEM__rp110125_L5-2_idA__cSTUT_L6_NGC"];
+const MORPHOLOGIES = [
+  "01",
+  "02",
+  "03",
+  "04",
+  "cylindrical",
+  "MEM__rp110125_L5-2_idA__cSTUT_L6_NGC",
+];
 
 export default function Page() {
   const [onMinimize, setOnMinimize] = React.useState(false);
@@ -74,7 +81,7 @@ export default function Page() {
   );
   const [controller, setController] = React.useState<MorphoViewerSimulController | null>(null);
   const [recordings, setRecordings] = recordingsState.useState();
-  const [example, setExample] = React.useState("01");
+  const [example, setExample] = React.useState("04");
   const [straightCylinders, setStraightCylinders] = React.useState(false);
   const [tree, morphology] = useMorphologyTree(example, straightCylinders);
   const [injection, setInjection] = injectionState.useState();

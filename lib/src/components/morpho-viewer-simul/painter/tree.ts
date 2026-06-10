@@ -84,38 +84,33 @@ export function computeRanks(item: StructureItem, rankMin = -1, rankMax = +1) {
  * in dendrogram mode.
  */
 export function addLiaisons(root: StructureItem, items: StructureItem[]) {
-  if (!root) return;
+  const fringe: StructureItem[] = [root];
+  while (fringe.length > 0) {
+    const root = fringe.shift();
+    if (!root) continue;
 
-  if (root.children.length > 1) {
-    for (let index = 0; index < root.children.length; index++) {
-      const child = root.children[index];
-      const liaison: StructureItem = {
-        ...child,
-        name: `${root.name} > ${child.name}`,
-        type: MorphoViewerTreeItemType.Liaison,
-        index: root.index,
-        start: [...root.end],
-        end: [...child.start],
-        radiusStart: 1e-3,
-        radiusEnd: 1e-3,
-        children: [child],
-      };
-      const [x1, y1, z1] = liaison.start;
-      const [x2, y2, z2] = liaison.end;
-      const x = x2 - x1;
-      const y = y2 - y1;
-      const z = z2 - z1;
-      const distance = x * x + y * y + z * z;
-      if (distance > 1e-12) {
-        console.log(root.name, "->", child.name, Math.sqrt(distance), liaison);
+    if (root.children.length > 1) {
+      for (let index = 0; index < root.children.length; index++) {
+        const child = root.children[index];
+        const liaison: StructureItem = {
+          ...child,
+          name: `${root.name} > ${child.name}`,
+          type: MorphoViewerTreeItemType.Liaison,
+          index: root.index,
+          start: [...root.end],
+          end: [...child.start],
+          radiusStart: 1e-3,
+          radiusEnd: 1e-3,
+          children: [child],
+        };
+        items.push(liaison);
+        root.children[index] = liaison;
+        fringe.push(child);
       }
-      items.push(liaison);
-      root.children[index] = liaison;
-      addLiaisons(child, items);
-    }
-  } else {
-    for (const child of root.children) {
-      addLiaisons(child, items);
+    } else {
+      for (const child of root.children) {
+        fringe.push(child);
+      }
     }
   }
 }

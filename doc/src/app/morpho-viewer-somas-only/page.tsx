@@ -15,6 +15,7 @@ export default function Page() {
       <ViewOptions value={dataId} onChange={setDataId}>
         <div key="c9e10151-8f07-4158-a3b3-205210ceb075">3'684 cells</div>
         <div key="964a878a-c580-4722-b891-1a078ea9aa76">211'712 cells</div>
+        <div key="big">4'234'929 cells</div>
       </ViewOptions>
       <div className={styles.viewer}>
         {!cellInfos && <MorphoViewerSpinner label="Circuit" />}

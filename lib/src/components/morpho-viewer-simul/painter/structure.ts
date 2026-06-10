@@ -120,33 +120,56 @@ export class Structure {
     node: MorphoViewerTreeItem,
     distanceFromSoma: number
   ) {
-    node.distanceFromSoma = distanceFromSoma;
-    const { type } = node;
-    if (
-      [
-        MorphoViewerTreeItemType.Soma,
-        MorphoViewerTreeItemType.Dendrite,
-        MorphoViewerTreeItemType.ApicalDendrite,
-        MorphoViewerTreeItemType.BasalDendrite,
-      ].includes(type)
-    ) {
-      this.bboxDendrites.addSphere(node.x, node.y, node.z, node.radius);
-      if (type === MorphoViewerTreeItemType.Soma) {
-        this.bboxSoma.addSphere(node.x, node.y, node.z, node.radius);
-      }
-    }
-    if (parent) {
-      if (node.type === MorphoViewerTreeItemType.ApicalDendrite) {
-        this._hasApicalDendrites = true;
-      }
-    }
-    for (const child of node.children ?? []) {
-      this.registerBranch(
+    const alreadyProcessedNodes = new Map<MorphoViewerTreeItem, MorphoViewerTreeItem | null>();
+    const fringe: {
+      parent: MorphoViewerTreeItem | null;
+      node: MorphoViewerTreeItem;
+      distanceFromSoma: number;
+    }[] = [
+      {
+        parent,
         node,
-        child,
-        distanceFromSoma +
-          (parent ? computeDistance([parent.x, parent.y, parent.z], [node.x, node.y, node.z]) : 0)
-      );
+        distanceFromSoma,
+      },
+    ];
+    while (fringe.length > 0) {
+      const item = fringe.shift();
+      if (!item) return;
+      const { parent, node, distanceFromSoma } = item;
+      if (alreadyProcessedNodes.get(node) === parent) continue;
+
+      alreadyProcessedNodes.set(node, parent);
+      node.distanceFromSoma = distanceFromSoma;
+      const { type } = node;
+      if (
+        [
+          MorphoViewerTreeItemType.Soma,
+          MorphoViewerTreeItemType.Dendrite,
+          MorphoViewerTreeItemType.ApicalDendrite,
+          MorphoViewerTreeItemType.BasalDendrite,
+        ].includes(type)
+      ) {
+        this.bboxDendrites.addSphere(node.x, node.y, node.z, node.radius);
+        if (type === MorphoViewerTreeItemType.Soma) {
+          this.bboxSoma.addSphere(node.x, node.y, node.z, node.radius);
+        }
+      }
+      if (parent) {
+        if (node.type === MorphoViewerTreeItemType.ApicalDendrite) {
+          this._hasApicalDendrites = true;
+        }
+      }
+      for (const child of node.children ?? []) {
+        fringe.push({
+          parent: node,
+          node: child,
+          distanceFromSoma:
+            distanceFromSoma +
+            (parent
+              ? computeDistance([parent.x, parent.y, parent.z], [node.x, node.y, node.z])
+              : 0),
+        });
+      }
     }
   }
 
