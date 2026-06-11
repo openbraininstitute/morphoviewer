@@ -1,7 +1,6 @@
-import { type ArrayNumber3, TgdVec3 } from "@tolokoban/tgd";
-
 import { MorphoViewerTreeItemType } from "../types/public";
 
+import type { ArrayNumber3 } from "@tolokoban/tgd";
 import type { StructureItem } from "./structure";
 
 export function builTree(items: StructureItem[], soma: StructureItem | null): StructureItem {
