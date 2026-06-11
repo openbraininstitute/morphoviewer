@@ -32,6 +32,7 @@ class PainterManager {
   private bbox = new TgdBoundingBox();
   private scalebarCleanup: (() => void) | null = null;
   private readonly painterGizmo = new PainterGizmo();
+  private resolutionForMovement = 1;
 
   get gizmo() {
     return this.painterGizmo.options;
@@ -91,7 +92,29 @@ class PainterManager {
     context.animSchedule({
       duration: 0.5,
       action: tgdActionCreateCameraInterpolation(context.camera, state),
+      onEnd: this.highRes,
     });
+    this.lowRes();
+  };
+
+  private readonly highRes = () => {
+    const { context } = this;
+    if (!context) return;
+
+    if (context.resolution === 1) return;
+
+    context.resolution = 1;
+    context.paint();
+  };
+
+  private readonly lowRes = () => {
+    const { context } = this;
+    if (!context) return;
+
+    if (context.resolution !== 1) return;
+
+    context.resolution = this.resolutionForMovement;
+    context.paint();
   };
 
   private initialize() {
@@ -106,7 +129,13 @@ class PainterManager {
       return;
     }
 
-    const context = new TgdContext(canvas, { alpha: false, antialias: true, depth: true });
+    this.resolutionForMovement = Math.sqrt(Math.min(1, 250000 / this._cellInfos.length));
+    const context = new TgdContext(canvas, {
+      alpha: false,
+      antialias: true,
+      depth: true,
+      resolution: 1,
+    });
     this.context = context;
     this.scalebarCleanup = watchSpacePerPixel(context, this.eventScalebar);
     const clear = new TgdPainterClear(context, {
@@ -134,9 +163,21 @@ class PainterManager {
       inertiaPanning: 1000,
       inertiaZoom: 300,
     });
+    this.orbit.eventChange.addListener(this.handleCameraChange);
     context.paint();
     context.execAfterNextPaint(this.cameraReset);
   }
+
+  private _cameraChangeTimeout = -1;
+
+  private handleCameraChange = () => {
+    const { context } = this;
+    if (!context) return;
+
+    globalThis.clearTimeout(this._cameraChangeTimeout);
+    this._cameraChangeTimeout = globalThis.setTimeout(this.highRes, 50);
+    this.lowRes();
+  };
 
   private delete() {
     if (!this.context) {

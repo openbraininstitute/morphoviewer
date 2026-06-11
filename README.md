@@ -32,6 +32,16 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.26.4
+
+- **Reduce resolution** during camera movement in `MorphoViewerSomasOnly` for smoother interaction on large circuits
+  - Resolution scales down based on cell count (threshold at 250k cells)
+  - Full resolution is restored after 50ms of inactivity
+- Simplify **ambient occlusion** algorithm in `MorphoViewerSomasOnly` for faster computation
+  - Increase AO sampling radius from `10×` to `15×` cell radius
+- Refactor `addLiaisons` in `MorphoViewerSimul` to use iterative traversal instead of recursion because this breaks in Chrome
+- Remove leftover `console.log` debug statement from `MorphoViewerSimul`
+
 ### v0.26.3
 
 - Fix missing colors for segments.

@@ -41,9 +41,13 @@ export class Proximity {
     }
   }
 
+  /**
+   * @param pointIndex Index of the point whom neighbors your want to loop on.
+   * @param action You can return `false` to stop the loop.
+   */
   forEachNeighbor(
     pointIndex: number,
-    action: (x: number, y: number, z: number, radius: number, distSquare: number) => void
+    action: (x: number, y: number, z: number, radius: number, distSquare: number) => unknown
   ) {
     const { points, radius, grid, nextPoint } = this;
     const x = points[pointIndex];
@@ -71,7 +75,7 @@ export class Proximity {
             const distSquare = xx * xx + yy * yy + zz * zz;
             if (distSquare < radiusSquare && distSquare > 0) {
               const rr = points[neighborIndex + 3];
-              action(xx, yy, zz, rr, distSquare);
+              if (false === action(xx, yy, zz, rr, distSquare)) return;
             }
             neighborIndex = nextPoint[neighborIndex];
           }
