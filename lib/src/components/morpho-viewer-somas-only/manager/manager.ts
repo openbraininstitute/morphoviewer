@@ -175,7 +175,7 @@ class PainterManager {
     if (!context) return;
 
     globalThis.clearTimeout(this._cameraChangeTimeout);
-    this._cameraChangeTimeout = globalThis.setTimeout(this.highRes, 50);
+    this._cameraChangeTimeout = globalThis.setTimeout(this.highRes, 50) as unknown as number;
     this.lowRes();
   };
 

@@ -1,7 +1,6 @@
-import { type ArrayNumber3, TgdVec3 } from "@tolokoban/tgd";
-
 import { MorphoViewerTreeItemType } from "../types/public";
 
+import type { ArrayNumber3 } from "@tolokoban/tgd";
 import type { StructureItem } from "./structure";
 
 export function builTree(items: StructureItem[], soma: StructureItem | null): StructureItem {
@@ -65,15 +64,23 @@ export function populateTree(item: StructureItem, distance = 0) {
 }
 
 export function computeRanks(item: StructureItem, rankMin = -1, rankMax = +1) {
-  if (!item) return;
+  const fringe = [{ item, rankMin, rankMax }];
 
-  item.rank = (rankMin + rankMax) / 2;
-  const rankSize = Math.abs(rankMax - rankMin);
-  let rank = rankMin;
-  for (const child of item.children) {
-    const rankChildSize = (rankSize * child.leavesCount) / item.leavesCount;
-    computeRanks(child, rank, rank + rankChildSize);
-    rank += rankChildSize;
+  while (fringe.length > 0) {
+    const task = fringe.shift();
+    if (!task) return;
+
+    const { item, rankMin, rankMax } = task;
+    if (!item) continue;
+
+    item.rank = (rankMin + rankMax) / 2;
+    const rankSize = Math.abs(rankMax - rankMin);
+    let rank = rankMin;
+    for (const child of item.children) {
+      const rankChildSize = (rankSize * child.leavesCount) / item.leavesCount;
+      fringe.push({ item: child, rankMin: rank, rankMax: rank + rankChildSize });
+      rank += rankChildSize;
+    }
   }
 }
 
