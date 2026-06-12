@@ -7,6 +7,7 @@ import { useCellInfos } from "./hooks";
 import styles from "./page.module.css";
 
 export default function Page() {
+  const [species, setSpecies] = React.useState("mouse");
   const [dataId, setDataId] = React.useState("c9e10151-8f07-4158-a3b3-205210ceb075");
   const cellInfos = useCellInfos(dataId);
 
@@ -14,6 +15,7 @@ export default function Page() {
     <div className={styles.page}>
       <ViewOptions value={dataId} onChange={setDataId}>
         <div key="c9e10151-8f07-4158-a3b3-205210ceb075">3'684 cells</div>
+        <div key="fly">127'400 cells</div>
         <div key="964a878a-c580-4722-b891-1a078ea9aa76">211'712 cells</div>
         <div key="big">4'234'929 cells</div>
       </ViewOptions>
@@ -21,14 +23,32 @@ export default function Page() {
         {!cellInfos && <MorphoViewerSpinner label="Circuit" />}
         {cellInfos && (
           <MorphoViewerSomasOnly
+            somaRadius={SOMAS_RADII[species] ?? 10}
             cellInfos={cellInfos}
             onMinimize={() => alert("onMinimize()")}
             onClose={() => alert("onClose()")}
             scalebar
             gizmo
+            controls={[
+              <ViewOptions key="species" value={species} onChange={setSpecies}>
+                <div key="fly">Fly</div>
+                <div key="mouse">Mouse</div>
+                <div key="rat">Rat</div>
+                <div key="human">Human</div>
+              </ViewOptions>,
+              "reset-camera",
+              "fullscreen",
+            ]}
           />
         )}
       </div>
     </div>
   );
 }
+
+const SOMAS_RADII = {
+  fly: 4,
+  mouse: 12,
+  rat: 15,
+  human: 20,
+};

@@ -32,6 +32,14 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.27.0
+
+- Add optional **somaRadius** prop to `MorphoViewerSomasOnly` for controlling the rendered soma size at runtime
+  - Defaults to `12` when not provided
+  - Dynamically updates without recreating the points cloud by leveraging `radiusMultiplier`
+- Optimize **bounding box** computation in `PainterCellInfos` to avoid per-point `addSphere` calls
+  - Computes center and extents in a single pass for better performance on large datasets
+
 ### v0.26.4
 
 - **Reduce resolution** during camera movement in `MorphoViewerSomasOnly` for smoother interaction on large circuits

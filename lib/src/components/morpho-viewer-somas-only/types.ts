@@ -10,6 +10,7 @@ export interface MorphoViewerCellInfo {
 export type MorphoViewerSomasOnlyProps = PropsForGizmo &
   PropsForScalebar & {
     className?: string;
+    somaRadius?: number;
     cellInfos: MorphoViewerCellInfo[];
     onClose?(): void;
     onMinimize?(): void;
