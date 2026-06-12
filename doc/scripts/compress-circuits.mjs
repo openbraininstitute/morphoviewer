@@ -22,9 +22,7 @@ function loadFile(file) {
 
 async function start() {
     const files = [
-        "c9e10151-8f07-4158-a3b3-205210ceb075",
-        "964a878a-c580-4722-b891-1a078ea9aa76",
-        "big",
+        "fly",
     ]
 
     for (const file of files) {

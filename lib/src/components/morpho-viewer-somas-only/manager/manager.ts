@@ -27,18 +27,33 @@ class PainterManager {
 
   private _canvas: HTMLCanvasElement | null = null;
   private _cellInfos: MorphoViewerCellInfo[] = [];
+  private painterCellInfos: PainterCellInfos | null = null;
   private context: TgdContext | null = null;
   private orbit: TgdControllerCameraOrbit | null = null;
   private bbox = new TgdBoundingBox();
   private scalebarCleanup: (() => void) | null = null;
   private readonly painterGizmo = new PainterGizmo();
   private resolutionForMovement = 1;
+  private _somaRadius = 1;
 
   get gizmo() {
     return this.painterGizmo.options;
   }
   set gizmo(gizmo: TgdPainterGizmoOptions | boolean | null | undefined) {
     this.painterGizmo.options = gizmo ?? false;
+  }
+
+  get somaRadius(): number {
+    return this._somaRadius;
+  }
+  set somaRadius(somaRadius: number) {
+    if (this._somaRadius === somaRadius) return;
+
+    this._somaRadius = somaRadius;
+    const { painterCellInfos } = this;
+    if (painterCellInfos) {
+      painterCellInfos.somaRadius = somaRadius;
+    }
   }
 
   get canvas(): HTMLCanvasElement | null {
@@ -142,7 +157,11 @@ class PainterManager {
       color: [0, 0, 0, 1],
       depth: 1,
     });
-    const painterCellInfos = new PainterCellInfos(context, { cellInfos });
+    const painterCellInfos = new PainterCellInfos(context, {
+      cellInfos,
+      somaRadius: this.somaRadius,
+    });
+    this.painterCellInfos = painterCellInfos;
     const state = new TgdPainterState(context, {
       depth: "less",
       children: [painterCellInfos],
@@ -195,7 +214,11 @@ class PainterManager {
 
 export type { PainterManager };
 
-export function useManager({ cellInfos, gizmo }: MorphoViewerSomasOnlyProps): PainterManager {
+export function useManager({
+  cellInfos,
+  somaRadius,
+  gizmo,
+}: MorphoViewerSomasOnlyProps): PainterManager {
   const refManager = React.useRef<PainterManager | null>(null);
   if (!refManager.current) refManager.current = new PainterManager();
   const manager = refManager.current;
@@ -203,7 +226,12 @@ export function useManager({ cellInfos, gizmo }: MorphoViewerSomasOnlyProps): Pa
     manager.cellInfos = cellInfos;
   }, [cellInfos, manager]);
   React.useEffect(() => {
+    manager.somaRadius = somaRadius ?? DEFAULT_SOMA_RADIUS;
+  }, [somaRadius, manager]);
+  React.useEffect(() => {
     manager.gizmo = gizmo;
   }, [gizmo, manager]);
   return refManager.current;
 }
+
+const DEFAULT_SOMA_RADIUS = 12;
