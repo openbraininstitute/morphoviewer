@@ -36,6 +36,7 @@ Copyright (c) 2025 Open Brain Institute
 
 - PointsClouds were using square with back facing.
 - Fix **depth issue** with synapses in `MorphoViewerSimul` by disabling depth precision on synapse painter
+- **MorphoViewerSomasOnly** now uses an adaptative resolution decreaser to adpat to different GPU.
 
 ### v0.27.0
 
