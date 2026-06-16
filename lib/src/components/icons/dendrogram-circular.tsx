@@ -1,4 +1,4 @@
-export function IconDendrogramCircular() {
+export function MorphoViewerIconDendrogramCircular() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
       <title>circular</title>

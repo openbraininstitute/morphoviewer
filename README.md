@@ -32,6 +32,12 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.27.1
+
+- PointsClouds were using square with back facing.
+- Fix **depth issue** with synapses in `MorphoViewerSimul` by disabling depth precision on synapse painter
+- **MorphoViewerSomasOnly** now uses an adaptative resolution decreaser to adpat to different GPU.
+
 ### v0.27.0
 
 - Add optional **somaRadius** prop to `MorphoViewerSomasOnly` for controlling the rendered soma size at runtime

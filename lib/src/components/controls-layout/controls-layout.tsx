@@ -1,9 +1,9 @@
 import { classNames } from "@/utils";
 
-import { IconCenter } from "../icons/center";
-import { IconClose } from "../icons/close";
-import { IconFullscreen } from "../icons/fullscreen";
-import { IconMinimize } from "../icons/minimize";
+import { MorphoViewerIconCenter } from "../icons/center";
+import { MorphoViewerIconClose } from "../icons/close";
+import { MorphoViewerIconFullscreen } from "../icons/fullscreen";
+import { MorphoViewerIconMinimize } from "../icons/minimize";
 
 import type React from "react";
 
@@ -71,8 +71,8 @@ function renderButton(
 }
 
 const ICONS: Record<ControlAction, React.FC> = {
-  "reset-camera": IconCenter,
-  close: IconClose,
-  fullscreen: IconFullscreen,
-  minimize: IconMinimize,
+  "reset-camera": MorphoViewerIconCenter,
+  close: MorphoViewerIconClose,
+  fullscreen: MorphoViewerIconFullscreen,
+  minimize: MorphoViewerIconMinimize,
 };

@@ -9,6 +9,7 @@ export {
 } from "@tolokoban/tgd";
 
 export { colorContrast, colorLuminance, colorToRGBA } from "./colors";
+export * from "./components/icons";
 export * from "./components/morpho-viewer-octree";
 export * from "./components/morpho-viewer-simul";
 export * from "./components/morpho-viewer-small-circuit";

@@ -5,7 +5,7 @@ type Props = {
   style?: CSSProperties;
 };
 
-export function IconPause({ className, style }: Props) {
+export function MorphoViewerIconPause({ className, style }: Props) {
   return (
     <svg
       className={className}

@@ -9,6 +9,7 @@ import {
   TgdPainterLogic,
   tgdCalcMix,
 } from "@tolokoban/tgd";
+
 import type { MorphoViewerMode, MorphoViewerSynapsesGroup } from "../types/public";
 import type { OffscreenPainter } from "./offscreen-painter";
 import type { Painter } from "./painters";

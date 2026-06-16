@@ -5,7 +5,7 @@ type Props = {
   style?: CSSProperties;
 };
 
-export function IconZoomIn({ className, style }: Props) {
+export function MorphoViewerIconZoomIn({ className, style }: Props) {
   return (
     <svg
       className={className}

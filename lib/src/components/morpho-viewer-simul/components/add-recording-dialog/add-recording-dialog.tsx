@@ -3,7 +3,7 @@
 /* eslint-disable jsx-a11y/click-events-have-key-events */
 import React from "react";
 
-import { IconClose } from "@/components/icons/close";
+import { MorphoViewerIconClose } from "@/components/icons/close";
 import { classNames, useEventValue } from "@/utils";
 
 import { useRecordingsAndInjection } from "../../hooks";
@@ -76,7 +76,7 @@ export default function AddRecordingDialog(props: AddRecordingDialogProps) {
             {item.sectionName}[{item.segmentIndex}] <small>({offset.toFixed(2)})</small>
           </h2>
           <button type="button" onClick={handleClose}>
-            <IconClose />
+            <MorphoViewerIconClose />
             <div>Cancel</div>
           </button>
         </header>

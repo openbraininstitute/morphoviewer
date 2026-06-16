@@ -51,7 +51,7 @@ export class PainterCellInfos extends TgdPainterGroup {
       new Float32Array(2 * options.cellInfos.length);
     const painterPointsCloud = new TgdPainterPointsCloud(context, {
       ...painterPointsCloudOptions,
-      dataUV: computeAmbientOcclusion(bbox, 15 * RADIUS, painterPointsCloudOptions.dataPoint, uvs),
+      dataUV: computeAmbientOcclusion(bbox, 10 * RADIUS, painterPointsCloudOptions.dataPoint, uvs),
       texture: texturePalette,
       fragCode: TgdPainterPointsCloud.fragCodeSphere({
         enableSpecular: true,
@@ -112,7 +112,7 @@ function parseCellInfos(
     maxZ = Math.max(maxZ, z);
     // We set the radius to 1, and will use radiusMultiplier to change it.
     dataPoint.push(x, y, z, 1);
-    dataUV.push(Math.random(), Math.random());
+    dataUV.push(0.5, 0.5);
   }
   const invCount = 1 / cellInfos.length;
   centerX *= invCount;

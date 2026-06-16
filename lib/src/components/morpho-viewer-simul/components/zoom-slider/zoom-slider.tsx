@@ -1,13 +1,13 @@
 /* eslint-disable no-param-reassign */
 import React from "react";
 
-import { PainterManager } from "../../painter";
-
+import { MorphoViewerIconZoomIn } from "@/components/icons/zoom-in";
+import { MorphoViewerIconZoomOut } from "@/components/icons/zoom-out";
 import { classNames, useEventValue } from "@/utils";
 
+import { PainterManager } from "../../painter";
+
 import styles from "./zoom-slider.module.css";
-import { IconZoomOut } from "@/components/icons/zoom-out";
-import { IconZoomIn } from "@/components/icons/zoom-in";
 
 export interface ZoomSliderProps {
   className?: string;
@@ -20,7 +20,7 @@ export default function ZoomSlider({ className, painterManager }: ZoomSliderProp
   return (
     <div className={classNames(className, styles.zoomSlider)}>
       <button type="button" onClick={painterManager.zoomOut}>
-        <IconZoomOut />
+        <MorphoViewerIconZoomOut />
       </button>
       <input
         type="range"
@@ -34,7 +34,7 @@ export default function ZoomSlider({ className, painterManager }: ZoomSliderProp
         step={0.01}
       />
       <button type="button" onClick={painterManager.zoomIn}>
-        <IconZoomIn />
+        <MorphoViewerIconZoomIn />
       </button>
     </div>
   );

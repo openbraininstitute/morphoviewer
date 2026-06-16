@@ -15,6 +15,7 @@ import React from "react";
 import { watchSpacePerPixel } from "@/behaviors";
 import { PainterGizmo } from "@/painters/gizmo";
 
+import { AdpatativeResolution } from "./adaptative-resolution";
 import { PainterCellInfos } from "./painter-cell-infos";
 
 import type { MorphoViewerCellInfo, MorphoViewerSomasOnlyProps } from "../types";
@@ -33,8 +34,27 @@ class PainterManager {
   private bbox = new TgdBoundingBox();
   private scalebarCleanup: (() => void) | null = null;
   private readonly painterGizmo = new PainterGizmo();
-  private resolutionForMovement = 1;
+  private readonly adaptativeResolution = new AdpatativeResolution();
   private _somaRadius = 1;
+  private readonly cameraOrtho = new TgdCameraOrthographic({ name: "CameraOrtho" });
+  private readonly cameraPersp = new TgdCameraPerspective({ name: "CameraPersp" });
+  private _cameraType: "orthographic" | "perspective" = "orthographic";
+
+  get cameraType(): "orthographic" | "perspective" {
+    return this._cameraType;
+  }
+  set cameraType(cameraType: "orthographic" | "perspective") {
+    if (this._cameraType === cameraType) return;
+
+    this._cameraType = cameraType;
+    const { context } = this;
+    if (context) {
+      console.log("🐞 [manager@52] cameraType =", cameraType); // @FIXME: Remove this line written on 2026-06-16 at 12:23
+      context.camera = cameraType === "orthographic" ? this.cameraOrtho : this.cameraPersp;
+      this.applyBBoxToCamera();
+      context.paint();
+    }
+  }
 
   get gizmo() {
     return this.painterGizmo.options;
@@ -54,6 +74,7 @@ class PainterManager {
     if (painterCellInfos) {
       painterCellInfos.somaRadius = somaRadius;
     }
+    this.adaptativeResolution.reset();
   }
 
   get canvas(): HTMLCanvasElement | null {
@@ -107,30 +128,24 @@ class PainterManager {
     context.animSchedule({
       duration: 0.5,
       action: tgdActionCreateCameraInterpolation(context.camera, state),
-      onEnd: this.highRes,
+      onEnd: this.adaptativeResolution.highRes,
     });
-    this.lowRes();
+    this.adaptativeResolution.lowRes();
   };
 
-  private readonly highRes = () => {
-    const { context } = this;
+  private applyBBoxToCamera() {
+    const { bbox, context } = this;
     if (!context) return;
 
-    if (context.resolution === 1) return;
-
-    context.resolution = 1;
+    context.execBeforeNextPaint(() => {
+      const { camera } = context;
+      camera.screenWidth = context.width;
+      camera.screenHeight = context.height;
+      camera.transfo.position = bbox.center;
+      camera.fitBoundingBox(bbox);
+    });
     context.paint();
-  };
-
-  private readonly lowRes = () => {
-    const { context } = this;
-    if (!context) return;
-
-    if (context.resolution !== 1) return;
-
-    context.resolution = this.resolutionForMovement;
-    context.paint();
-  };
+  }
 
   private initialize() {
     if (this.context) {
@@ -144,7 +159,6 @@ class PainterManager {
       return;
     }
 
-    this.resolutionForMovement = Math.sqrt(Math.min(1, 250000 / this._cellInfos.length));
     const context = new TgdContext(canvas, {
       alpha: false,
       antialias: true,
@@ -152,6 +166,7 @@ class PainterManager {
       resolution: 1,
     });
     this.context = context;
+    this.adaptativeResolution.context = context;
     this.scalebarCleanup = watchSpacePerPixel(context, this.eventScalebar);
     const clear = new TgdPainterClear(context, {
       color: [0, 0, 0, 1],
@@ -168,15 +183,11 @@ class PainterManager {
     });
     this.painterGizmo.context = context;
     context.add(clear, state, this.painterGizmo);
-    const camera = new TgdCameraOrthographic();
     const { bbox } = painterCellInfos;
     this.bbox = bbox;
-    camera.transfo.position = bbox.center;
-    const [width, height, depth] = bbox.size;
-    camera.fitSpaceAtTarget(width, height);
-    camera.near = 1;
-    camera.far = Math.max(camera.transfo.distance, Math.max(width, height, depth)) * 2;
+    const camera = this.cameraType === "orthographic" ? this.cameraOrtho : this.cameraPersp;
     context.camera = camera;
+    this.applyBBoxToCamera();
     this.orbit = new TgdControllerCameraOrbit(context, {
       inertiaOrbit: 1000,
       inertiaPanning: 1000,
@@ -194,11 +205,15 @@ class PainterManager {
     if (!context) return;
 
     globalThis.clearTimeout(this._cameraChangeTimeout);
-    this._cameraChangeTimeout = globalThis.setTimeout(this.highRes, 50) as unknown as number;
-    this.lowRes();
+    this._cameraChangeTimeout = globalThis.setTimeout(
+      this.adaptativeResolution.highRes,
+      50
+    ) as unknown as number;
+    this.adaptativeResolution.lowRes();
   };
 
   private delete() {
+    this.adaptativeResolution.context = null;
     if (!this.context) {
       // Nothing to delete.
       return;
@@ -218,6 +233,7 @@ export function useManager({
   cellInfos,
   somaRadius,
   gizmo,
+  cameraType,
 }: MorphoViewerSomasOnlyProps): PainterManager {
   const refManager = React.useRef<PainterManager | null>(null);
   if (!refManager.current) refManager.current = new PainterManager();
@@ -225,6 +241,9 @@ export function useManager({
   React.useEffect(() => {
     manager.cellInfos = cellInfos;
   }, [cellInfos, manager]);
+  React.useEffect(() => {
+    manager.cameraType = cameraType ?? "orthographic";
+  }, [cameraType, manager]);
   React.useEffect(() => {
     manager.somaRadius = somaRadius ?? DEFAULT_SOMA_RADIUS;
   }, [somaRadius, manager]);
