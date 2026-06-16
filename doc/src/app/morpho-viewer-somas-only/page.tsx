@@ -1,5 +1,5 @@
 import { MorphoViewerSomasOnly, MorphoViewerSpinner } from "@openbraininstitute/morphoviewer";
-import { ViewOptions } from "@tolokoban/ui";
+import { useLocalStorageState, ViewOptions } from "@tolokoban/ui";
 import React from "react";
 
 import { useCellInfos } from "./hooks";
@@ -7,8 +7,11 @@ import { useCellInfos } from "./hooks";
 import styles from "./page.module.css";
 
 export default function Page() {
-  const [species, setSpecies] = React.useState("mouse");
-  const [dataId, setDataId] = React.useState("c9e10151-8f07-4158-a3b3-205210ceb075");
+  const [species, setSpecies] = useLocalStorageState("mouse", "MorphoViewerSomasOnly/species");
+  const [dataId, setDataId] = useLocalStorageState(
+    "c9e10151-8f07-4158-a3b3-205210ceb075",
+    "MorphoViewerSomasOnly/dataId"
+  );
   const cellInfos = useCellInfos(dataId);
 
   return (
@@ -35,6 +38,7 @@ export default function Page() {
                 <div key="mouse">Mouse</div>
                 <div key="rat">Rat</div>
                 <div key="human">Human</div>
+                <div key="alien">Alien</div>
               </ViewOptions>,
               "reset-camera",
               "fullscreen",
@@ -51,4 +55,5 @@ const SOMAS_RADII = {
   mouse: 12,
   rat: 15,
   human: 20,
+  alien: 200,
 };

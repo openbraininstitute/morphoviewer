@@ -51,7 +51,7 @@ export class PainterCellInfos extends TgdPainterGroup {
       new Float32Array(2 * options.cellInfos.length);
     const painterPointsCloud = new TgdPainterPointsCloud(context, {
       ...painterPointsCloudOptions,
-      dataUV: computeAmbientOcclusion(bbox, 15 * RADIUS, painterPointsCloudOptions.dataPoint, uvs),
+      dataUV: computeAmbientOcclusion(bbox, 10 * RADIUS, painterPointsCloudOptions.dataPoint, uvs),
       texture: texturePalette,
       fragCode: TgdPainterPointsCloud.fragCodeSphere({
         enableSpecular: true,

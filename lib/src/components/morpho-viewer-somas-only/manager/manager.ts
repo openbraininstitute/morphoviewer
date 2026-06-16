@@ -15,6 +15,7 @@ import React from "react";
 import { watchSpacePerPixel } from "@/behaviors";
 import { PainterGizmo } from "@/painters/gizmo";
 
+import { AdpatativeResolution } from "./adaptative-resolution";
 import { PainterCellInfos } from "./painter-cell-infos";
 
 import type { MorphoViewerCellInfo, MorphoViewerSomasOnlyProps } from "../types";
@@ -33,7 +34,7 @@ class PainterManager {
   private bbox = new TgdBoundingBox();
   private scalebarCleanup: (() => void) | null = null;
   private readonly painterGizmo = new PainterGizmo();
-  private resolutionForMovement = 1;
+  private readonly adaptativeResolution = new AdpatativeResolution();
   private _somaRadius = 1;
 
   get gizmo() {
@@ -54,6 +55,7 @@ class PainterManager {
     if (painterCellInfos) {
       painterCellInfos.somaRadius = somaRadius;
     }
+    this.adaptativeResolution.reset();
   }
 
   get canvas(): HTMLCanvasElement | null {
@@ -107,29 +109,9 @@ class PainterManager {
     context.animSchedule({
       duration: 0.5,
       action: tgdActionCreateCameraInterpolation(context.camera, state),
-      onEnd: this.highRes,
+      onEnd: this.adaptativeResolution.highRes,
     });
-    this.lowRes();
-  };
-
-  private readonly highRes = () => {
-    const { context } = this;
-    if (!context) return;
-
-    if (context.resolution === 1) return;
-
-    context.resolution = 1;
-    context.paint();
-  };
-
-  private readonly lowRes = () => {
-    const { context } = this;
-    if (!context) return;
-
-    if (context.resolution !== 1) return;
-
-    context.resolution = this.resolutionForMovement;
-    context.paint();
+    this.adaptativeResolution.lowRes();
   };
 
   private initialize() {
@@ -144,7 +126,7 @@ class PainterManager {
       return;
     }
 
-    this.resolutionForMovement = Math.sqrt(Math.min(1, 250000 / this._cellInfos.length));
+    // this.resolutionForMovement = Math.sqrt(Math.min(1, 250000 / this._cellInfos.length));
     const context = new TgdContext(canvas, {
       alpha: false,
       antialias: true,
@@ -152,6 +134,7 @@ class PainterManager {
       resolution: 1,
     });
     this.context = context;
+    this.adaptativeResolution.context = context;
     this.scalebarCleanup = watchSpacePerPixel(context, this.eventScalebar);
     const clear = new TgdPainterClear(context, {
       color: [0, 0, 0, 1],
@@ -194,11 +177,15 @@ class PainterManager {
     if (!context) return;
 
     globalThis.clearTimeout(this._cameraChangeTimeout);
-    this._cameraChangeTimeout = globalThis.setTimeout(this.highRes, 50) as unknown as number;
-    this.lowRes();
+    this._cameraChangeTimeout = globalThis.setTimeout(
+      this.adaptativeResolution.highRes,
+      50
+    ) as unknown as number;
+    this.adaptativeResolution.lowRes();
   };
 
   private delete() {
+    this.adaptativeResolution.context = null;
     if (!this.context) {
       // Nothing to delete.
       return;

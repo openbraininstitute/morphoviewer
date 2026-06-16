@@ -16,11 +16,10 @@ export function computeAmbientOcclusion(
     return uvs;
   }
 
-  const rays = getUniformlyDistributedRays();
-  console.log("🐞 [ambient-occlusion@19] rays =", rays); // @FIXME: Remove this line written on 2026-06-10 at 09:38
+  //   const rays = getUniformlyDistributedRays();
   const proximity = new Proximity(points, bbox, radius);
   const radiusSquare = radius * radius;
-  const invRadiusSquare = 1 / radiusSquare;
+  //   const invRadiusSquare = 1 / radiusSquare;
   let indexUV = 1;
   let maxAO = 0;
   for (let pointIndex = 0; pointIndex < points.length; pointIndex += 4) {
