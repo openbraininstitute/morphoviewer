@@ -5,7 +5,7 @@ type Props = {
   style?: CSSProperties;
 };
 
-export function IconPlay({ className, style }: Props) {
+export function MorphoViewerIconPlay({ className, style }: Props) {
   return (
     <svg
       className={className}

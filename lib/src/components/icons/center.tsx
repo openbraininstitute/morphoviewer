@@ -5,7 +5,7 @@ type Props = {
   style?: CSSProperties;
 };
 
-export function IconCenter({ className, style }: Props) {
+export function MorphoViewerIconCenter({ className, style }: Props) {
   return (
     <svg
       className={className}

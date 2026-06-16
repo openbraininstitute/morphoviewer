@@ -14,7 +14,17 @@ import {
   tgdCalcMapRange,
 } from "@tolokoban/tgd";
 import React from "react";
+
 import { useEventValue } from "@/utils";
+
+import { makeCamera } from "./camera";
+import { Initializer } from "./initializer";
+import { computeSectionOffset } from "./math";
+import { OffscreenPainter } from "./offscreen-painter";
+import { Painter } from "./painters";
+import { SpikingManager } from "./spiking-manager";
+import { TransitionManager } from "./transition";
+
 import type { MorphoViewerSimulContentProps } from "../types/private";
 import type {
   MorphoViewerMode,
@@ -24,15 +34,8 @@ import type {
   MorphoViewerSpikeRecord,
   MorphoViewerSynapsesGroup,
 } from "../types/public";
-import { makeCamera } from "./camera";
-import { Initializer } from "./initializer";
-import { computeSectionOffset } from "./math";
 import type { MorphologyData } from "./morphology-data";
-import { OffscreenPainter } from "./offscreen-painter";
-import { Painter } from "./painters";
-import { SpikingManager } from "./spiking-manager";
 import type { StructureItem } from "./structure";
-import { TransitionManager } from "./transition";
 
 interface SelectedItem {
   x: number;

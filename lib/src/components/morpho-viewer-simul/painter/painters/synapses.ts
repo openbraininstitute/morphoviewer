@@ -33,10 +33,14 @@ export class PainterSynapses extends TgdPainterGroup {
     );
     const cloud = new TgdPainterPointsCloudMorphing(context, {
       name: `TgdPainterPointsCloud[${synapses.color}]`,
+      mix: 0,
       data: [[dataPoint3D, dataPointDendrogram]],
-      minSizeInPixels: 4,
+      //   minSizeInPixels: 4,
       radiusMultiplier: 0.5,
       texture,
+      fragCode: TgdPainterPointsCloudMorphing.fragCodeSphere({
+        depthPrecision: "high",
+      }),
     });
     this.cloud = cloud;
     this.add(cloud);
@@ -59,9 +63,10 @@ function makeDataPoint(
   sections: Record<string, number[]>,
   structure: Structure,
   segments: Map<number, TgdPainterSegmentsData>
-): { point: Float32Array } {
+): { point: Float32Array; uv: Float32Array } {
   let counter = 0;
   const dataPoint: number[] = [];
+  const dataUV: number[] = [];
   for (const [sectionName, offsets] of Object.entries(sections)) {
     for (const offsetInSection of offsets) {
       const item = structure.getSegmentOfSectionAtOffset(sectionName, offsetInSection);
@@ -78,9 +83,10 @@ function makeDataPoint(
         counter++
       );
       dataPoint.push(x, y, z, 1);
+      dataUV.push(0.5, 0.5);
     }
   }
-  return { point: new Float32Array(dataPoint) };
+  return { point: new Float32Array(dataPoint), uv: new Float32Array(dataUV) };
 }
 
 function computePositionOnSegmentSurface(

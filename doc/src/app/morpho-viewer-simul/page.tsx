@@ -7,10 +7,6 @@ import {
   type MorphoViewerSpikeRecord,
   type MorphoViewerTreeItem,
 } from "@openbraininstitute/morphoviewer";
-import {
-  Morphology,
-  MorphologySection,
-} from "@openbraininstitute/morphoviewer/dist/components/morpho-viewer-simul/types/private";
 import AtomicState from "@tolokoban/react-state";
 import { isString, isType, isType$ } from "@tolokoban/type-guards";
 import {
@@ -30,6 +26,11 @@ import { classNames } from "@/utils";
 import { SpikesSettings } from "./_/spikes-settings";
 import { SYNAPSES } from "./data";
 import { useMorphologyTree } from "./hook";
+
+import type {
+  Morphology,
+  MorphologySection,
+} from "@openbraininstitute/morphoviewer/dist/components/morpho-viewer-simul/types/private";
 
 import styles from "./page.module.css";
 
@@ -81,7 +82,7 @@ export default function Page() {
   );
   const [controller, setController] = React.useState<MorphoViewerSimulController | null>(null);
   const [recordings, setRecordings] = recordingsState.useState();
-  const [example, setExample] = React.useState("04");
+  const [example, setExample] = React.useState("01");
   const [straightCylinders, setStraightCylinders] = React.useState(false);
   const [tree, morphology] = useMorphologyTree(example, straightCylinders);
   const [injection, setInjection] = injectionState.useState();

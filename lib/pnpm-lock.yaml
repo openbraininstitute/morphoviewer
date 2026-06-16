@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@tolokoban/tgd':
-        specifier: ^2.0.144
-        version: 2.0.144
+        specifier: ^2.0.145
+        version: 2.0.145
       fflate:
         specifier: ^0.8.3
         version: 0.8.3
@@ -569,8 +569,8 @@ packages:
   '@swc/helpers@0.5.23':
     resolution: {integrity: sha512-5lSsMOTXURePglDfvuAQUqkGek9Hg2kksOYay2m0+XR++b2NWYL/4sWyuvVBIs8oKnJaxkdi9whaL/sqN13afw==}
 
-  '@tolokoban/tgd@2.0.144':
-    resolution: {integrity: sha512-7owp4oqozFxiRe400gu1NU1e0RawUPcVxY6o4dv+1AS0Ug/sMi04TXhhJo472/QvbUkCG64+2ccl31ZGiL8L2A==}
+  '@tolokoban/tgd@2.0.145':
+    resolution: {integrity: sha512-sYzp0fl+k7itgAIw33gzP0D3lrouw5mEReJNTA8Y1faIidz4gWaKwh3uCwTvL/BBJmItVdYgZP+R2eiYZxZP/w==}
 
   '@ts-morph/common@0.28.1':
     resolution: {integrity: sha512-W74iWf7ILp1ZKNYXY5qbddNaml7e9Sedv5lvU1V8lftlitkc9Pq1A+jlH23ltDgWYeZFFEqGCD1Ies9hqu3O+g==}
@@ -2996,7 +2996,7 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@tolokoban/tgd@2.0.144':
+  '@tolokoban/tgd@2.0.145':
     dependencies:
       '@loaders.gl/core': 4.4.2
       '@loaders.gl/draco': 4.4.2(@loaders.gl/core@4.4.2)

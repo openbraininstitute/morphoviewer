@@ -16,14 +16,16 @@ import {
   webglPresetBlend,
   webglPresetDepth,
 } from "@tolokoban/tgd";
-import type { MorphoViewerSpikeRecord, MorphoViewerSynapsesGroup } from "../../types/public";
-import type { MorphologyData } from "../morphology-data";
+
 import { SpikingManager } from "../spiking-manager";
 import { PALETTE } from "./contants";
 import { PainterHover as PainterHighlight } from "./highlight";
 import { PainterSpikingOverlay } from "./overlay";
 import { PainterSpiking } from "./spiking";
 import { PainterSynapses } from "./synapses";
+
+import type { MorphoViewerSpikeRecord, MorphoViewerSynapsesGroup } from "../../types/public";
+import type { MorphologyData } from "../morphology-data";
 
 export class Painter extends TgdPainterGroup {
   private _minRadius = 2;
@@ -141,7 +143,7 @@ export class Painter extends TgdPainterGroup {
         groupSynapses.add(painter);
       }
     }
-    this.context.paint();
+    context.paint();
   }
 
   highlight(segments: TgdPainterSegmentsData | null | undefined) {

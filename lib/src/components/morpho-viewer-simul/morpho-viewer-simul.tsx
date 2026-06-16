@@ -4,10 +4,10 @@ import React from "react";
 import { useDebugMode } from "@/utils";
 
 import { ButtonCameraReset } from "../button-reset-camera";
-import { IconClose } from "../icons/close";
-import { IconCopy } from "../icons/copy";
-import { IconFullscreen } from "../icons/fullscreen";
-import { IconMinimize } from "../icons/minimize";
+import { MorphoViewerIconClose } from "../icons/close";
+import { MorphoViewerIconCopy } from "../icons/copy";
+import { MorphoViewerIconFullscreen } from "../icons/fullscreen";
+import { MorphoViewerIconMinimize } from "../icons/minimize";
 import AddRecordingDialog from "./components/add-recording-dialog";
 import { HintPanel } from "./components/hint";
 import LegendOverlay from "./components/legend-overlay";
@@ -49,16 +49,16 @@ export function MorphoViewerSimul(props: MorphoViewerSimulProps) {
         <ButtonCameraReset painterManager={painterManager} />
         <div className={styles.flex}>
           <button type="button" onClick={handleFullscreen}>
-            <IconFullscreen />
+            <MorphoViewerIconFullscreen />
           </button>
           {props.onMinimize && (
             <button type="button" onClick={props.onMinimize}>
-              <IconMinimize />
+              <MorphoViewerIconMinimize />
             </button>
           )}
           {props.onClose && (
             <button type="button" onClick={props.onClose}>
-              <IconClose />
+              <MorphoViewerIconClose />
             </button>
           )}
         </div>
@@ -66,7 +66,7 @@ export function MorphoViewerSimul(props: MorphoViewerSimulProps) {
       {debugMode && (
         <footer>
           <button type="button" onClick={handleCopyMorphologyToClipboard}>
-            <IconCopy />
+            <MorphoViewerIconCopy />
           </button>
         </footer>
       )}

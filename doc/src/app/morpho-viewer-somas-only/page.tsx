@@ -1,4 +1,9 @@
-import { MorphoViewerSomasOnly, MorphoViewerSpinner } from "@openbraininstitute/morphoviewer";
+import {
+  MorphoViewerIconCameraOrtho,
+  MorphoViewerIconCameraPersp,
+  MorphoViewerSomasOnly,
+  MorphoViewerSpinner,
+} from "@openbraininstitute/morphoviewer";
 import { useLocalStorageState, ViewOptions } from "@tolokoban/ui";
 import React from "react";
 
@@ -7,6 +12,10 @@ import { useCellInfos } from "./hooks";
 import styles from "./page.module.css";
 
 export default function Page() {
+  const [cameraType, setCameraType] = useLocalStorageState<"orthographic" | "perspective">(
+    "orthographic",
+    "MorphoViewerSomasOnly/cameraType"
+  );
   const [species, setSpecies] = useLocalStorageState("mouse", "MorphoViewerSomasOnly/species");
   const [dataId, setDataId] = useLocalStorageState(
     "c9e10151-8f07-4158-a3b3-205210ceb075",
@@ -32,6 +41,7 @@ export default function Page() {
             onClose={() => alert("onClose()")}
             scalebar
             gizmo
+            cameraType={cameraType}
             controls={[
               <ViewOptions key="species" value={species} onChange={setSpecies}>
                 <div key="fly">Fly</div>
@@ -39,6 +49,14 @@ export default function Page() {
                 <div key="rat">Rat</div>
                 <div key="human">Human</div>
                 <div key="alien">Alien</div>
+              </ViewOptions>,
+              <ViewOptions key="camera-type" value={cameraType} onChange={setCameraType}>
+                <div key="orthographic">
+                  <MorphoViewerIconCameraOrtho />
+                </div>
+                <div key="perspective">
+                  <MorphoViewerIconCameraPersp />
+                </div>
               </ViewOptions>,
               "reset-camera",
               "fullscreen",

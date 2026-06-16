@@ -3,8 +3,8 @@ import React from "react";
 
 import { classNames } from "@/utils";
 
-import { IconCenter } from "../icons/center";
-import { IconFullscreen } from "../icons/fullscreen";
+import { MorphoViewerIconCenter } from "../icons/center";
+import { MorphoViewerIconFullscreen } from "../icons/fullscreen";
 import MorphoViewerScalebar from "../morpho-viewer-scalebar";
 import { type OctreeManager, useOctreeManager } from "./painter/manager";
 
@@ -30,10 +30,10 @@ export function MorphoViewerOctree(props: MorphoViewerOctreeProps) {
       <Canvas painterManager={manager} />
       <header>
         <button type="button" onClick={handleResetCamera}>
-          <IconCenter />
+          <MorphoViewerIconCenter />
         </button>
         <button type="button" onClick={handleFullscreen}>
-          <IconFullscreen />
+          <MorphoViewerIconFullscreen />
         </button>
       </header>
       {props.scalebar && (

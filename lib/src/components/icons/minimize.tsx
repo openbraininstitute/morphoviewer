@@ -5,7 +5,7 @@ type Props = {
   style?: CSSProperties;
 };
 
-export function IconMinimize({ className, style }: Props) {
+export function MorphoViewerIconMinimize({ className, style }: Props) {
   return (
     <svg
       className={className}

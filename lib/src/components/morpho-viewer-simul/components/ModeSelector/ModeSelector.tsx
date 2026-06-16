@@ -2,10 +2,10 @@ import React from "react";
 
 import { classNames } from "@/utils";
 
-import { Icon3D } from "../../../icons/3d";
-import { IconDendrogramStraight } from "../../../icons/dendrogram-straight";
-import { MorphoViewerMode } from "../../types/public";
+import { MorphoViewerIcon3D } from "../../../icons/3d";
+import { MorphoViewerIconDendrogramStraight } from "../../../icons/dendrogram-straight";
 import { PainterManager } from "../../painter";
+import { MorphoViewerMode } from "../../types/public";
 
 import styles from "./ModeSelector.module.css";
 
@@ -25,14 +25,14 @@ export default function ModeSelector({ className, painterManager }: ModeSelector
         className={classNames(styles.button, mode === "3d" && styles.selected)}
         onClick={() => setMode("3d")}
       >
-        <Icon3D />
+        <MorphoViewerIcon3D />
       </button>
       <button
         type="button"
         className={classNames(styles.button, mode === "dendrogram" && styles.selected)}
         onClick={() => setMode("dendrogram")}
       >
-        <IconDendrogramStraight />
+        <MorphoViewerIconDendrogramStraight />
       </button>
     </div>
   );

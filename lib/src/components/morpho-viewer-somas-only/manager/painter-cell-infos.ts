@@ -112,7 +112,7 @@ function parseCellInfos(
     maxZ = Math.max(maxZ, z);
     // We set the radius to 1, and will use radiusMultiplier to change it.
     dataPoint.push(x, y, z, 1);
-    dataUV.push(Math.random(), Math.random());
+    dataUV.push(0.5, 0.5);
   }
   const invCount = 1 / cellInfos.length;
   centerX *= invCount;

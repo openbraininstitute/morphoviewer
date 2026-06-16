@@ -12,6 +12,7 @@ export type MorphoViewerSomasOnlyProps = PropsForGizmo &
     className?: string;
     somaRadius?: number;
     cellInfos: MorphoViewerCellInfo[];
+    cameraType?: "orthographic" | "perspective";
     onClose?(): void;
     onMinimize?(): void;
     controls?: ControlsLayoutProps["content"];
