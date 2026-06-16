@@ -39,7 +39,7 @@ export class PainterSynapses extends TgdPainterGroup {
       radiusMultiplier: 0.5,
       texture,
       fragCode: TgdPainterPointsCloudMorphing.fragCodeSphere({
-        depthPrecision: "high",
+        depthPrecision: "none",
       }),
     });
     this.cloud = cloud;
