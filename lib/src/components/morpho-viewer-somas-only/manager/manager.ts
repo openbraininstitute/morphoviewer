@@ -15,7 +15,7 @@ import React from "react";
 import { watchSpacePerPixel } from "@/behaviors";
 import { PainterGizmo } from "@/painters/gizmo";
 
-import { AdpatativeResolution } from "./adaptative-resolution";
+import { AdpatativeResolution, AdpatativeResolution } from "./adaptative-resolution";
 import { PainterCellInfos } from "./painter-cell-infos";
 
 import type { MorphoViewerCellInfo, MorphoViewerSomasOnlyProps } from "../types";
@@ -35,6 +35,7 @@ class PainterManager {
   private scalebarCleanup: (() => void) | null = null;
   private readonly painterGizmo = new PainterGizmo();
   private readonly adaptativeResolution = new AdpatativeResolution();
+  private readonly adaptativeResolution = new AdpatativeResolution();
   private _somaRadius = 1;
   private readonly cameraOrtho = new TgdCameraOrthographic({ name: "CameraOrtho" });
   private readonly cameraPersp = new TgdCameraPerspective({ name: "CameraPersp" });
@@ -49,7 +50,6 @@ class PainterManager {
     this._cameraType = cameraType;
     const { context } = this;
     if (context) {
-      console.log("🐞 [manager@52] cameraType =", cameraType); // @FIXME: Remove this line written on 2026-06-16 at 12:23
       context.camera = cameraType === "orthographic" ? this.cameraOrtho : this.cameraPersp;
       this.applyBBoxToCamera();
       context.paint();

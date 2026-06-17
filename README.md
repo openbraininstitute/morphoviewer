@@ -32,6 +32,12 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.27.2
+
+- Fix **minimum size** for synapses in `MorphoViewerSimul` to prevent them from disappearing at certain zoom levels
+- Simplify **cell highlighting** logic in `MorphoViewerSmallCircuit` by computing black state inline during cell addition
+- Fix the issue with `TGDMaterialFlatTexture` that couldn't change the texture once created.
+
 ### v0.27.1
 
 - PointsClouds were using square with back facing.
