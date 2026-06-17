@@ -261,7 +261,6 @@ export class PainterManager {
       const painter = cellsForHighights.get(cell.id);
       if (painter) {
         painter.black = !(highlightedCellIds ?? []).includes(cell.id);
-        console.log("Added highlighted cell:", cell, painter.black);
         groupHighlithedCells.add(painter);
       }
     }
