@@ -260,14 +260,9 @@ export class PainterManager {
     for (const cell of circuit) {
       const painter = cellsForHighights.get(cell.id);
       if (painter) {
-        painter.black = true;
+        painter.black = !(highlightedCellIds ?? []).includes(cell.id);
+        console.log("Added highlighted cell:", cell, painter.black);
         groupHighlithedCells.add(painter);
-      }
-    }
-    for (const id of highlightedCellIds ?? []) {
-      const painter = cellsForHighights.get(id);
-      if (painter) {
-        painter.black = false;
       }
     }
     this.context.value?.paint();
