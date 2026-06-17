@@ -49,7 +49,6 @@ class PainterManager {
     this._cameraType = cameraType;
     const { context } = this;
     if (context) {
-      console.log("🐞 [manager@52] cameraType =", cameraType); // @FIXME: Remove this line written on 2026-06-16 at 12:23
       context.camera = cameraType === "orthographic" ? this.cameraOrtho : this.cameraPersp;
       this.applyBBoxToCamera();
       context.paint();

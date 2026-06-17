@@ -35,7 +35,7 @@ export class PainterSynapses extends TgdPainterGroup {
       name: `TgdPainterPointsCloud[${synapses.color}]`,
       mix: 0,
       data: [[dataPoint3D, dataPointDendrogram]],
-      //   minSizeInPixels: 4,
+      minSizeInPixels: 0.007,
       radiusMultiplier: 0.5,
       texture,
       fragCode: TgdPainterPointsCloudMorphing.fragCodeSphere({
