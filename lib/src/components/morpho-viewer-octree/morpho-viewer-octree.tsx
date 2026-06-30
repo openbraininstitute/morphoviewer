@@ -40,6 +40,7 @@ export function MorphoViewerOctree(props: MorphoViewerOctreeProps) {
         <MorphoViewerScalebar
           className={props.scalebar}
           spacePerPixelEvent={manager.eventScalebar}
+          unit={props.scalebar}
         />
       )}
     </div>

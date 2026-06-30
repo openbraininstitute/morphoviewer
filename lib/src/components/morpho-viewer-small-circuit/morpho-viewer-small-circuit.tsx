@@ -91,6 +91,7 @@ export function MorphoViewerSmallCircuit(props: MorphoViewerSmallCircuitProps) {
         <MorphoViewerScalebar
           className={props.scalebar}
           spacePerPixelEvent={manager.eventScalebar}
+          unit={props.scalebar}
         />
       )}
     </div>

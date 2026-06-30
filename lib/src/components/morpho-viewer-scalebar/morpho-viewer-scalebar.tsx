@@ -5,23 +5,25 @@ import { classNames } from "@/utils";
 import { paint } from "./painter";
 
 import type { TgdEvent } from "@tolokoban/tgd";
+import type { PropsForScalebar } from "../types";
 
 import styles from "./morpho-viewer-scalebar.module.css";
 
 export interface MorphoViewerScalebarProps {
-  className?: string | boolean;
+  className?: PropsForScalebar["scalebar"];
   spacePerPixelEvent: TgdEvent<number>;
   /**
    * Default to `1e-6` (μm)
    */
-  unit?: number;
+  unit?: number | PropsForScalebar["scalebar"];
 }
 
 export default function MorphoViewerScalebar({
   className,
   spacePerPixelEvent,
-  unit = 1e-6,
+  unit: unitProp,
 }: MorphoViewerScalebarProps) {
+  const unit = resolveUnit(unitProp);
   const spacePerPixel = useSpacePerPixel(spacePerPixelEvent);
   const ref = React.useRef<HTMLCanvasElement | null>(null);
   React.useEffect(() => {
@@ -46,10 +48,7 @@ export default function MorphoViewerScalebar({
   return (
     <canvas
       ref={ref}
-      className={classNames(
-        typeof className === "string" ? className : styles.defaultLayout,
-        styles.morphoViewerScalebar
-      )}
+      className={classNames(resolveClassName(className), styles.morphoViewerScalebar)}
     ></canvas>
   );
 }
@@ -61,4 +60,22 @@ function useSpacePerPixel(spacePerPixelEvent: TgdEvent<number>) {
     return () => spacePerPixelEvent.removeListener(setSpacePerPixel);
   }, [spacePerPixelEvent]);
   return spacePerPixel;
+}
+
+function resolveClassName(className: PropsForScalebar["scalebar"] | undefined): string | null {
+  if (!className || typeof className === "boolean") return styles.defaultLayout;
+
+  if (typeof className === "string") return className;
+
+  return className.className ?? styles.defaultLayout;
+}
+
+function resolveUnit(
+  unitProp: string | number | boolean | { className?: string; unit?: number } | undefined
+) {
+  if (!unitProp || typeof unitProp === "string" || typeof unitProp === "boolean") return 1e-6;
+
+  if (typeof unitProp === "number") return unitProp;
+
+  return unitProp.unit ?? 1e-6;
 }

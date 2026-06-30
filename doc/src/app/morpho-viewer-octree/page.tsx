@@ -1,6 +1,6 @@
 import { MorphoViewerOctree, type MorphoViewerOctreeProps } from "@openbraininstitute/morphoviewer";
 import { assertType } from "@tolokoban/type-guards";
-import { IconGear, ViewLabel, ViewOptions } from "@tolokoban/ui";
+import { IconGear, ViewLabel, ViewOptions, ViewPanel } from "@tolokoban/ui";
 import React from "react";
 
 import { GizmoSettings } from "@/components/gizmo-settings";
@@ -8,6 +8,7 @@ import { GizmoSettings } from "@/components/gizmo-settings";
 import Styles from "./page.module.css";
 
 export default function PageMorphoViewerOctree() {
+  const [unit, setUnit] = React.useState("1e-6");
   const [meshId, setMeshId] = React.useState("1");
   const [gizmo, setGizmo] = React.useState<boolean | MorphoViewerOctreeProps["gizmo"]>(true);
   const [loadingInProgress, setLoadingInProgress] = React.useState(0);
@@ -36,7 +37,9 @@ export default function PageMorphoViewerOctree() {
         className={Styles.octree}
         meshId={meshId}
         gizmo={gizmo}
-        scalebar
+        scalebar={{
+          unit: parseFloat(unit),
+        }}
         loadInfo={async (meshId: string) => {
           const url = `./assets/octree/${meshId}/lod.json`;
           console.debug("Loading info:", url);
@@ -86,11 +89,26 @@ export default function PageMorphoViewerOctree() {
         }}
       />
       <header>
-        <ViewLabel>Choose the mesh:</ViewLabel>
-        <ViewOptions value={meshId} onChange={setMeshId}>
-          <div key="1">Example #1</div>
-          <div key="2">Example #2</div>
-        </ViewOptions>
+        <ViewPanel display="flex" gap="L" justifyContent="space-between">
+          <ViewPanel display="flex" gap="M" alignItems="center">
+            <ViewLabel>Choose the mesh:</ViewLabel>
+            <ViewOptions value={meshId} onChange={setMeshId}>
+              <div key="1">Example #1</div>
+              <div key="2">Example #2</div>
+            </ViewOptions>
+          </ViewPanel>
+          <ViewPanel display="flex" gap="M" alignItems="center">
+            <ViewLabel>Choose the unit:</ViewLabel>
+            <ViewOptions value={unit} onChange={setUnit}>
+              <div key="1e-6">
+                μm (10<sup>-6</sup>)
+              </div>
+              <div key="1e-9">
+                nm (10<sup>-9</sup>)
+              </div>
+            </ViewOptions>
+          </ViewPanel>
+        </ViewPanel>
         <GizmoSettings value={gizmo} onChange={setGizmo} />
       </header>
     </div>

@@ -48,6 +48,7 @@ export function MorphoViewerSomasOnly(props: MorphoViewerSomasOnlyProps) {
         <MorphoViewerScalebar
           className={props.scalebar}
           spacePerPixelEvent={painterManager.eventScalebar}
+          unit={props.scalebar}
         />
       )}
     </div>
