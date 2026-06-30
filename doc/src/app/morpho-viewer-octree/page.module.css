@@ -4,9 +4,9 @@
     >header {
         display: inline-flex;
         flex-wrap: nowrap;
-        flex-direction: row;
+        flex-direction: column;
         justify-content: flex-start;
-        align-items: center;
+        align-items: stretch;
         gap: 1em;
         margin-bottom: 1em;
     }
