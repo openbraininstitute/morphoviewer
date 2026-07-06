@@ -1,5 +1,6 @@
-import type { ArrayNumber3 } from "@tolokoban/tgd";
 import React from "react";
+
+import type { ArrayNumber3 } from "@tolokoban/tgd";
 
 interface CustomEvent<T> {
   addListener(listener: (v: T) => void): void;
@@ -42,6 +43,27 @@ export function useEventState<T>(
 
 export function classNames(...args: unknown[]): string {
   return args.filter((arg) => typeof arg === "string" && arg.trim().length > 0).join(" ");
+}
+
+/**
+ * parse any css color string into normalized `[r, g, b, a]` components (0..1),
+ * using the browser's own color parser
+ * returns opaque black when the color is invalid or when no canvas is available
+ */
+export function cssColorToRgba(
+  color: string
+): [red: number, green: number, blue: number, alpha: number] {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1;
+  canvas.height = 1;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return [0, 0, 0, 1];
+
+  ctx.clearRect(0, 0, 1, 1);
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, 1, 1);
+  const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+  return [r / 255, g / 255, b / 255, a / 255];
 }
 
 function float01ToVec3(value: number): ArrayNumber3 {
