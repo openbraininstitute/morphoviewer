@@ -140,14 +140,14 @@ export function resolveVerticalScalebar(config: ScalebarConfig): ResolvedVertica
       majorLength
     );
 
-  const width = (hovered: boolean) => outerReserve + innerExtent(hovered) + 1;
-  const collapsedWidth = Math.ceil(width(false));
-  const expandedWidth = Math.ceil(width(true));
-
   const needsHover =
     pinsLeftWhen === ScalebarWhen.Hover ||
     pinsRightWhen === ScalebarWhen.Hover ||
     labelsWhen === ScalebarWhen.Hover;
+
+  const width = (hovered: boolean) => outerReserve + innerExtent(needsHover ? hovered : true) + 1;
+  const collapsedWidth = Math.ceil(width(false));
+  const expandedWidth = Math.ceil(width(true));
 
   const { x: mx, y: my } = marginXY(config);
   const containerStyle: React.CSSProperties = config.className

@@ -73,7 +73,7 @@ export interface ScalebarConfig {
   pins?: ScalebarPinsConfig;
   /** value-label configuration */
   labels?: ScalebarLabelsConfig;
-  /** shorthand: default "when" for hover-revealed content (right pins, labels) */
+  /** shorthand: override the default "when" for right pins and labels */
   reveal?: "hover" | "always";
   /** pin/label color, default `"#9ca3af"` */
   color?: string;

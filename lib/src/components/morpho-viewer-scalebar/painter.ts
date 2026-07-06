@@ -16,9 +16,6 @@ export function paint(
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  // the backing store is sized in device pixels (clientSize * dpr); scale the
-  // context so all drawing math stays in CSS pixels and renders crisp on HiDPI
-  // TODO: consider using this with the Gizmo too
   const dpr = pixelRatio > 0 ? pixelRatio : 1;
   const w = canvas.width / dpr;
   const h = canvas.height / dpr;
@@ -62,6 +59,24 @@ export function paint(
   }
 }
 
+/** snap to the half-pixel grid for crisp 1px strokes */
+function snapY(y: number): number {
+  return Math.round(y * 2) / 2;
+}
+
+/**
+ * place majors evenly from bottomY to topY so every segment has the same length.
+ */
+function buildMajorPositions(bottomY: number, topY: number, majorStep: number): number[] {
+  const span = bottomY - topY;
+  const majorCount = Math.max(1, Math.round(span / majorStep));
+  const majors: number[] = [];
+  for (let m = 0; m <= majorCount; m++) {
+    majors.push(snapY(bottomY - (m / majorCount) * span));
+  }
+  return majors;
+}
+
 /**
  * draw the scalebar as a compact vertical ruler
  */
@@ -77,56 +92,90 @@ function paintVertical(
   const sample = ctx.measureText("999 mm");
   const textHeight = sample.actualBoundingBoxAscent + sample.actualBoundingBoxDescent;
   const minStepHeight = 3 * textHeight;
-  const {
-    unitText,
-    width: majorStep,
-    value,
-  } = computeBestFit(h, spacePerPixel, unitFactor, minStepHeight);
-  const minorStep = majorStep / minorPerMajor;
-  if (!Number.isFinite(minorStep) || minorStep <= 0) return;
 
-  // the holder hugs the anchored edge at a fixed inset, so it never shifts
   const xBase = anchor === "left" ? outerReserve + 0.5 : Math.round(w) - outerReserve - 0.5;
+  const labelPad = params.labels
+    ? Math.ceil((sample.actualBoundingBoxAscent + sample.actualBoundingBoxDescent) / 2) + 1
+    : 0;
+  const topY = snapY(0.5 + labelPad);
+  const bottomY = snapY(h - 0.5 - labelPad);
+  const rulerHeight = bottomY - topY;
+  if (rulerHeight <= 0) return;
+
+  const {
+    unitText: fitUnitText,
+    width: fitMajorStep,
+    value: fitValue,
+  } = computeBestFit(rulerHeight, spacePerPixel, unitFactor, minStepHeight);
+  if (!Number.isFinite(fitMajorStep) || fitMajorStep <= 0) return;
+  const majors = buildMajorPositions(bottomY, topY, fitMajorStep);
 
   ctx.beginPath();
-  ctx.moveTo(xBase, 0);
-  ctx.lineTo(xBase, h);
+  ctx.moveTo(xBase, topY);
+  ctx.lineTo(xBase, bottomY);
   ctx.stroke();
 
-  let i = 0;
-  for (let y = h; y >= -0.5; y -= minorStep) {
-    const isMajor = i % minorPerMajor === 0;
-    const len = isMajor ? majorLength : minorLength;
-    const yy = Math.round(y) + 0.5;
-    if (params.leftPins) {
-      ctx.beginPath();
-      ctx.moveTo(xBase, yy);
-      ctx.lineTo(xBase - len, yy);
-      ctx.stroke();
+  for (let m = 0; m < majors.length - 1; m++) {
+    const lower = majors[m];
+    const upper = majors[m + 1];
+    const segmentStep = (lower - upper) / minorPerMajor;
+    for (let k = 1; k < minorPerMajor; k++) {
+      drawPin(ctx, xBase, snapY(lower - k * segmentStep), minorLength, params);
     }
-    if (params.rightPins) {
-      ctx.beginPath();
-      ctx.moveTo(xBase, yy);
-      ctx.lineTo(xBase + len, yy);
-      ctx.stroke();
+  }
+
+  for (let m = 0; m < majors.length; m++) {
+    const yy = majors[m];
+    drawPin(ctx, xBase, yy, majorLength, params);
+    if (params.labels) {
+      drawLabel(ctx, params, xBase, majorLength, yy, `${m * fitValue} ${fitUnitText}`);
     }
-    // labels: majors only, and only when they fit fully (no clipping).
-    if (params.labels && isMajor && i > 0 && yy - textHeight >= 0 && yy + textHeight <= h) {
-      const step = i / minorPerMajor;
-      const text = `${value * step} ${unitText}`;
-      const ty = yy + textHeight / 2 - sample.actualBoundingBoxDescent;
-      if (params.labelSide === "right") {
-        ctx.textAlign = "left";
-        ctx.fillText(text, xBase + majorLength + LABEL_GAP, ty);
-      } else {
-        ctx.textAlign = "right";
-        ctx.fillText(text, xBase - majorLength - LABEL_GAP, ty);
-      }
-    }
-    i++;
-    if (i > 200) break;
   }
   ctx.textAlign = "start";
+  ctx.textBaseline = "alphabetic";
+}
+
+function drawPin(
+  ctx: CanvasRenderingContext2D,
+  xBase: number,
+  yy: number,
+  len: number,
+  params: VerticalPaintParams
+) {
+  if (params.leftPins) {
+    ctx.beginPath();
+    ctx.moveTo(xBase, yy);
+    ctx.lineTo(xBase - len, yy);
+    ctx.stroke();
+  }
+  if (params.rightPins) {
+    ctx.beginPath();
+    ctx.moveTo(xBase, yy);
+    ctx.lineTo(xBase + len, yy);
+    ctx.stroke();
+  }
+}
+
+function drawLabel(
+  ctx: CanvasRenderingContext2D,
+  params: VerticalPaintParams,
+  xBase: number,
+  majorLength: number,
+  yy: number,
+  text: string
+) {
+  ctx.textBaseline = "middle";
+  const pinOnRight = params.rightPins;
+  const pinOnLeft = params.leftPins;
+  if (params.labelSide === "right") {
+    ctx.textAlign = "left";
+    const x = pinOnRight ? xBase + majorLength + LABEL_GAP : xBase + LABEL_GAP;
+    ctx.fillText(text, x, yy);
+  } else {
+    ctx.textAlign = "right";
+    const x = pinOnLeft ? xBase - majorLength - LABEL_GAP : xBase - LABEL_GAP;
+    ctx.fillText(text, x, yy);
+  }
 }
 
 function computeBestFit(
