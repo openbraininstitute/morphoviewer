@@ -32,6 +32,14 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.30.0
+
+- Add **per-cell soma coloring** to `MorphoViewerSomasOnly` via optional `color` on each cell info
+  - Distinct colors map to a categorical palette; recolor-only updates preserve the camera
+- Extend **scalebar** with vertical orientation, placement, hover-revealed pins/labels, and hiDPI rendering
+- Add **`resetCameraSignal`** to `MorphoViewerSomasOnly` and `MorphoViewerSmallCircuit` for host-triggered camera reset
+- Preserve **camera position** on recolor-only circuit updates in `MorphoViewerSmallCircuit`
+
 ### v0.29.0
 
 - Add **version tracking** via `data-version` attribute on root elements of `MorphoViewerOctree`, `MorphoViewerSimul`, `MorphoViewerSmallCircuit`, and `MorphoViewerSomasOnly`
