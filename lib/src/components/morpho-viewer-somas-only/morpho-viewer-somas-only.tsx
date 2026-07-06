@@ -1,6 +1,7 @@
 import { tgdFullscreenToggle } from "@tolokoban/tgd";
 import React from "react";
 
+import { version } from "@/index";
 import { classNames } from "@/utils";
 
 import { type ControlAction, ControlsLayout } from "../controls-layout";
@@ -38,7 +39,11 @@ export function MorphoViewerSomasOnly(props: MorphoViewerSomasOnlyProps) {
   };
 
   return (
-    <div ref={ref} className={classNames(props.className, styles.morphoViewerSomasOnly)}>
+    <div
+      ref={ref}
+      className={classNames(props.className, styles.morphoViewerSomasOnly)}
+      data-version={version}
+    >
       <Canvas painterManager={painterManager} />
       <ControlsLayout
         content={props.controls ?? getDefaultControls(props)}

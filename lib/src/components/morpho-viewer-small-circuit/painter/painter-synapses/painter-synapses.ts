@@ -1,5 +1,5 @@
 import {
-  TgdContext,
+  type TgdContext,
   TgdPainterGroup,
   TgdPainterPointsCloud,
   TgdTexture2D,

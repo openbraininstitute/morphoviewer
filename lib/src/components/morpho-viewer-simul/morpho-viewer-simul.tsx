@@ -1,6 +1,7 @@
 import { tgdFullscreenToggle } from "@tolokoban/tgd";
 import React from "react";
 
+import { version } from "@/index";
 import { useDebugMode } from "@/utils";
 
 import { ButtonCameraReset } from "../button-reset-camera";
@@ -40,7 +41,7 @@ export function MorphoViewerSimul(props: MorphoViewerSimulProps) {
   };
 
   return (
-    <div className={styles.main} ref={ref}>
+    <div className={styles.main} ref={ref} data-version={version}>
       <Canvas painterManager={painterManager} />
       <HintPanel painterManager={painterManager} />
       <header>

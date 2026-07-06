@@ -7,7 +7,6 @@ import {
   type TgdInputPointerEventMove,
   type TgdInputPointerEventTap,
   TgdPainterClear,
-  TgdPainterGizmo,
   type TgdPainterGizmoOptions,
   TgdPainterGroup,
   TgdPainterState,
@@ -111,6 +110,19 @@ export class PainterManager {
 
     this._verbose = verbose;
     if (this.context.value) this.context.value.verbose = verbose;
+  }
+
+  setSynapses(
+    synapses: { color: string; coordinates: Float32Array | number[] }[] | undefined,
+    synapsesRadius: number,
+    synapsesMinRadiusInPixels: number
+  ) {
+    const { painterSynapses } = this;
+    if (!painterSynapses) return;
+
+    painterSynapses.synapses = synapses ?? [];
+    painterSynapses.radius = synapsesRadius;
+    painterSynapses.minRadiusInPixels = synapsesMinRadiusInPixels;
   }
 
   setCircuit(
@@ -423,6 +435,9 @@ export function usePainterManager({
   onLoadProgress,
   gizmo,
   verbose,
+  synapses,
+  synapsesRadius = 5,
+  synapsesMinRadiusInPixels = 4,
 }: MorphoViewerSmallCircuitProps) {
   const [, setSpacePerPixel] = React.useState(-1);
   const ref = React.useRef<PainterManager | null>(null);
@@ -443,6 +458,9 @@ export function usePainterManager({
   React.useEffect(() => {
     manager.highlightedCellIds = highlightedCellIds;
   }, [highlightedCellIds, manager]);
+  React.useEffect(() => {
+    manager.setSynapses(synapses, synapsesRadius, synapsesMinRadiusInPixels);
+  }, [synapses, synapsesRadius, synapsesMinRadiusInPixels, manager]);
   React.useEffect(() => {
     if (!onCellHover) return;
 
