@@ -23,6 +23,7 @@ import { CacheLRU } from "@/tools/cache-lru";
 import { CameraManager } from "./camera";
 import { OffscreenPainter } from "./offscreen-painter";
 import { PainterCell } from "./painter-cell";
+import { PainterSynapses } from "./painter-synapses";
 
 import type {
   MorphoViewerSmallCircuitCell,
@@ -91,6 +92,7 @@ export class PainterManager {
   private bbox = new TgdBoundingBox();
   private _verbose = false;
   private readonly painterGizmo = new PainterGizmo();
+  private painterSynapses: PainterSynapses | null = null;
 
   get gizmo() {
     return this.painterGizmo.options;
@@ -304,6 +306,8 @@ export class PainterManager {
       verbose: this.verbose,
       name: "RenderingContext",
     });
+    const painterSynapses = new PainterSynapses(context);
+    this.painterSynapses = painterSynapses;
     this.context.value = context;
     context.camera = new TgdCameraOrthographic({
       zoom: 1,
@@ -329,7 +333,7 @@ export class PainterManager {
       new TgdPainterState(context, {
         depth: "less",
         cull: "back",
-        children: [this.groupCells],
+        children: [this.groupCells, painterSynapses],
       }),
       // Highlighted cells
       new TgdPainterClear(context, { name: "Clear depth", depth: 1 }),
