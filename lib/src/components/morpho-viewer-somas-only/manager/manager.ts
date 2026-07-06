@@ -2,6 +2,7 @@ import {
   TgdBoundingBox,
   TgdCameraOrthographic,
   TgdCameraPerspective,
+  TgdColor,
   TgdContext,
   TgdControllerCameraOrbit,
   TgdEvent,
@@ -14,7 +15,6 @@ import React from "react";
 
 import { watchSpacePerPixel } from "@/behaviors";
 import { PainterGizmo } from "@/painters/gizmo";
-import { cssColorToRgba } from "@/utils";
 
 import { AdpatativeResolution } from "./adaptative-resolution";
 import { PainterCellInfos } from "./painter-cell-infos";
@@ -30,6 +30,7 @@ class PainterManager {
   private _canvas: HTMLCanvasElement | null = null;
   private _cellInfos: MorphoViewerCellInfo[] = [];
   private _backgroundColor = "black";
+  private readonly parsedBackgroundColor = new TgdColor(0, 0, 0, 1);
   private painterCellInfos: PainterCellInfos | null = null;
   /** the scene node that holds the point cloud; kept so a recolor can swap the
    * cloud in place without recreating the context (preserving the camera). */
@@ -104,13 +105,13 @@ class PainterManager {
     if (this._backgroundColor === backgroundColor) return;
 
     this._backgroundColor = backgroundColor;
+    this.parsedBackgroundColor.parse(backgroundColor);
     const { painterClear, context } = this;
     if (painterClear && context) {
-      const [red, green, blue, alpha] = cssColorToRgba(backgroundColor);
-      painterClear.red = red;
-      painterClear.green = green;
-      painterClear.blue = blue;
-      painterClear.alpha = alpha;
+      painterClear.red = this.parsedBackgroundColor.R;
+      painterClear.green = this.parsedBackgroundColor.G;
+      painterClear.blue = this.parsedBackgroundColor.B;
+      painterClear.alpha = this.parsedBackgroundColor.A;
       context.paint();
     }
   }
@@ -220,8 +221,9 @@ class PainterManager {
     this.context = context;
     this.adaptativeResolution.context = context;
     this.scalebarCleanup = watchSpacePerPixel(context, this.eventScalebar);
+    this.parsedBackgroundColor.parse(this._backgroundColor);
     const clear = new TgdPainterClear(context, {
-      color: cssColorToRgba(this._backgroundColor),
+      color: this.parsedBackgroundColor.toArayNumber4(),
       depth: 1,
     });
     this.painterClear = clear;
