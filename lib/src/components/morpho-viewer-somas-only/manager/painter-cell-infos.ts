@@ -5,7 +5,6 @@ import {
   TgdPainterPointsCloud,
   type TgdPainterPointsCloudOptions,
   TgdTexture2D,
-  TgdVec3,
   tgdCanvasCreatePalette,
 } from "@tolokoban/tgd";
 
@@ -14,6 +13,17 @@ import { computeAmbientOcclusion } from "./ambient-occlusion";
 import type { MorphoViewerCellInfo } from "../types";
 
 const RADIUS = 15;
+
+/** number of vertical steps used to bake ambient-occlusion shading into each
+ * palette column. */
+const PALETTE_AO_ROWS = 32;
+
+/** default depth-shaded blue palette, used when cells have no explicit color. */
+const DEFAULT_PALETTE_COLORS = [
+  "hsl(200, 100%, 80%)",
+  "hsl(200, 100%, 50%)",
+  "hsl(220, 100%, 30%)",
+];
 
 export interface PainterCellInfosOptions {
   cellInfos: MorphoViewerCellInfo[];
@@ -30,6 +40,8 @@ export class PainterCellInfos extends TgdPainterGroup {
     public readonly context: TgdContext,
     options: PainterCellInfosOptions
   ) {
+    const bbox = new TgdBoundingBox();
+    const { paletteColors, painterPointsCloudOptions } = parseCellInfos(options.cellInfos, bbox);
     const texturePalette = new TgdTexture2D(context, {
       params: {
         magFilter: "LINEAR",
@@ -39,13 +51,10 @@ export class PainterCellInfos extends TgdPainterGroup {
         wrapT: "CLAMP_TO_EDGE",
       },
     }).loadBitmap(
-      tgdCanvasCreatePalette(
-        ["hsl(200, 100%, 80%)", "hsl(200, 100%, 50%)", "hsl(220, 100%, 30%)"],
-        1
-      )
+      paletteColors
+        ? createCategoricalPalette(paletteColors, PALETTE_AO_ROWS)
+        : tgdCanvasCreatePalette(DEFAULT_PALETTE_COLORS, 1)
     );
-    const bbox = new TgdBoundingBox();
-    const painterPointsCloudOptions = parseCellInfos(options.cellInfos, bbox);
     const uvs =
       middleLuminance(painterPointsCloudOptions.dataUV) ??
       new Float32Array(2 * options.cellInfos.length);
@@ -84,10 +93,41 @@ export class PainterCellInfos extends TgdPainterGroup {
   }
 }
 
-function parseCellInfos(
-  cellInfos: MorphoViewerCellInfo[],
-  bbox: TgdBoundingBox
-): TgdPainterPointsCloudOptions {
+interface ParsedCellInfos {
+  /**
+   * distinct colors in first-seen order, forming the palette columns, or
+   * `null` when no cell defines a color (default blue palette)
+   */
+  paletteColors: string[] | null;
+  painterPointsCloudOptions: TgdPainterPointsCloudOptions;
+}
+
+/** fallback column for cells that have no explicit color while others do */
+const UNCOLORED_FALLBACK = "hsl(210, 100%, 50%)";
+
+function parseCellInfos(cellInfos: MorphoViewerCellInfo[], bbox: TgdBoundingBox): ParsedCellInfos {
+  // map each distinct color to a palette column index (stable, first-seen order)
+  const columnByColor = new Map<string, number>();
+  const paletteColors: string[] = [];
+  let hasUncolored = false;
+  for (const { color } of cellInfos) {
+    if (color === undefined) {
+      hasUncolored = true;
+      continue;
+    }
+    if (columnByColor.has(color)) continue;
+    columnByColor.set(color, paletteColors.length);
+    paletteColors.push(color);
+  }
+  const hasColors = paletteColors.length > 0;
+  // if some cells are colored and others are not, reserve a dedicated column for
+  // the uncolored ones (otherwise their U=0.5 would sample a blended mid-hue)
+  const uncoloredColumn = hasColors && hasUncolored ? paletteColors.length : -1;
+  if (uncoloredColumn >= 0) paletteColors.push(UNCOLORED_FALLBACK);
+  // sample the palette at the horizontal center of each column so linear
+  // filtering returns the exact column color for every soma
+  const columnU = (index: number) => (index + 0.5) / paletteColors.length;
+
   const dataPoint: number[] = [];
   const dataUV: number[] = [];
   let centerX = 0;
@@ -99,7 +139,7 @@ function parseCellInfos(
   let maxX = Number.NEGATIVE_INFINITY;
   let maxY = Number.NEGATIVE_INFINITY;
   let maxZ = Number.NEGATIVE_INFINITY;
-  for (const { position } of cellInfos) {
+  for (const { position, color } of cellInfos) {
     const [x, y, z] = position;
     centerX += x;
     centerY += y;
@@ -110,9 +150,22 @@ function parseCellInfos(
     maxX = Math.max(maxX, x);
     maxY = Math.max(maxY, y);
     maxZ = Math.max(maxZ, z);
-    // We set the radius to 1, and will use radiusMultiplier to change it.
+    // set the radius to 1, and will use radiusMultiplier to change it.
     dataPoint.push(x, y, z, 1);
-    dataUV.push(0.5, 0.5);
+    // U selects the palette column (the color); V carries ambient occlusion,
+    // computed later. When there are no colors, U is irrelevant (1px palette).
+    // Uncolored cells (in an otherwise-colored set) use the reserved column.
+    let u = 0.5;
+    if (hasColors) {
+      if (color !== undefined) {
+        u = columnU(columnByColor.get(color) ?? 0);
+      } else if (uncoloredColumn >= 0) {
+        u = columnU(uncoloredColumn);
+      } else {
+        u = columnU(0);
+      }
+    }
+    dataUV.push(u, 0.5);
   }
   const invCount = 1 / cellInfos.length;
   centerX *= invCount;
@@ -127,7 +180,36 @@ function parseCellInfos(
     dataPoint: new Float32Array(dataPoint),
     dataUV: new Float32Array(dataUV),
   };
-  return options;
+  return {
+    paletteColors: hasColors ? paletteColors : null,
+    painterPointsCloudOptions: options,
+  };
+}
+
+/**
+ * build a palette canvas whose columns are the given colors and whose rows bake
+ * in ambient-occlusion shading (top = lit base color, bottom = darkened).
+ * points sample their column via U and their occlusion via V
+ */
+function createCategoricalPalette(colors: string[], rows: number): HTMLCanvasElement {
+  const width = colors.length;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = rows;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return canvas;
+
+  for (let x = 0; x < width; x++) {
+    ctx.fillStyle = colors[x];
+    ctx.fillRect(x, 0, 1, rows);
+  }
+
+  const shade = ctx.createLinearGradient(0, 0, 0, rows);
+  shade.addColorStop(0, "rgba(0, 0, 0, 0)");
+  shade.addColorStop(1, "rgba(0, 0, 0, 0.55)");
+  ctx.fillStyle = shade;
+  ctx.fillRect(0, 0, width, rows);
+  return canvas;
 }
 
 function middleLuminance(dataUV: Float32Array | undefined): Float32Array | undefined {
