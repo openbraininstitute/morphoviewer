@@ -1,6 +1,7 @@
 import { tgdFullscreenToggle } from "@tolokoban/tgd";
 import React from "react";
 
+import { version } from "@/index";
 import { classNames } from "@/utils";
 
 import { type ControlAction, ControlsLayout } from "../controls-layout";
@@ -81,6 +82,7 @@ export function MorphoViewerSmallCircuit(props: MorphoViewerSmallCircuitProps) {
       style={{
         background: props.backgroundColor ?? "#000",
       }}
+      data-version={version}
     >
       <Canvas painterManager={manager} />
       <ControlsLayout

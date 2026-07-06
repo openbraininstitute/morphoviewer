@@ -1,6 +1,7 @@
 import { tgdFullscreenToggle } from "@tolokoban/tgd";
 import React from "react";
 
+import { version } from "@/index";
 import { classNames } from "@/utils";
 
 import { MorphoViewerIconCenter } from "../icons/center";
@@ -26,7 +27,11 @@ export function MorphoViewerOctree(props: MorphoViewerOctreeProps) {
   };
 
   return (
-    <div className={classNames(props.className, styles.morphoViewerOctree)} ref={ref}>
+    <div
+      className={classNames(props.className, styles.morphoViewerOctree)}
+      ref={ref}
+      data-version={version}
+    >
       <Canvas painterManager={manager} />
       <header>
         <button type="button" onClick={handleResetCamera}>

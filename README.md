@@ -32,6 +32,13 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.29.0
+
+- Add **version tracking** via `data-version` attribute on root elements of `MorphoViewerOctree`, `MorphoViewerSimul`, `MorphoViewerSmallCircuit`, and `MorphoViewerSomasOnly`
+- Add **synapses** support to `MorphoViewerSmallCircuit`
+  - New `synapses`, `synapsesRadius`, and `synapsesMinRadiusInPixels` props
+  - Dynamically updates synapse rendering without recreating the painter
+
 ### v0.27.2
 
 - Fix **minimum size** for synapses in `MorphoViewerSimul` to prevent them from disappearing at certain zoom levels

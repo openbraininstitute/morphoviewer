@@ -29,6 +29,12 @@ export type MorphoViewerSmallCircuitProps = PropsForGizmo &
     className?: string;
     backgroundColor?: string;
     circuit: MorphoViewerSmallCircuitCell[];
+    synapses?: Array<{
+      color: string;
+      coordinates: Float32Array | number[];
+    }>;
+    synapsesRadius?: number;
+    synapsesMinRadiusInPixels?: number;
     /**
      * Ids of the cells we want to highlight.
      */
