@@ -62,4 +62,9 @@ export type MorphoViewerSmallCircuitProps = PropsForGizmo &
      * Default to `false`.
      */
     verbose?: boolean;
+    /**
+     * change this value (e.g. increment a counter) to reset the camera. Lets
+     * host apps trigger a reset from custom controls
+     */
+    resetCameraSignal?: unknown;
   };

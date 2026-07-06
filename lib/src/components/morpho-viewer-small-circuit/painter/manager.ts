@@ -88,6 +88,9 @@ export class PainterManager {
   private framebufferBlur: Framebuffer | null = null;
   private loadedCellsCache = new CacheLRU<Promise<MorphoViewerSmallCircuitCellData | null>>(24);
   private circuitSignature = "";
+  /** when false, the next circuit update rebuilds cells but keeps the camera
+   * (used for recolor, where only cell colors change) */
+  private fitCameraOnUpdate = true;
   private bbox = new TgdBoundingBox();
   private _verbose = false;
   private readonly painterGizmo = new PainterGizmo();
@@ -139,6 +142,9 @@ export class PainterManager {
     }
 
     const signature = circuit.map((item) => item.id).join("\n");
+    // same cell ids → geometry is unchanged and only colors differ: rebuild the
+    // cells to apply the new colors but keep the current camera (no zoom reset)
+    this.fitCameraOnUpdate = this.circuitSignature !== signature;
     if (this.circuitSignature !== signature) {
       this.circuitSignature = signature;
       this.loadedCellsCache.clear();
@@ -192,7 +198,9 @@ export class PainterManager {
             if (bbox) {
               this.bbox.addBBox(bbox);
             }
-            this.adaptCameraFromBBox();
+            if (this.fitCameraOnUpdate) {
+              this.adaptCameraFromBBox();
+            }
             this.cellCountLoaded++;
             this.onLoadProgress?.(this.cellCountLoaded / this.cellCountTotal);
           },
@@ -206,7 +214,9 @@ export class PainterManager {
         highlightingCells.set(cell.id, highlightedCell);
       }
       this.updateHightedCells();
-      this.adaptCameraFromBBox();
+      if (this.fitCameraOnUpdate) {
+        this.adaptCameraFromBBox();
+      }
       context.paint();
     } catch (ex) {
       console.error("Unable ton update circuit:", ex);
@@ -438,6 +448,7 @@ export function usePainterManager({
   synapses,
   synapsesRadius = 5,
   synapsesMinRadiusInPixels = 4,
+  resetCameraSignal,
 }: MorphoViewerSmallCircuitProps) {
   const [, setSpacePerPixel] = React.useState(-1);
   const ref = React.useRef<PainterManager | null>(null);
@@ -445,6 +456,7 @@ export function usePainterManager({
     ref.current = new PainterManager();
   }
   const manager = ref.current;
+  const prevResetRef = React.useRef(resetCameraSignal);
   React.useEffect(() => {
     manager.eventScalebar.addListener(setSpacePerPixel);
     manager.onLoadProgress = onLoadProgress;
@@ -452,6 +464,15 @@ export function usePainterManager({
     manager.background = backgroundColor ?? "#000";
     return () => manager.eventScalebar.removeListener(setSpacePerPixel);
   }, [onLoadProgress, manager, verbose, backgroundColor]);
+
+  React.useEffect(() => {
+    // Only reset when the signal actually changes — not on mount, and safe under
+    // React Strict Mode's double-invoked effects.
+    if (prevResetRef.current === resetCameraSignal) return;
+    prevResetRef.current = resetCameraSignal;
+    manager.cameraReset();
+  }, [resetCameraSignal, manager]);
+
   React.useEffect(() => {
     manager.setCircuit(circuit, loadCell);
   }, [circuit, loadCell, manager]);
