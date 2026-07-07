@@ -1,5 +1,15 @@
 import { type TgdContext, TgdPainterLogic } from "@tolokoban/tgd";
 
+/**
+ * lowest resolution the adaptive downscaler is allowed to reach
+ * without a floor a very slow frame makes `context.fps` read 0, which drives the computed
+ * resolution to 0 (a 0×0 drawing buffer, i.e. a blank canvas) and then latches
+ * there
+ * a small non-zero floor keeps the scene visible (just blurrier)
+ * while still relieving the GPU during interaction.
+ */
+const MIN_RESOLUTION = 0.2;
+
 export class AdpatativeResolution {
   private _context: TgdContext | null = null;
   private isLowRes = false;
@@ -59,11 +69,14 @@ export class AdpatativeResolution {
     return this._resolution;
   }
   private set resolution(resolution: number) {
-    if (this._resolution === resolution) return;
+    // clamp to a visible range: never below MIN_RESOLUTION (0 would blank the
+    // canvas) and never above full resolution.
+    const clamped = Math.min(1, Math.max(MIN_RESOLUTION, resolution));
+    if (this._resolution === clamped) return;
 
-    this._resolution = resolution;
+    this._resolution = clamped;
     const { context } = this;
-    if (context) context.resolution = resolution;
+    if (context) context.resolution = clamped;
   }
 
   private readonly computeResolution = () => {
@@ -73,7 +86,10 @@ export class AdpatativeResolution {
     this.wasLowRes = isLowRes;
     const minFPS = 30;
     const { fps } = context;
-    if (isLowRes && wasLowRes) {
+    // fps === 0 means the last frame was slower than ~1s: treat it as a one-off
+    // stall (GC, tab blur, first heavy frame), not a steady-state signal — using
+    // it in the ratio below would collapse the resolution toward 0.
+    if (isLowRes && wasLowRes && fps > 0) {
       if (fps < minFPS) {
         this.countSlowFrame++;
         if (this.countSlowFrame > 1) {
