@@ -1,7 +1,7 @@
 import { tgdFullscreenToggle } from "@tolokoban/tgd";
 import React from "react";
 
-import { version } from "@/index";
+import { version } from "@/package.json";
 import { useDebugMode } from "@/utils";
 
 import { ButtonCameraReset } from "../button-reset-camera";

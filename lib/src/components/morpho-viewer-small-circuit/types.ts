@@ -1,5 +1,6 @@
 import type { ControlsLayoutProps } from "../controls-layout";
 import type { MorphoViewerTree } from "../morpho-viewer-simul";
+import type { MorphoViewerSignals } from "../signals";
 import type { PropsForGizmo, PropsForScalebar } from "../types";
 
 export interface SectionColors {
@@ -62,4 +63,12 @@ export type MorphoViewerSmallCircuitProps = PropsForGizmo &
      * Default to `false`.
      */
     verbose?: boolean;
+    /**
+     * imperative signal bus for camera reset and image capture. Create one with
+     * `new MorphoViewerSignals()` and dispatch its signals to trigger actions;
+     * `signals.snapshot.dispatch()` resolves to the captured image (the gizmo is
+     * excluded, and the scalebar/host chrome are DOM overlays naturally left
+     * out).
+     */
+    signals?: MorphoViewerSignals;
   };

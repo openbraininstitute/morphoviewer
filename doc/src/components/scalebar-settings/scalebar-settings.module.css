@@ -1,0 +1,9 @@
+.settingsScalebar {
+    display: flex;
+    flex-wrap: wrap;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: .5em 2em;
+    max-width: 1000px;
+}

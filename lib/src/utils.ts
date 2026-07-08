@@ -1,5 +1,6 @@
-import type { ArrayNumber3 } from "@tolokoban/tgd";
 import React from "react";
+
+import type { ArrayNumber3 } from "@tolokoban/tgd";
 
 interface CustomEvent<T> {
   addListener(listener: (v: T) => void): void;

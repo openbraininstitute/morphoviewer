@@ -19,11 +19,13 @@ import { watchSpacePerPixel } from "@/behaviors";
 import { PainterGizmo } from "@/painters/gizmo";
 import { CacheLRU } from "@/tools/cache-lru";
 
+import { reencodeSnapshot } from "../../snapshot";
 import { CameraManager } from "./camera";
 import { OffscreenPainter } from "./offscreen-painter";
 import { PainterCell } from "./painter-cell";
 import { PainterSynapses } from "./painter-synapses";
 
+import type { MorphoViewerSnapshotOptions } from "../../signals";
 import type {
   MorphoViewerSmallCircuitCell,
   MorphoViewerSmallCircuitCellData,
@@ -88,6 +90,9 @@ export class PainterManager {
   private framebufferBlur: Framebuffer | null = null;
   private loadedCellsCache = new CacheLRU<Promise<MorphoViewerSmallCircuitCellData | null>>(24);
   private circuitSignature = "";
+  /** when false, the next circuit update rebuilds cells but keeps the camera
+   * (used for recolor, where only cell colors change) */
+  private fitCameraOnUpdate = true;
   private bbox = new TgdBoundingBox();
   private _verbose = false;
   private readonly painterGizmo = new PainterGizmo();
@@ -101,6 +106,32 @@ export class PainterManager {
   }
 
   readonly cameraReset = () => this.cameraManager?.resetCamera();
+
+  /**
+   * capture the current view as an image, without the gizmo. The snapshot is
+   * taken inside the render frame (via `context.takeSnapshot`), so it works
+   * without `preserveDrawingBuffer`. The frame is rendered at device-pixel
+   * resolution so text and edges stay crisp on HiDPI screens; the gizmo is
+   * hidden for the capture frame and both are restored right after.
+   */
+  readonly capture = async (
+    options?: MorphoViewerSnapshotOptions
+  ): Promise<HTMLImageElement | null> => {
+    const context = this.context.value;
+    if (!context) return null;
+
+    const gizmoWas = this.painterGizmo.options;
+    const resolutionWas = context.resolution;
+    this.painterGizmo.options = false;
+    context.resolution = Math.max(1, Math.min(globalThis.devicePixelRatio || 1, 3));
+    const snapshot = context.takeSnapshot();
+    context.paint();
+    const image = await snapshot;
+    this.painterGizmo.options = gizmoWas;
+    context.resolution = resolutionWas;
+    context.paint();
+    return reencodeSnapshot(image, options);
+  };
 
   get verbose(): boolean {
     return this._verbose;
@@ -139,6 +170,9 @@ export class PainterManager {
     }
 
     const signature = circuit.map((item) => item.id).join("\n");
+    // same cell ids → geometry is unchanged and only colors differ: rebuild the
+    // cells to apply the new colors but keep the current camera (no zoom reset)
+    this.fitCameraOnUpdate = this.circuitSignature !== signature;
     if (this.circuitSignature !== signature) {
       this.circuitSignature = signature;
       this.loadedCellsCache.clear();
@@ -192,7 +226,9 @@ export class PainterManager {
             if (bbox) {
               this.bbox.addBBox(bbox);
             }
-            this.adaptCameraFromBBox();
+            if (this.fitCameraOnUpdate) {
+              this.adaptCameraFromBBox();
+            }
             this.cellCountLoaded++;
             this.onLoadProgress?.(this.cellCountLoaded / this.cellCountTotal);
           },
@@ -206,7 +242,9 @@ export class PainterManager {
         highlightingCells.set(cell.id, highlightedCell);
       }
       this.updateHightedCells();
-      this.adaptCameraFromBBox();
+      if (this.fitCameraOnUpdate) {
+        this.adaptCameraFromBBox();
+      }
       context.paint();
     } catch (ex) {
       console.error("Unable ton update circuit:", ex);
@@ -438,6 +476,7 @@ export function usePainterManager({
   synapses,
   synapsesRadius = 5,
   synapsesMinRadiusInPixels = 4,
+  signals,
 }: MorphoViewerSmallCircuitProps) {
   const [, setSpacePerPixel] = React.useState(-1);
   const ref = React.useRef<PainterManager | null>(null);
@@ -452,6 +491,18 @@ export function usePainterManager({
     manager.background = backgroundColor ?? "#000";
     return () => manager.eventScalebar.removeListener(setSpacePerPixel);
   }, [onLoadProgress, manager, verbose, backgroundColor]);
+
+  React.useEffect(() => {
+    if (!signals) return;
+
+    const unregisterReset = signals.cameraReset.register(() => manager.cameraReset());
+    const unregisterSnapshot = signals.snapshot.register((options) => manager.capture(options));
+    return () => {
+      unregisterReset();
+      unregisterSnapshot();
+    };
+  }, [signals, manager]);
+
   React.useEffect(() => {
     manager.setCircuit(circuit, loadCell);
   }, [circuit, loadCell, manager]);

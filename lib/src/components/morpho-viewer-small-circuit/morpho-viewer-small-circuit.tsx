@@ -1,7 +1,7 @@
 import { tgdFullscreenToggle } from "@tolokoban/tgd";
 import React from "react";
 
-import { version } from "@/index";
+import { version } from "@/package.json";
 import { classNames } from "@/utils";
 
 import { type ControlAction, ControlsLayout } from "../controls-layout";

@@ -1,13 +1,23 @@
 .morphoViewerScalebar {
-    background: transparent;
-    z-index: 1;
+  background: transparent;
+  z-index: 1;
 }
 
 .defaultLayout {
-    position: absolute;
-    left: 8px;
-    bottom: 8px;
-    width: calc(100% - 16px - 128px);
-    height: 1.4em;
-    pointer-events: none;
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  width: calc(100% - 16px - 128px);
+  height: 1.4em;
+  pointer-events: none;
+}
+
+/* vertical ruler container. Position/size come from the resolved inline style;
+ * this class only carries stacking + the width transition used when the ruler
+ * expands on hover. */
+.verticalContainer {
+  z-index: 3;
+  line-height: 1;
+  box-sizing: border-box;
+  transition: width 0.12s ease;
 }

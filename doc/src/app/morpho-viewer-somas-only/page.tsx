@@ -2,16 +2,20 @@ import {
   MorphoViewerIconCameraOrtho,
   MorphoViewerIconCameraPersp,
   MorphoViewerSomasOnly,
+  type MorphoViewerSomasOnlyProps,
   MorphoViewerSpinner,
 } from "@openbraininstitute/morphoviewer";
 import { useLocalStorageState, ViewOptions } from "@tolokoban/ui";
 import React from "react";
+
+import { ScalebarSettings } from "@/components/scalebar-settings";
 
 import { useCellInfos } from "./hooks";
 
 import styles from "./page.module.css";
 
 export default function Page() {
+  const [scalebar, setScalebar] = React.useState<MorphoViewerSomasOnlyProps["scalebar"]>(true);
   const [cameraType, setCameraType] = useLocalStorageState<"orthographic" | "perspective">(
     "orthographic",
     "MorphoViewerSomasOnly/cameraType"
@@ -39,7 +43,7 @@ export default function Page() {
             cellInfos={cellInfos}
             onMinimize={() => alert("onMinimize()")}
             onClose={() => alert("onClose()")}
-            scalebar
+            scalebar={scalebar}
             gizmo
             cameraType={cameraType}
             controls={[
@@ -64,6 +68,7 @@ export default function Page() {
           />
         )}
       </div>
+      <ScalebarSettings value={scalebar} onChange={setScalebar} />
     </div>
   );
 }

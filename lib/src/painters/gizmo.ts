@@ -18,7 +18,6 @@ export class PainterGizmo extends TgdPainterGroup {
     if (optionsOrBoolean === false) {
       this.removeAll();
       this._painter = null;
-      this._options = DEFAULT_GIZMO_PROPS;
       return;
     }
 
@@ -29,6 +28,10 @@ export class PainterGizmo extends TgdPainterGroup {
       this._painter.alignY = options.alignY;
       this._painter.size = options.size;
       this._painter.margin = options.margin;
+    } else {
+      // the painter was disabled (removed) or not built yet — (re)create it so a
+      // truthy value always re-enables the gizmo (e.g. after a capture hides it).
+      this.createPainter();
     }
   }
 
@@ -39,7 +42,13 @@ export class PainterGizmo extends TgdPainterGroup {
     if (context === this._context) return;
 
     this.removeAll();
+    this._painter = null;
     this._context = context;
+    this.createPainter();
+  }
+
+  private createPainter() {
+    const context = this._context;
     if (!context) return;
 
     const painter = new TgdPainterGizmo(context, this._options);

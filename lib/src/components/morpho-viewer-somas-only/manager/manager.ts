@@ -2,6 +2,7 @@ import {
   TgdBoundingBox,
   TgdCameraOrthographic,
   TgdCameraPerspective,
+  TgdColor,
   TgdContext,
   TgdControllerCameraOrbit,
   TgdEvent,
@@ -15,9 +16,11 @@ import React from "react";
 import { watchSpacePerPixel } from "@/behaviors";
 import { PainterGizmo } from "@/painters/gizmo";
 
+import { reencodeSnapshot } from "../../snapshot";
 import { AdpatativeResolution } from "./adaptative-resolution";
 import { PainterCellInfos } from "./painter-cell-infos";
 
+import type { MorphoViewerSnapshotOptions } from "../../signals";
 import type { MorphoViewerCellInfo, MorphoViewerSomasOnlyProps } from "../types";
 
 class PainterManager {
@@ -28,7 +31,13 @@ class PainterManager {
 
   private _canvas: HTMLCanvasElement | null = null;
   private _cellInfos: MorphoViewerCellInfo[] = [];
+  private _backgroundColor = "black";
+  private readonly parsedBackgroundColor = new TgdColor(0, 0, 0, 1);
   private painterCellInfos: PainterCellInfos | null = null;
+  /** the scene node that holds the point cloud; kept so a recolor can swap the
+   * cloud in place without recreating the context (preserving the camera). */
+  private state: TgdPainterState | null = null;
+  private painterClear: TgdPainterClear | null = null;
   private context: TgdContext | null = null;
   private orbit: TgdControllerCameraOrbit | null = null;
   private bbox = new TgdBoundingBox();
@@ -36,8 +45,12 @@ class PainterManager {
   private readonly painterGizmo = new PainterGizmo();
   private readonly adaptativeResolution = new AdpatativeResolution();
   private _somaRadius = 1;
-  private readonly cameraOrtho = new TgdCameraOrthographic({ name: "CameraOrtho" });
-  private readonly cameraPersp = new TgdCameraPerspective({ name: "CameraPersp" });
+  private readonly cameraOrtho = new TgdCameraOrthographic({
+    name: "CameraOrtho",
+  });
+  private readonly cameraPersp = new TgdCameraPerspective({
+    name: "CameraPersp",
+  });
   private _cameraType: "orthographic" | "perspective" = "orthographic";
 
   get cameraType(): "orthographic" | "perspective" {
@@ -87,18 +100,61 @@ class PainterManager {
     else this.delete();
   }
 
+  get backgroundColor(): string {
+    return this._backgroundColor;
+  }
+  set backgroundColor(backgroundColor: string) {
+    if (this._backgroundColor === backgroundColor) return;
+
+    this._backgroundColor = backgroundColor;
+    this.parsedBackgroundColor.parse(backgroundColor);
+    const { painterClear, context } = this;
+    if (painterClear && context) {
+      painterClear.red = this.parsedBackgroundColor.R;
+      painterClear.green = this.parsedBackgroundColor.G;
+      painterClear.blue = this.parsedBackgroundColor.B;
+      painterClear.alpha = this.parsedBackgroundColor.A;
+      context.paint();
+    }
+  }
+
   get cellInfos(): MorphoViewerCellInfo[] {
     return this._cellInfos;
   }
   set cellInfos(cellInfos: MorphoViewerCellInfo[]) {
     if (this._cellInfos === cellInfos) return;
 
+    const previous = this._cellInfos;
     this._cellInfos = cellInfos;
+    // a recolor keeps the same somas (ids + positions) and only swaps colors:
+    // swap the point cloud in place, keep the context/camera/orbit untouched so
+    // the user's zoom/angle is preserved (and no flicker). Any geometry change
+    // (different count, ids, or positions) → full rebuild + camera refit.
+    const colorOnly = !!this.context && !!this.state && sameGeometry(previous, cellInfos);
+    if (colorOnly) {
+      this.recolorInPlace();
+      return;
+    }
     if (this.context) {
-      // cellInfos has changed, we will recreate the points cloud.
       this.delete();
     }
     this.initialize();
+  }
+
+  /** rebuild only the point cloud inside the existing scene/context. */
+  private recolorInPlace() {
+    const { context, state, cellInfos } = this;
+    if (!context || !state) return;
+
+    state.removeAll(true);
+    const painterCellInfos = new PainterCellInfos(context, {
+      cellInfos,
+      somaRadius: this.somaRadius,
+    });
+    this.painterCellInfos = painterCellInfos;
+    this.bbox = painterCellInfos.bbox;
+    state.add(painterCellInfos);
+    context.paint();
   }
 
   readonly cameraReset = () => {
@@ -130,6 +186,33 @@ class PainterManager {
       onEnd: this.adaptativeResolution.highRes,
     });
     this.adaptativeResolution.lowRes();
+  };
+
+  /**
+   * capture the current view as an image, without the gizmo. The snapshot is
+   * taken inside the render frame (via `context.takeSnapshot`), so it works
+   * without `preserveDrawingBuffer`. The frame is rendered at device-pixel
+   * resolution so text and edges stay crisp on HiDPI screens (the live view may
+   * render downscaled), with the gizmo hidden; both are restored afterwards.
+   */
+  readonly capture = async (
+    options?: MorphoViewerSnapshotOptions
+  ): Promise<HTMLImageElement | null> => {
+    const { context } = this;
+    if (!context) return null;
+
+    const gizmoWas = this.painterGizmo.options;
+    this.painterGizmo.options = false;
+    context.resolution = captureResolution();
+    const snapshot = context.takeSnapshot();
+    context.paint();
+    const image = await snapshot;
+    this.painterGizmo.options = gizmoWas;
+    // restore the live view to full (non-HiDPI) resolution; the adaptive
+    // downscaler re-adjusts on the next interaction.
+    this.adaptativeResolution.highRes();
+    context.paint();
+    return reencodeSnapshot(image, options);
   };
 
   private applyBBoxToCamera() {
@@ -167,10 +250,12 @@ class PainterManager {
     this.context = context;
     this.adaptativeResolution.context = context;
     this.scalebarCleanup = watchSpacePerPixel(context, this.eventScalebar);
+    this.parsedBackgroundColor.parse(this._backgroundColor);
     const clear = new TgdPainterClear(context, {
-      color: [0, 0, 0, 1],
+      color: this.parsedBackgroundColor.toArayNumber4(),
       depth: 1,
     });
+    this.painterClear = clear;
     const painterCellInfos = new PainterCellInfos(context, {
       cellInfos,
       somaRadius: this.somaRadius,
@@ -180,6 +265,7 @@ class PainterManager {
       depth: "less",
       children: [painterCellInfos],
     });
+    this.state = state;
     this.painterGizmo.context = context;
     context.add(clear, state, this.painterGizmo);
     const { bbox } = painterCellInfos;
@@ -221,6 +307,9 @@ class PainterManager {
     this.scalebarCleanup?.();
     this.orbit?.detach();
     this.orbit = null;
+    this.painterClear = null;
+    this.state = null;
+    this.painterCellInfos = null;
     this.context.delete();
     this.context = null;
   }
@@ -228,11 +317,32 @@ class PainterManager {
 
 export type { PainterManager };
 
+/** resolution used for image capture: device pixels for HiDPI crispness, capped
+ * so very large canvases don't produce enormous images. */
+function captureResolution(): number {
+  return Math.max(1, Math.min(globalThis.devicePixelRatio || 1, 3));
+}
+
+/** true when both lists describe the same somas (ids + positions), i.e. an
+ * update that changed only cosmetic fields (color), not geometry. */
+function sameGeometry(a: MorphoViewerCellInfo[], b: MorphoViewerCellInfo[]): boolean {
+  if (a.length === 0 || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].morphologyId !== b[i].morphologyId) return false;
+    const pa = a[i].position;
+    const pb = b[i].position;
+    if (pa[0] !== pb[0] || pa[1] !== pb[1] || pa[2] !== pb[2]) return false;
+  }
+  return true;
+}
+
 export function useManager({
   cellInfos,
   somaRadius,
   gizmo,
   cameraType,
+  backgroundColor,
+  signals,
 }: MorphoViewerSomasOnlyProps): PainterManager {
   const refManager = React.useRef<PainterManager | null>(null);
   if (!refManager.current) refManager.current = new PainterManager();
@@ -240,6 +350,19 @@ export function useManager({
   React.useEffect(() => {
     manager.cellInfos = cellInfos;
   }, [cellInfos, manager]);
+  React.useEffect(() => {
+    manager.backgroundColor = backgroundColor ?? "black";
+  }, [backgroundColor, manager]);
+  React.useEffect(() => {
+    if (!signals) return;
+
+    const unregisterReset = signals.cameraReset.register(() => manager.cameraReset());
+    const unregisterSnapshot = signals.snapshot.register((options) => manager.capture(options));
+    return () => {
+      unregisterReset();
+      unregisterSnapshot();
+    };
+  }, [signals, manager]);
   React.useEffect(() => {
     manager.cameraType = cameraType ?? "orthographic";
   }, [cameraType, manager]);
