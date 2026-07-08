@@ -4,6 +4,30 @@ const UNITS = ["m", "mm", "μm", "nm", "pm", "fm"];
 const VALUES = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 300, 400, 500, 600, 700, 800, 900];
 
 const LABEL_GAP = 4;
+/** stroke width (css pixels) of the horizontal bar's bracket */
+const HORIZONTAL_THICKNESS = 2;
+
+interface Snapper {
+  /** css line width whose device width is a whole number of pixels */
+  lineWidth: number;
+  /** snap a stroke center so it lands crisply on the physical pixel grid */
+  snap(posCss: number): number;
+  /** snap a fill/text origin to a whole device pixel */
+  snapPoint(posCss: number): number;
+}
+
+/**
+ * snapping helpers for a given line thickness and devicePixelRatio
+ */
+function createSnapper(thickness: number, dpr: number): Snapper {
+  const widthDevice = Math.max(1, Math.round(thickness * dpr));
+  const halfOffset = widthDevice % 2 ? 0.5 : 0;
+  return {
+    lineWidth: widthDevice / dpr,
+    snap: (posCss) => (Math.round(posCss * dpr - halfOffset) + halfOffset) / dpr,
+    snapPoint: (posCss) => Math.round(posCss * dpr) / dpr,
+  };
+}
 
 export function paint(
   canvas: HTMLCanvasElement,
@@ -20,7 +44,6 @@ export function paint(
   const w = canvas.width / dpr;
   const h = canvas.height / dpr;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.lineWidth = 2;
   ctx.clearRect(0, 0, w, h);
   const css = globalThis.getComputedStyle(canvas);
   ctx.fillStyle = css.color;
@@ -30,10 +53,23 @@ export function paint(
   if (orientation === "vertical" && vertical) {
     ctx.fillStyle = vertical.color;
     ctx.strokeStyle = vertical.color;
-    ctx.lineWidth = vertical.thickness;
-    paintVertical(ctx, w, h, spacePerPixel, unitFactor, vertical);
+    paintVertical(ctx, w, h, spacePerPixel, unitFactor, vertical, dpr);
     return;
   }
+
+  paintHorizontal(ctx, w, h, spacePerPixel, unitFactor, dpr);
+}
+
+function paintHorizontal(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  spacePerPixel: number,
+  unitFactor: number,
+  dpr: number
+) {
+  const { snap, snapPoint, lineWidth } = createSnapper(HORIZONTAL_THICKNESS, dpr);
+  ctx.lineWidth = lineWidth;
 
   const minStepWidth = 3 * ctx.measureText("999 mm").width;
   const { unitText, width, value } = computeBestFit(w, spacePerPixel, unitFactor, minStepWidth);
@@ -43,12 +79,12 @@ export function paint(
     step++;
     const text = `${value * step} ${unitText} `;
     const measure = ctx.measureText(text);
-    const y = Math.round(measure.actualBoundingBoxAscent + measure.actualBoundingBoxDescent) + 0.5;
-    const x = Math.round(stepX1 - (width + measure.width) / 2) + 0.5;
+    const y = snapPoint(measure.actualBoundingBoxAscent + measure.actualBoundingBoxDescent);
+    const x = snapPoint(stepX1 - (width + measure.width) / 2);
     ctx.fillText(text, x, y);
-    const x0 = Math.round(stepX0) + 0.5;
-    const x1 = Math.round(stepX1) + 0.5;
-    const yy = h - measure.actualBoundingBoxAscent;
+    const x0 = snap(stepX0);
+    const x1 = snap(stepX1);
+    const yy = snap(h - measure.actualBoundingBoxAscent);
     ctx.beginPath();
     ctx.moveTo(x0, yy);
     ctx.lineTo(x0, h);
@@ -59,20 +95,20 @@ export function paint(
   }
 }
 
-/** snap to the half-pixel grid for crisp 1px strokes */
-function snapY(y: number): number {
-  return Math.round(y * 2) / 2;
-}
-
 /**
  * place majors evenly from bottomY to topY so every segment has the same length.
  */
-function buildMajorPositions(bottomY: number, topY: number, majorStep: number): number[] {
+function buildMajorPositions(
+  bottomY: number,
+  topY: number,
+  majorStep: number,
+  snap: (y: number) => number
+): number[] {
   const span = bottomY - topY;
   const majorCount = Math.max(1, Math.round(span / majorStep));
   const majors: number[] = [];
   for (let m = 0; m <= majorCount; m++) {
-    majors.push(snapY(bottomY - (m / majorCount) * span));
+    majors.push(snap(bottomY - (m / majorCount) * span));
   }
   return majors;
 }
@@ -86,19 +122,23 @@ function paintVertical(
   h: number,
   spacePerPixel: number,
   unitFactor: number,
-  params: VerticalPaintParams
+  params: VerticalPaintParams,
+  dpr: number
 ) {
   const { anchor, outerReserve, majorLength, minorLength, minorPerMajor } = params;
+  const { snap, lineWidth } = createSnapper(params.thickness, dpr);
+  ctx.lineWidth = lineWidth;
+
   const sample = ctx.measureText("999 mm");
   const textHeight = sample.actualBoundingBoxAscent + sample.actualBoundingBoxDescent;
   const minStepHeight = 3 * textHeight;
 
-  const xBase = anchor === "left" ? outerReserve + 0.5 : Math.round(w) - outerReserve - 0.5;
+  const xBase = snap(anchor === "left" ? outerReserve : Math.round(w) - outerReserve);
   const labelPad = params.labels
     ? Math.ceil((sample.actualBoundingBoxAscent + sample.actualBoundingBoxDescent) / 2) + 1
     : 0;
-  const topY = snapY(0.5 + labelPad);
-  const bottomY = snapY(h - 0.5 - labelPad);
+  const topY = snap(labelPad);
+  const bottomY = snap(h - labelPad);
   const rulerHeight = bottomY - topY;
   if (rulerHeight <= 0) return;
 
@@ -108,7 +148,7 @@ function paintVertical(
     value: fitValue,
   } = computeBestFit(rulerHeight, spacePerPixel, unitFactor, minStepHeight);
   if (!Number.isFinite(fitMajorStep) || fitMajorStep <= 0) return;
-  const majors = buildMajorPositions(bottomY, topY, fitMajorStep);
+  const majors = buildMajorPositions(bottomY, topY, fitMajorStep, snap);
 
   ctx.beginPath();
   ctx.moveTo(xBase, topY);
@@ -120,7 +160,7 @@ function paintVertical(
     const upper = majors[m + 1];
     const segmentStep = (lower - upper) / minorPerMajor;
     for (let k = 1; k < minorPerMajor; k++) {
-      drawPin(ctx, xBase, snapY(lower - k * segmentStep), minorLength, params);
+      drawPin(ctx, xBase, snap(lower - k * segmentStep), minorLength, params);
     }
   }
 
