@@ -35,7 +35,11 @@ export type MorphoViewerSomasOnlyProps = PropsForGizmo &
      */
     backgroundColor?: string;
     /**
-     * imperative signal bus for camera reset and image capture
+     * imperative signal bus for camera reset and image capture. Create one with
+     * `new MorphoViewerSignals()` and dispatch its signals to trigger actions;
+     * `signals.snapshot.dispatch()` resolves to the captured image (the gizmo is
+     * excluded, and the scalebar/host chrome are DOM overlays naturally left
+     * out).
      */
     signals?: MorphoViewerSignals;
     onClose?(): void;

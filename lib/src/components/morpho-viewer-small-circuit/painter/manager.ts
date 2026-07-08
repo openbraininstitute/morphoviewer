@@ -19,14 +19,13 @@ import { watchSpacePerPixel } from "@/behaviors";
 import { PainterGizmo } from "@/painters/gizmo";
 import { CacheLRU } from "@/tools/cache-lru";
 
+import { reencodeSnapshot } from "../../snapshot";
 import { CameraManager } from "./camera";
 import { OffscreenPainter } from "./offscreen-painter";
 import { PainterCell } from "./painter-cell";
 import { PainterSynapses } from "./painter-synapses";
 
 import type { MorphoViewerSnapshotOptions } from "../../signals";
-import { reencodeSnapshot } from "../../snapshot";
-
 import type {
   MorphoViewerSmallCircuitCell,
   MorphoViewerSmallCircuitCellData,
@@ -496,17 +495,11 @@ export function usePainterManager({
   React.useEffect(() => {
     if (!signals) return;
 
-    const onReset = () => manager.cameraReset();
-    const onSnapshot = (options?: MorphoViewerSnapshotOptions) => {
-      manager.capture(options).then((image) => {
-        if (image) signals.snapshotReady.dispatch(image);
-      });
-    };
-    signals.cameraReset.addListener(onReset);
-    signals.snapshot.addListener(onSnapshot);
+    const unregisterReset = signals.cameraReset.register(() => manager.cameraReset());
+    const unregisterSnapshot = signals.snapshot.register((options) => manager.capture(options));
     return () => {
-      signals.cameraReset.removeListener(onReset);
-      signals.snapshot.removeListener(onSnapshot);
+      unregisterReset();
+      unregisterSnapshot();
     };
   }, [signals, manager]);
 

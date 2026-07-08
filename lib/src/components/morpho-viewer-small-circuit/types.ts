@@ -65,8 +65,8 @@ export type MorphoViewerSmallCircuitProps = PropsForGizmo &
     verbose?: boolean;
     /**
      * imperative signal bus for camera reset and image capture. Create one with
-     * `new MorphoViewerSignals()` and dispatch its events to trigger actions;
-     * listen to `snapshotReady` to receive captured images (the gizmo is
+     * `new MorphoViewerSignals()` and dispatch its signals to trigger actions;
+     * `signals.snapshot.dispatch()` resolves to the captured image (the gizmo is
      * excluded, and the scalebar/host chrome are DOM overlays naturally left
      * out).
      */

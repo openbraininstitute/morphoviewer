@@ -16,11 +16,11 @@ import React from "react";
 import { watchSpacePerPixel } from "@/behaviors";
 import { PainterGizmo } from "@/painters/gizmo";
 
+import { reencodeSnapshot } from "../../snapshot";
 import { AdpatativeResolution } from "./adaptative-resolution";
 import { PainterCellInfos } from "./painter-cell-infos";
 
 import type { MorphoViewerSnapshotOptions } from "../../signals";
-import { reencodeSnapshot } from "../../snapshot";
 import type { MorphoViewerCellInfo, MorphoViewerSomasOnlyProps } from "../types";
 
 class PainterManager {
@@ -356,17 +356,11 @@ export function useManager({
   React.useEffect(() => {
     if (!signals) return;
 
-    const onReset = () => manager.cameraReset();
-    const onSnapshot = (options?: MorphoViewerSnapshotOptions) => {
-      manager.capture(options).then((image) => {
-        if (image) signals.snapshotReady.dispatch(image);
-      });
-    };
-    signals.cameraReset.addListener(onReset);
-    signals.snapshot.addListener(onSnapshot);
+    const unregisterReset = signals.cameraReset.register(() => manager.cameraReset());
+    const unregisterSnapshot = signals.snapshot.register((options) => manager.capture(options));
     return () => {
-      signals.cameraReset.removeListener(onReset);
-      signals.snapshot.removeListener(onSnapshot);
+      unregisterReset();
+      unregisterSnapshot();
     };
   }, [signals, manager]);
   React.useEffect(() => {
