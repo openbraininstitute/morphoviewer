@@ -25,4 +25,5 @@ export { useEventState, useEventValue } from "./utils";
 
 export type { CanvasOptions } from "./abstract-canvas";
 export type { ColorsInterface } from "./colors";
+export type { ScalebarConfig } from "./components/types";
 export type { ColoringType } from "./types";

@@ -3,18 +3,21 @@ import {
   type MorphoViewerSmallCircuitCell,
   type MorphoViewerSmallCircuitCellData,
   type MorphoViewerSmallCircuitProps,
+  MorphoViewerSomasOnlyProps,
   morphoViewerConvertSwcIntoTree,
 } from "@openbraininstitute/morphoviewer";
 import { ViewSpinner } from "@tolokoban/ui";
 import React from "react";
 
 import { GizmoSettings } from "@/components/gizmo-settings";
+import { ScalebarSettings } from "@/components/scalebar-settings";
 
 import { useCircuit } from "./data";
 
 import styles from "./page.module.css";
 
 export default function Page() {
+  const [scalebar, setScalebar] = React.useState<MorphoViewerSomasOnlyProps["scalebar"]>(true);
   const circuit = useCircuit();
   const [gizmo, setGizmo] = React.useState<boolean | MorphoViewerSmallCircuitProps["gizmo"]>(true);
   const [progress, setProgress] = React.useState(0);
@@ -50,7 +53,7 @@ export default function Page() {
           backgroundColor="#000"
           circuit={circuit}
           gizmo={gizmo}
-          scalebar
+          scalebar={scalebar}
           loadCell={loadCell}
           onCellHover={handleCellHover}
           onCellClick={handleCellClick}
@@ -69,6 +72,8 @@ export default function Page() {
           </div>
         )}
       </div>
+      <GizmoSettings value={gizmo} onChange={setGizmo} />
+      <ScalebarSettings value={scalebar} onChange={setScalebar} />
       <hr />
       <a href="docs/interfaces/MorphoViewerSmallCircuitProps.html" target="docs">
         Detailed documentation of the properties

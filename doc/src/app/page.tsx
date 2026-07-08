@@ -1,5 +1,7 @@
 import { ViewPanel } from "@tolokoban/ui";
 
+import { Debug } from "@/components/debug";
+
 import ApiURL from "./api.webp";
 import MorphologyURL from "./morphology.webp";
 import OctreeURL from "./octree.webp";
@@ -40,6 +42,7 @@ export default function Page() {
       <Button href="#/api" image={ApiURL}>
         API Documentation
       </Button>
+      <Debug />
     </ViewPanel>
   );
 }
