@@ -186,6 +186,31 @@ class PainterManager {
     this.adaptativeResolution.lowRes();
   };
 
+  /**
+   * capture the current view as an image, without the gizmo. The snapshot is
+   * taken inside the render frame (via `context.takeSnapshot`), so it works
+   * without `preserveDrawingBuffer`. The frame is rendered at device-pixel
+   * resolution so text and edges stay crisp on HiDPI screens (the live view may
+   * render downscaled), with the gizmo hidden; both are restored afterwards.
+   */
+  readonly capture = async (): Promise<HTMLImageElement | null> => {
+    const { context } = this;
+    if (!context) return null;
+
+    const gizmoWas = this.painterGizmo.options;
+    this.painterGizmo.options = false;
+    context.resolution = captureResolution();
+    const snapshot = context.takeSnapshot();
+    context.paint();
+    const image = await snapshot;
+    this.painterGizmo.options = gizmoWas;
+    // restore the live view to full (non-HiDPI) resolution; the adaptive
+    // downscaler re-adjusts on the next interaction.
+    this.adaptativeResolution.highRes();
+    context.paint();
+    return image;
+  };
+
   private applyBBoxToCamera() {
     const { bbox, context } = this;
     if (!context) return;
@@ -288,6 +313,12 @@ class PainterManager {
 
 export type { PainterManager };
 
+/** resolution used for image capture: device pixels for HiDPI crispness, capped
+ * so very large canvases don't produce enormous images. */
+function captureResolution(): number {
+  return Math.max(1, Math.min(globalThis.devicePixelRatio || 1, 3));
+}
+
 /** true when both lists describe the same somas (ids + positions), i.e. an
  * update that changed only cosmetic fields (color), not geometry. */
 function sameGeometry(a: MorphoViewerCellInfo[], b: MorphoViewerCellInfo[]): boolean {
@@ -308,11 +339,14 @@ export function useManager({
   cameraType,
   backgroundColor,
   resetCameraSignal,
+  captureSignal,
+  onCapture,
 }: MorphoViewerSomasOnlyProps): PainterManager {
   const refManager = React.useRef<PainterManager | null>(null);
   if (!refManager.current) refManager.current = new PainterManager();
   const manager = refManager.current;
   const prevResetRef = React.useRef(resetCameraSignal);
+  const prevCaptureRef = React.useRef(captureSignal);
   React.useEffect(() => {
     manager.cellInfos = cellInfos;
   }, [cellInfos, manager]);
@@ -325,6 +359,14 @@ export function useManager({
     prevResetRef.current = resetCameraSignal;
     manager.cameraReset();
   }, [resetCameraSignal, manager]);
+  React.useEffect(() => {
+    // capture only when the signal actually changes, not on mount
+    if (prevCaptureRef.current === captureSignal) return;
+    prevCaptureRef.current = captureSignal;
+    manager.capture().then((image) => {
+      if (image) onCapture?.(image);
+    });
+  }, [captureSignal, onCapture, manager]);
   React.useEffect(() => {
     manager.cameraType = cameraType ?? "orthographic";
   }, [cameraType, manager]);

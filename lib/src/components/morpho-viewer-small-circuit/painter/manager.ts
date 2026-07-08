@@ -105,6 +105,30 @@ export class PainterManager {
 
   readonly cameraReset = () => this.cameraManager?.resetCamera();
 
+  /**
+   * capture the current view as an image, without the gizmo. The snapshot is
+   * taken inside the render frame (via `context.takeSnapshot`), so it works
+   * without `preserveDrawingBuffer`. The frame is rendered at device-pixel
+   * resolution so text and edges stay crisp on HiDPI screens; the gizmo is
+   * hidden for the capture frame and both are restored right after.
+   */
+  readonly capture = async (): Promise<HTMLImageElement | null> => {
+    const context = this.context.value;
+    if (!context) return null;
+
+    const gizmoWas = this.painterGizmo.options;
+    const resolutionWas = context.resolution;
+    this.painterGizmo.options = false;
+    context.resolution = Math.max(1, Math.min(globalThis.devicePixelRatio || 1, 3));
+    const snapshot = context.takeSnapshot();
+    context.paint();
+    const image = await snapshot;
+    this.painterGizmo.options = gizmoWas;
+    context.resolution = resolutionWas;
+    context.paint();
+    return image;
+  };
+
   get verbose(): boolean {
     return this._verbose;
   }
@@ -449,6 +473,8 @@ export function usePainterManager({
   synapsesRadius = 5,
   synapsesMinRadiusInPixels = 4,
   resetCameraSignal,
+  captureSignal,
+  onCapture,
 }: MorphoViewerSmallCircuitProps) {
   const [, setSpacePerPixel] = React.useState(-1);
   const ref = React.useRef<PainterManager | null>(null);
@@ -457,6 +483,7 @@ export function usePainterManager({
   }
   const manager = ref.current;
   const prevResetRef = React.useRef(resetCameraSignal);
+  const prevCaptureRef = React.useRef(captureSignal);
   React.useEffect(() => {
     manager.eventScalebar.addListener(setSpacePerPixel);
     manager.onLoadProgress = onLoadProgress;
@@ -472,6 +499,15 @@ export function usePainterManager({
     prevResetRef.current = resetCameraSignal;
     manager.cameraReset();
   }, [resetCameraSignal, manager]);
+
+  React.useEffect(() => {
+    // capture only when the signal actually changes (not on mount / re-render).
+    if (prevCaptureRef.current === captureSignal) return;
+    prevCaptureRef.current = captureSignal;
+    manager.capture().then((image) => {
+      if (image) onCapture?.(image);
+    });
+  }, [captureSignal, onCapture, manager]);
 
   React.useEffect(() => {
     manager.setCircuit(circuit, loadCell);
