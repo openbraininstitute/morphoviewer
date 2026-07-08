@@ -1,5 +1,6 @@
 import type { ArrayNumber3 } from "@tolokoban/tgd";
 import type { ControlsLayoutProps } from "../controls-layout";
+import type { MorphoViewerSignals } from "../signals";
 import type { PropsForGizmo, PropsForScalebar } from "../types";
 
 export interface MorphoViewerCellInfo {
@@ -34,21 +35,9 @@ export type MorphoViewerSomasOnlyProps = PropsForGizmo &
      */
     backgroundColor?: string;
     /**
-     * change this value (e.g. increment a counter) to reset the camera to fit
-     * the bounding box. Lets host apps trigger a reset from custom controls
+     * imperative signal bus for camera reset and image capture
      */
-    resetCameraSignal?: unknown;
-    /**
-     * change this value (e.g. increment a counter) to capture a PNG of the
-     * circuit. The gizmo is omitted from the capture; the scalebar and any host
-     * chrome are DOM overlays and are naturally excluded.
-     */
-    captureSignal?: unknown;
-    /**
-     * called with the captured image once `captureSignal` changes. The image's
-     * `src` is an object URL the host is responsible for using and revoking.
-     */
-    onCapture?(image: HTMLImageElement): void;
+    signals?: MorphoViewerSignals;
     onClose?(): void;
     onMinimize?(): void;
     controls?: ControlsLayoutProps["content"];

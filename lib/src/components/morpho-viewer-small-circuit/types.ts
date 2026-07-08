@@ -1,5 +1,6 @@
 import type { ControlsLayoutProps } from "../controls-layout";
 import type { MorphoViewerTree } from "../morpho-viewer-simul";
+import type { MorphoViewerSignals } from "../signals";
 import type { PropsForGizmo, PropsForScalebar } from "../types";
 
 export interface SectionColors {
@@ -63,19 +64,11 @@ export type MorphoViewerSmallCircuitProps = PropsForGizmo &
      */
     verbose?: boolean;
     /**
-     * change this value (e.g. increment a counter) to reset the camera. Lets
-     * host apps trigger a reset from custom controls
+     * imperative signal bus for camera reset and image capture. Create one with
+     * `new MorphoViewerSignals()` and dispatch its events to trigger actions;
+     * listen to `snapshotReady` to receive captured images (the gizmo is
+     * excluded, and the scalebar/host chrome are DOM overlays naturally left
+     * out).
      */
-    resetCameraSignal?: unknown;
-    /**
-     * change this value (e.g. increment a counter) to capture a PNG of the
-     * circuit. The gizmo is omitted from the capture; the scalebar and any host
-     * chrome are DOM overlays and are naturally excluded.
-     */
-    captureSignal?: unknown;
-    /**
-     * called with the captured image once `captureSignal` changes. The image's
-     * `src` is an object URL the host is responsible for using and revoking.
-     */
-    onCapture?(image: HTMLImageElement): void;
+    signals?: MorphoViewerSignals;
   };

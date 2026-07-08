@@ -19,6 +19,8 @@ import { PainterGizmo } from "@/painters/gizmo";
 import { AdpatativeResolution } from "./adaptative-resolution";
 import { PainterCellInfos } from "./painter-cell-infos";
 
+import type { MorphoViewerSnapshotOptions } from "../../signals";
+import { reencodeSnapshot } from "../../snapshot";
 import type { MorphoViewerCellInfo, MorphoViewerSomasOnlyProps } from "../types";
 
 class PainterManager {
@@ -193,7 +195,9 @@ class PainterManager {
    * resolution so text and edges stay crisp on HiDPI screens (the live view may
    * render downscaled), with the gizmo hidden; both are restored afterwards.
    */
-  readonly capture = async (): Promise<HTMLImageElement | null> => {
+  readonly capture = async (
+    options?: MorphoViewerSnapshotOptions
+  ): Promise<HTMLImageElement | null> => {
     const { context } = this;
     if (!context) return null;
 
@@ -208,7 +212,7 @@ class PainterManager {
     // downscaler re-adjusts on the next interaction.
     this.adaptativeResolution.highRes();
     context.paint();
-    return image;
+    return reencodeSnapshot(image, options);
   };
 
   private applyBBoxToCamera() {
@@ -338,15 +342,11 @@ export function useManager({
   gizmo,
   cameraType,
   backgroundColor,
-  resetCameraSignal,
-  captureSignal,
-  onCapture,
+  signals,
 }: MorphoViewerSomasOnlyProps): PainterManager {
   const refManager = React.useRef<PainterManager | null>(null);
   if (!refManager.current) refManager.current = new PainterManager();
   const manager = refManager.current;
-  const prevResetRef = React.useRef(resetCameraSignal);
-  const prevCaptureRef = React.useRef(captureSignal);
   React.useEffect(() => {
     manager.cellInfos = cellInfos;
   }, [cellInfos, manager]);
@@ -354,19 +354,21 @@ export function useManager({
     manager.backgroundColor = backgroundColor ?? "black";
   }, [backgroundColor, manager]);
   React.useEffect(() => {
-    // only reset when the signal actually changes, not on mount
-    if (prevResetRef.current === resetCameraSignal) return;
-    prevResetRef.current = resetCameraSignal;
-    manager.cameraReset();
-  }, [resetCameraSignal, manager]);
-  React.useEffect(() => {
-    // capture only when the signal actually changes, not on mount
-    if (prevCaptureRef.current === captureSignal) return;
-    prevCaptureRef.current = captureSignal;
-    manager.capture().then((image) => {
-      if (image) onCapture?.(image);
-    });
-  }, [captureSignal, onCapture, manager]);
+    if (!signals) return;
+
+    const onReset = () => manager.cameraReset();
+    const onSnapshot = (options?: MorphoViewerSnapshotOptions) => {
+      manager.capture(options).then((image) => {
+        if (image) signals.snapshotReady.dispatch(image);
+      });
+    };
+    signals.cameraReset.addListener(onReset);
+    signals.snapshot.addListener(onSnapshot);
+    return () => {
+      signals.cameraReset.removeListener(onReset);
+      signals.snapshot.removeListener(onSnapshot);
+    };
+  }, [signals, manager]);
   React.useEffect(() => {
     manager.cameraType = cameraType ?? "orthographic";
   }, [cameraType, manager]);

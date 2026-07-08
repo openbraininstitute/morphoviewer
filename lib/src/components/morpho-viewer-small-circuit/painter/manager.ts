@@ -24,6 +24,9 @@ import { OffscreenPainter } from "./offscreen-painter";
 import { PainterCell } from "./painter-cell";
 import { PainterSynapses } from "./painter-synapses";
 
+import type { MorphoViewerSnapshotOptions } from "../../signals";
+import { reencodeSnapshot } from "../../snapshot";
+
 import type {
   MorphoViewerSmallCircuitCell,
   MorphoViewerSmallCircuitCellData,
@@ -112,7 +115,9 @@ export class PainterManager {
    * resolution so text and edges stay crisp on HiDPI screens; the gizmo is
    * hidden for the capture frame and both are restored right after.
    */
-  readonly capture = async (): Promise<HTMLImageElement | null> => {
+  readonly capture = async (
+    options?: MorphoViewerSnapshotOptions
+  ): Promise<HTMLImageElement | null> => {
     const context = this.context.value;
     if (!context) return null;
 
@@ -126,7 +131,7 @@ export class PainterManager {
     this.painterGizmo.options = gizmoWas;
     context.resolution = resolutionWas;
     context.paint();
-    return image;
+    return reencodeSnapshot(image, options);
   };
 
   get verbose(): boolean {
@@ -472,9 +477,7 @@ export function usePainterManager({
   synapses,
   synapsesRadius = 5,
   synapsesMinRadiusInPixels = 4,
-  resetCameraSignal,
-  captureSignal,
-  onCapture,
+  signals,
 }: MorphoViewerSmallCircuitProps) {
   const [, setSpacePerPixel] = React.useState(-1);
   const ref = React.useRef<PainterManager | null>(null);
@@ -482,8 +485,6 @@ export function usePainterManager({
     ref.current = new PainterManager();
   }
   const manager = ref.current;
-  const prevResetRef = React.useRef(resetCameraSignal);
-  const prevCaptureRef = React.useRef(captureSignal);
   React.useEffect(() => {
     manager.eventScalebar.addListener(setSpacePerPixel);
     manager.onLoadProgress = onLoadProgress;
@@ -493,21 +494,21 @@ export function usePainterManager({
   }, [onLoadProgress, manager, verbose, backgroundColor]);
 
   React.useEffect(() => {
-    // Only reset when the signal actually changes — not on mount, and safe under
-    // React Strict Mode's double-invoked effects.
-    if (prevResetRef.current === resetCameraSignal) return;
-    prevResetRef.current = resetCameraSignal;
-    manager.cameraReset();
-  }, [resetCameraSignal, manager]);
+    if (!signals) return;
 
-  React.useEffect(() => {
-    // capture only when the signal actually changes (not on mount / re-render).
-    if (prevCaptureRef.current === captureSignal) return;
-    prevCaptureRef.current = captureSignal;
-    manager.capture().then((image) => {
-      if (image) onCapture?.(image);
-    });
-  }, [captureSignal, onCapture, manager]);
+    const onReset = () => manager.cameraReset();
+    const onSnapshot = (options?: MorphoViewerSnapshotOptions) => {
+      manager.capture(options).then((image) => {
+        if (image) signals.snapshotReady.dispatch(image);
+      });
+    };
+    signals.cameraReset.addListener(onReset);
+    signals.snapshot.addListener(onSnapshot);
+    return () => {
+      signals.cameraReset.removeListener(onReset);
+      signals.snapshot.removeListener(onSnapshot);
+    };
+  }, [signals, manager]);
 
   React.useEffect(() => {
     manager.setCircuit(circuit, loadCell);
