@@ -15,11 +15,12 @@ export type RoutePath =
     | "/morpho-viewer-small-circuit"
     | "/morpho-viewer-small-circuit/cell"
     | "/morpho-viewer-small-circuit/section"
+    | "/morpho-viewer-small-circuit/synapses"
     | "/morpho-viewer-somas-only"
     | "/morphology"
 
 export function isRoutePath(path: string): path is RoutePath {
-    return ["/","/api","/morpho-viewer-octree","/morpho-viewer-simul","/morpho-viewer-small-circuit","/morpho-viewer-small-circuit/cell","/morpho-viewer-small-circuit/section","/morpho-viewer-somas-only","/morphology"].includes(path)
+    return ["/","/api","/morpho-viewer-octree","/morpho-viewer-simul","/morpho-viewer-small-circuit","/morpho-viewer-small-circuit/cell","/morpho-viewer-small-circuit/section","/morpho-viewer-small-circuit/synapses","/morpho-viewer-somas-only","/morphology"].includes(path)
 }
 
 export interface RouteMatch {

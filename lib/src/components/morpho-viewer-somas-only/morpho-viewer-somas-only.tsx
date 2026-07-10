@@ -27,7 +27,7 @@ export function MorphoViewerSomasOnly(props: MorphoViewerSomasOnlyProps) {
         handleToggleFullscreen();
         break;
       case "reset-camera":
-        painterManager.cameraReset();
+        painterManager.cameraReset({ zoom: 1 });
         break;
       case "close":
         props.onClose?.();

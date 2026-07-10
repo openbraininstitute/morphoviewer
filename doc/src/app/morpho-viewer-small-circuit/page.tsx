@@ -13,6 +13,9 @@ export default function Page() {
             One color per <strong>section</strong>
           </a>
         </li>
+        <li>
+          <a href="#/morpho-viewer-small-circuit/synapses">With synapses</a>
+        </li>
       </ul>
     </div>
   );

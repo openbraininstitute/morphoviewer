@@ -16,11 +16,13 @@ import React from "react";
 import { watchSpacePerPixel } from "@/behaviors";
 import { PainterGizmo } from "@/painters/gizmo";
 
-import { reencodeSnapshot } from "../../snapshot";
 import { AdpatativeResolution } from "./adaptative-resolution";
 import { PainterCellInfos } from "./painter-cell-infos";
 
-import type { MorphoViewerSnapshotOptions } from "../../signals";
+import type {
+  MorphoViewerSignalCameraResetOptions,
+  MorphoViewerSignalSnapshotOptions,
+} from "../../signals";
 import type { MorphoViewerCellInfo, MorphoViewerSomasOnlyProps } from "../types";
 
 class PainterManager {
@@ -157,7 +159,7 @@ class PainterManager {
     context.paint();
   }
 
-  readonly cameraReset = () => {
+  readonly cameraReset = (options?: MorphoViewerSignalCameraResetOptions) => {
     const { context, bbox } = this;
     if (!context) return;
 
@@ -179,6 +181,7 @@ class PainterManager {
       // Can be NaN if the screen size has not yet been defined.
       return;
     }
+    resettedCamera.zoom = options?.zoom ?? 1;
     const state = resettedCamera.getCurrentState();
     context.animSchedule({
       duration: 0.5,
@@ -195,8 +198,8 @@ class PainterManager {
    * resolution so text and edges stay crisp on HiDPI screens (the live view may
    * render downscaled), with the gizmo hidden; both are restored afterwards.
    */
-  readonly capture = async (
-    options?: MorphoViewerSnapshotOptions
+  readonly snapshot = async (
+    options?: MorphoViewerSignalSnapshotOptions
   ): Promise<HTMLImageElement | null> => {
     const { context } = this;
     if (!context) return null;
@@ -204,7 +207,11 @@ class PainterManager {
     const gizmoWas = this.painterGizmo.options;
     this.painterGizmo.options = false;
     context.resolution = captureResolution();
-    const snapshot = context.takeSnapshot();
+    const snapshot = context.takeSnapshot({
+      type: "image/png",
+      quality: 0.8,
+      ...options,
+    });
     context.paint();
     const image = await snapshot;
     this.painterGizmo.options = gizmoWas;
@@ -212,7 +219,7 @@ class PainterManager {
     // downscaler re-adjusts on the next interaction.
     this.adaptativeResolution.highRes();
     context.paint();
-    return reencodeSnapshot(image, options);
+    return image;
   };
 
   private applyBBoxToCamera() {
@@ -280,7 +287,7 @@ class PainterManager {
     });
     this.orbit.eventChange.addListener(this.handleCameraChange);
     context.paint();
-    context.execAfterNextPaint(this.cameraReset);
+    context.execAfterNextPaint(() => this.cameraReset());
   }
 
   private _cameraChangeTimeout = -1;
@@ -356,8 +363,8 @@ export function useManager({
   React.useEffect(() => {
     if (!signals) return;
 
-    const unregisterReset = signals.cameraReset.register(() => manager.cameraReset());
-    const unregisterSnapshot = signals.snapshot.register((options) => manager.capture(options));
+    const unregisterReset = signals.cameraReset.register((options) => manager.cameraReset(options));
+    const unregisterSnapshot = signals.snapshot.register((options) => manager.snapshot(options));
     return () => {
       unregisterReset();
       unregisterSnapshot();

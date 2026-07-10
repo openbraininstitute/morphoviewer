@@ -8,21 +8,22 @@ import {
   TgdMaterialDiffuse,
   TgdMaterialFlat,
   TgdMaterialFlatTexture,
+  TgdPainterAxes,
+  TgdPainterBBox,
   TgdPainterGroup,
   TgdPainterMesh,
   TgdQuat,
   TgdTexture2D,
   type TgdTransfo,
   TgdVec4,
-  tgdCanvasCreateFill,
   tgdCanvasCreatePalette,
 } from "@tolokoban/tgd";
 
+import { type MorphoViewerTree, MorphoViewerTreeItemType } from "@/components/morpho-viewer-simul";
 import { int16ToVec3 } from "@/utils";
 
 import { createCellFromTree } from "./factory/tree";
 
-import type { MorphoViewerTree } from "@/components/morpho-viewer-simul";
 import type {
   MorphoViewerSmallCircuitCell,
   MorphoViewerSmallCircuitCellData,
@@ -30,6 +31,7 @@ import type {
 } from "../../types";
 
 export interface PainterCellOptions {
+  name?: string;
   matrerial?: PainterCellMaterialName;
   cell: MorphoViewerSmallCircuitCell;
   loadCell(id: string): Promise<MorphoViewerSmallCircuitCellData | null>;
@@ -43,25 +45,33 @@ export interface PainterCellOptions {
 export type PainterCellMaterialName = "full" | "flat" | number;
 
 export class PainterCell extends TgdPainterGroup {
+  private static ID = 1;
+
   private readonly material: TgdMaterial;
   private _black = false;
   private readonly texturePalette: TgdTexture2D;
   private readonly textureBlack: TgdTexture2D;
   private _isDeleted = false;
+  private _bbox = new TgdBoundingBox();
 
   constructor(
-    private readonly context: TgdContext,
-    private readonly options: PainterCellOptions
+    public readonly context: TgdContext,
+    protected readonly options: PainterCellOptions
   ) {
     super({
-      name: `PainterCell / ${options.cell.id}`,
+      name:
+        options.name ??
+        `PainterCell / ${options.cell.id} #${PainterCell.ID++} [${typeof options.matrerial === "number" ? `ID: ${options.matrerial}` : options.matrerial}]`,
     });
     const { cell } = options;
+    const [x, y, z] = options.cell.center;
+    this.bbox.addSphere(x, y, z, cell.somaRadius * 5);
     const texture = createPaletteTexture(context, cell.color);
     this.texturePalette = texture;
-    this.textureBlack = new TgdTexture2D(context).loadBitmap(tgdCanvasCreateFill(1, 1, "#000"));
+    this.textureBlack = new TgdTexture2D(context).fill("#000");
     const materialType = options.matrerial ?? "full";
     switch (materialType) {
+      // What the user will actually see.
       case "full":
         this.material = new TgdMaterialDiffuse({
           color: texture,
@@ -71,9 +81,11 @@ export class PainterCell extends TgdPainterGroup {
           }),
         });
         break;
+      // The highlights for hovering.
       case "flat":
         this.material = new TgdMaterialFlatTexture({ texture });
         break;
+      // Offscreen selection IDs.
       default:
         this.material = new TgdMaterialFlat({
           color: [...int16ToVec3(materialType), 1],
@@ -92,6 +104,10 @@ export class PainterCell extends TgdPainterGroup {
     });
     this.add(mesh);
     this.loadCell();
+  }
+
+  get bbox(): Readonly<TgdBoundingBox> {
+    return this._bbox;
   }
 
   get isDeleted(): boolean {
@@ -141,9 +157,16 @@ export class PainterCell extends TgdPainterGroup {
         const quat = new TgdQuat(cell.orientation);
         node.transfo.setPosition(x, y, z);
         node.transfo.orientation = quat;
-        onCellLoaded?.(applyTransfoToBBox(node.transfo, bbox));
+        const [sx, sy, sz] = computeSomaCenter(data, node.transfo);
+        const transformedBBox = recenterBBox(applyTransfoToBBox(node.transfo, bbox), sx, sy, sz);
         this.removeAll();
         this.add(node);
+        if (transformedBBox) {
+          this._bbox = transformedBBox;
+        }
+        if (onCellLoaded) {
+          onCellLoaded(transformedBBox);
+        }
         context.paint();
       }
     } catch (error) {
@@ -233,4 +256,43 @@ function applyTransfoToBBox(transfo: TgdTransfo, bbox: TgdBoundingBox): TgdBound
     transformedBBox.addPoint(x, y, z);
   }
   return transformedBBox;
+}
+
+function recenterBBox(bbox: TgdBoundingBox | null, x: number, y: number, z: number) {
+  if (!bbox) return null;
+
+  const sizeX = Math.max(Math.abs(x - bbox.min[0]), Math.abs(x - bbox.max[0]));
+  const sizeY = Math.max(Math.abs(y - bbox.min[1]), Math.abs(y - bbox.max[1]));
+  const sizeZ = Math.max(Math.abs(z - bbox.min[2]), Math.abs(z - bbox.max[2]));
+  bbox.addPoint(x - sizeX, y - sizeY, z - sizeZ);
+  bbox.addPoint(x + sizeX, y + sizeY, z + sizeZ);
+  return bbox;
+}
+
+function computeSomaCenter(data: MorphoViewerSmallCircuitCellData, transfo?: TgdTransfo) {
+  let count = 0;
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  const fringe = [...data.data.roots];
+  while (fringe.length > 0) {
+    const item = fringe.pop();
+    if (!item) break;
+
+    if (item.type !== MorphoViewerTreeItemType.Soma) continue;
+
+    x += item.x;
+    y += item.y;
+    z += item.z;
+    count++;
+    if (item.children) fringe.push(...item.children);
+  }
+  if (count === 0) return [0, 0, 0];
+
+  const center = new TgdVec4(x, y, z, 0).scale(1 / count);
+  center.w = 1;
+  if (transfo) {
+    center.applyMatrix(transfo.matrix);
+  }
+  return center;
 }
