@@ -17,6 +17,13 @@ import React from "react";
 
 import { watchSpacePerPixel } from "@/behaviors";
 import { PainterGizmo } from "@/painters/gizmo";
+import {
+  boundsFromBBox,
+  flattenOverlayMarkers,
+  PainterGroundGrid,
+  resolveGroundGridStep,
+} from "@/painters/ground-grid";
+import { PainterWorldOverlays } from "@/painters/world-overlays";
 import { CacheLRU } from "@/tools/cache-lru";
 
 import { CameraManager } from "./camera";
@@ -28,6 +35,7 @@ import type {
   MorphoViewerSignalCameraResetOptions,
   MorphoViewerSignalSnapshotOptions,
 } from "../../signals";
+import type { MorphoViewerWorldOverlay } from "../../types";
 import type {
   MorphoViewerSmallCircuitCell,
   MorphoViewerSmallCircuitCellData,
@@ -98,14 +106,48 @@ export class PainterManager {
   private bbox = new TgdBoundingBox();
   private _verbose = false;
   private readonly painterGizmo = new PainterGizmo();
+  private readonly painterGroundGrid = new PainterGroundGrid();
+  private painterOverlays: PainterWorldOverlays | null = null;
   private painterSynapses: PainterSynapses | null = null;
   private readonly cellPainters: PainterCell[] = [];
+  private _overlays: MorphoViewerWorldOverlay[] = [];
+  private _overlaysRadius = 5;
+  private _overlaysMinRadiusInPixels = 4;
+  private _synapses: MorphoViewerWorldOverlay[] = [];
+  private _synapsesRadius = 5;
+  private _synapsesMinRadiusInPixels = 4;
+  private _neuronOpacity = 1;
+  private spacePerPixel = 1;
 
   get gizmo() {
     return this.painterGizmo.options;
   }
   set gizmo(gizmo: TgdPainterGizmoOptions | boolean | null | undefined) {
     this.painterGizmo.options = gizmo ?? false;
+  }
+
+  get groundGrid(): boolean {
+    return this.painterGroundGrid.enabled;
+  }
+  set groundGrid(groundGrid: boolean) {
+    this.painterGroundGrid.enabled = groundGrid;
+    if (groundGrid) this.updateGroundGrid();
+  }
+
+  get neuronOpacity(): number {
+    return this._neuronOpacity;
+  }
+  set neuronOpacity(neuronOpacity: number) {
+    const opacity = clamp01(neuronOpacity);
+    if (this._neuronOpacity === opacity) return;
+
+    this._neuronOpacity = opacity;
+    this.groupCells.forEachChild((painter) => {
+      if (painter instanceof PainterCell) {
+        painter.opacity = opacity;
+      }
+    });
+    this.context.value?.paint();
   }
 
   readonly cameraReset = (options?: MorphoViewerSignalCameraResetOptions) =>
@@ -151,17 +193,48 @@ export class PainterManager {
     if (this.context.value) this.context.value.verbose = verbose;
   }
 
+  setOverlays(
+    overlays: MorphoViewerWorldOverlay[] | undefined,
+    overlaysRadius: number,
+    overlaysMinRadiusInPixels: number
+  ) {
+    this._overlays = overlays ?? [];
+    this._overlaysRadius = overlaysRadius;
+    this._overlaysMinRadiusInPixels = overlaysMinRadiusInPixels;
+    this.applyOverlays();
+    // Do NOT expand the circuit camera bbox or re-fit for overlays.
+    // Orbit must stay centered on the circuit (hiding electrodes previously
+    // "fixed" rotation because it stopped this path from running).
+    this.updateGroundGrid();
+  }
+
   setSynapses(
-    synapses: { color: string; coordinates: Float32Array | number[] }[] | undefined,
+    synapses: MorphoViewerWorldOverlay[] | undefined,
     synapsesRadius: number,
     synapsesMinRadiusInPixels: number
   ) {
+    this._synapses = synapses ?? [];
+    this._synapsesRadius = synapsesRadius;
+    this._synapsesMinRadiusInPixels = synapsesMinRadiusInPixels;
+    this.applySynapses();
+  }
+
+  private applyOverlays() {
+    const { painterOverlays } = this;
+    if (!painterOverlays) return;
+
+    painterOverlays.overlays = this._overlays;
+    painterOverlays.radius = this._overlaysRadius;
+    painterOverlays.minRadiusInPixels = this._overlaysMinRadiusInPixels;
+  }
+
+  private applySynapses() {
     const { painterSynapses } = this;
     if (!painterSynapses) return;
 
-    painterSynapses.synapses = synapses ?? [];
-    painterSynapses.radius = synapsesRadius;
-    painterSynapses.minRadiusInPixels = synapsesMinRadiusInPixels;
+    painterSynapses.synapses = this._synapses;
+    painterSynapses.radius = this._synapsesRadius;
+    painterSynapses.minRadiusInPixels = this._synapsesMinRadiusInPixels;
   }
 
   setCircuit(
@@ -232,10 +305,12 @@ export class PainterManager {
           cell,
           loadCell,
           matrerial: "full",
+          opacity: this._neuronOpacity,
           onCellLoaded: (bbox) => {
             if (bbox) {
               //   recenterBBox(bbox, x, y, z);
               //   this.bbox.addBBox(bbox);
+              this.updateGroundGrid();
             }
             if (this.fitCameraOnUpdate) {
               this.adaptCameraFromBBox();
@@ -253,6 +328,7 @@ export class PainterManager {
         highlightingCells.set(cell.id, highlightedCell);
       }
       this.updateHightedCells();
+      this.updateGroundGrid();
       if (this.fitCameraOnUpdate) {
         this.adaptCameraFromBBox();
       }
@@ -379,13 +455,18 @@ export class PainterManager {
       verbose: this.verbose,
       name: "RenderingContext",
     });
+    const painterOverlays = new PainterWorldOverlays(context);
+    this.painterOverlays = painterOverlays;
+    this.applyOverlays();
     const painterSynapses = new PainterSynapses(context);
     this.painterSynapses = painterSynapses;
+    this.applySynapses();
     this.context.value = context;
     context.camera = new TgdCameraOrthographic({
       zoom: 1,
     });
     watchSpacePerPixel(context, this.eventScalebar);
+    this.eventScalebar.addListener(this.handleSpacePerPixel);
     context.inputs.pointer.eventHover.addListener(this.handlePointerHover);
     context.inputs.pointer.eventTap.addListener(this.handlePointerTap);
     context.inputs.pointer.eventTapMultiple.addListener(this.debug);
@@ -401,12 +482,24 @@ export class PainterManager {
       depth: 1,
     });
     this.painterClear = clear;
+    this.painterGizmo.context = context;
+    this.painterGroundGrid.context = context;
+    this.updateGroundGrid();
+    // Neurons + synapses share depth; electrode overlays use depth off so they
+    // stay visible through (and in front of) neuron depth writes.
     context.add(
       clear,
+      this.painterGroundGrid,
       new TgdPainterState(context, {
         depth: "less",
         cull: "back",
+        blend: "alpha",
         children: [this.groupCells, painterSynapses],
+      }),
+      new TgdPainterState(context, {
+        depth: "off",
+        cull: "back",
+        children: [painterOverlays],
       }),
       // Highlighted cells
       new TgdPainterClear(context, { name: "Clear depth", depth: 1 }),
@@ -417,6 +510,28 @@ export class PainterManager {
         children: [this.groupHighlithedCells],
       }),
       this.painterGizmo
+    );
+  }
+
+  private readonly handleSpacePerPixel = (spacePerPixel: number) => {
+    this.spacePerPixel = spacePerPixel;
+    // Only refresh grid *spacing* on zoom — never rebuild markers/bounds here.
+    // Full rebuilds during orbit paint loops destroy rotation smoothness.
+    if (!this.painterGroundGrid.enabled) return;
+    this.painterGroundGrid.setStep(resolveGroundGridStep(spacePerPixel));
+  };
+
+  private updateGroundGrid() {
+    if (!this.painterGroundGrid.enabled) return;
+    // Markers expand the floor patch to cover electrodes, but we do not draw
+    // drop lines — those world-locked stalks made orbit feel like tumbling space.
+    const markers = flattenOverlayMarkers(this._overlays);
+    const { min, max } = this.bbox;
+    this.painterGroundGrid.setLayout(
+      boundsFromBBox(min, max, 0.2, markers),
+      resolveGroundGridStep(this.spacePerPixel),
+      // empty markers → no drop lines
+      []
     );
   }
 
@@ -478,6 +593,11 @@ export class PainterManager {
     this.groupCells.removeAll();
     this.painterClear?.delete();
     this.painterClear = null;
+    this.painterOverlays = null;
+    this.painterSynapses = null;
+    this.painterGroundGrid.context = null;
+    this.painterGizmo.context = null;
+    this.eventScalebar.removeListener(this.handleSpacePerPixel);
     if (this.context.value) {
       this.context.value.inputs.pointer.eventHover.removeListener(this.handlePointerHover);
       this.context.value.delete();
@@ -495,10 +615,15 @@ export function usePainterManager({
   highlightedCellIds,
   onLoadProgress,
   gizmo,
+  groundGrid = false,
   verbose,
+  overlays,
+  overlaysRadius = 5,
+  overlaysMinRadiusInPixels = 4,
   synapses,
   synapsesRadius = 5,
   synapsesMinRadiusInPixels = 4,
+  neuronOpacity = 1,
   signals,
 }: MorphoViewerSmallCircuitProps) {
   const [, setSpacePerPixel] = React.useState(-1);
@@ -533,8 +658,14 @@ export function usePainterManager({
     manager.highlightedCellIds = highlightedCellIds;
   }, [highlightedCellIds, manager]);
   React.useEffect(() => {
+    manager.setOverlays(overlays, overlaysRadius, overlaysMinRadiusInPixels);
+  }, [overlays, overlaysRadius, overlaysMinRadiusInPixels, manager]);
+  React.useEffect(() => {
     manager.setSynapses(synapses, synapsesRadius, synapsesMinRadiusInPixels);
   }, [synapses, synapsesRadius, synapsesMinRadiusInPixels, manager]);
+  React.useEffect(() => {
+    manager.neuronOpacity = neuronOpacity;
+  }, [neuronOpacity, manager]);
   React.useEffect(() => {
     if (!onCellHover) return;
 
@@ -554,6 +685,14 @@ export function usePainterManager({
   React.useEffect(() => {
     manager.gizmo = gizmo ?? false;
   }, [gizmo, manager]);
+  React.useEffect(() => {
+    manager.groundGrid = groundGrid;
+  }, [groundGrid, manager]);
 
   return ref.current;
+}
+
+function clamp01(value: number): number {
+  if (Number.isNaN(value)) return 1;
+  return Math.min(1, Math.max(0, value));
 }

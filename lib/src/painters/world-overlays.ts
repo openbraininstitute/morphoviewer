@@ -6,24 +6,21 @@ import {
   tgdCanvasCreatePalette,
 } from "@tolokoban/tgd";
 
-export type MorphoViewerSynapseGroup = {
-  color: string;
-  coordinates: Float32Array | number[];
-};
+import type { MorphoViewerWorldOverlay } from "../components/types";
 
 /**
- * Synapse point-cloud painter for small circuits.
- * Separate from {@link PainterWorldOverlays} (electrodes / markers).
+ * Multi-colour world-space point overlays (electrodes, markers, …).
+ * Synapses use {@link PainterSynapses} instead — keep the two APIs separate.
  */
-export class PainterSynapses extends TgdPainterGroup {
+export class PainterWorldOverlays extends TgdPainterGroup {
   private readonly texture: TgdTexture2D;
-  private _synapses: MorphoViewerSynapseGroup[] = [];
+  private _overlays: MorphoViewerWorldOverlay[] = [];
   private painter: TgdPainterPointsCloud | null = null;
   private _radius = 5;
   private _minRadiusInPixels = 4;
 
   constructor(public readonly context: TgdContext) {
-    super({ name: "PainterSynapses" });
+    super({ name: "PainterWorldOverlays" });
     this.texture = new TgdTexture2D(context, {
       params: {
         magFilter: "NEAREST",
@@ -60,22 +57,25 @@ export class PainterSynapses extends TgdPainterGroup {
     }
   }
 
-  get synapses(): MorphoViewerSynapseGroup[] {
-    return this._synapses;
+  get overlays(): MorphoViewerWorldOverlay[] {
+    return this._overlays;
   }
-  set synapses(synapses: MorphoViewerSynapseGroup[]) {
-    if (this._synapses === synapses) return;
+  set overlays(overlays: MorphoViewerWorldOverlay[]) {
+    if (sameOverlayContent(this._overlays, overlays)) {
+      this._overlays = overlays;
+      return;
+    }
 
-    this._synapses = synapses;
+    this._overlays = overlays;
     this.removeAll();
     this.painter = null;
-    if (synapses.length > 0) {
-      this.texture.loadBitmap(tgdCanvasCreatePalette(synapses.map((synapse) => synapse.color)));
+    if (overlays.length > 0) {
+      this.texture.loadBitmap(tgdCanvasCreatePalette(overlays.map((overlay) => overlay.color)));
       const attXYZR: number[] = [];
       const attUV: number[] = [];
-      for (let indexGroup = 0; indexGroup < synapses.length; indexGroup++) {
-        const group = synapses[indexGroup];
-        const u = (indexGroup + 0.5) / synapses.length;
+      for (let indexGroup = 0; indexGroup < overlays.length; indexGroup++) {
+        const group = overlays[indexGroup];
+        const u = (indexGroup + 0.5) / overlays.length;
         for (let indexCoords = 0; indexCoords < group.coordinates.length; indexCoords += 3) {
           const x = group.coordinates[indexCoords + 0];
           const y = group.coordinates[indexCoords + 1];
@@ -96,4 +96,22 @@ export class PainterSynapses extends TgdPainterGroup {
     }
     this.context.paint();
   }
+}
+
+function sameOverlayContent(
+  a: MorphoViewerWorldOverlay[],
+  b: MorphoViewerWorldOverlay[]
+): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].color !== b[i].color) return false;
+    const ca = a[i].coordinates;
+    const cb = b[i].coordinates;
+    if (ca.length !== cb.length) return false;
+    for (let j = 0; j < ca.length; j++) {
+      if (ca[j] !== cb[j]) return false;
+    }
+  }
+  return true;
 }

@@ -114,3 +114,21 @@ export interface PropsForScalebar {
    */
   scalebar?: boolean | string | ScalebarConfig;
 }
+
+export interface PropsForGroundGrid {
+  /**
+   * Show a horizontal floor/ground grid under the scene (XZ plane, Y-up).
+   * Spacing tracks the scalebar's `spacePerPixel` stream. Default `false`.
+   */
+  groundGrid?: boolean;
+}
+
+/**
+ * World-space coloured point group (electrodes, markers, …).
+ * `coordinates` is a flat xyz array: `[x0,y0,z0, x1,y1,z1, ...]`.
+ * Synapses are configured separately via the small-circuit `synapses` prop.
+ */
+export interface MorphoViewerWorldOverlay {
+  color: string;
+  coordinates: Float32Array | number[];
+}

@@ -15,6 +15,13 @@ import React from "react";
 
 import { watchSpacePerPixel } from "@/behaviors";
 import { PainterGizmo } from "@/painters/gizmo";
+import {
+  boundsFromBBox,
+  flattenOverlayMarkers,
+  PainterGroundGrid,
+  resolveGroundGridStep,
+} from "@/painters/ground-grid";
+import { PainterWorldOverlays } from "@/painters/world-overlays";
 
 import { AdpatativeResolution } from "./adaptative-resolution";
 import { PainterCellInfos } from "./painter-cell-infos";
@@ -23,6 +30,7 @@ import type {
   MorphoViewerSignalCameraResetOptions,
   MorphoViewerSignalSnapshotOptions,
 } from "../../signals";
+import type { MorphoViewerWorldOverlay } from "../../types";
 import type { MorphoViewerCellInfo, MorphoViewerSomasOnlyProps } from "../types";
 
 class PainterManager {
@@ -36,6 +44,10 @@ class PainterManager {
   private _backgroundColor = "black";
   private readonly parsedBackgroundColor = new TgdColor(0, 0, 0, 1);
   private painterCellInfos: PainterCellInfos | null = null;
+  private painterOverlays: PainterWorldOverlays | null = null;
+  private _overlays: MorphoViewerWorldOverlay[] = [];
+  private _overlaysRadius = 5;
+  private _overlaysMinRadiusInPixels = 4;
   /** the scene node that holds the point cloud; kept so a recolor can swap the
    * cloud in place without recreating the context (preserving the camera). */
   private state: TgdPainterState | null = null;
@@ -45,8 +57,11 @@ class PainterManager {
   private bbox = new TgdBoundingBox();
   private scalebarCleanup: (() => void) | null = null;
   private readonly painterGizmo = new PainterGizmo();
+  private readonly painterGroundGrid = new PainterGroundGrid();
   private readonly adaptativeResolution = new AdpatativeResolution();
   private _somaRadius = 1;
+  private _neuronOpacity = 1;
+  private spacePerPixel = 1;
   private readonly cameraOrtho = new TgdCameraOrthographic({
     name: "CameraOrtho",
   });
@@ -77,6 +92,14 @@ class PainterManager {
     this.painterGizmo.options = gizmo ?? false;
   }
 
+  get groundGrid(): boolean {
+    return this.painterGroundGrid.enabled;
+  }
+  set groundGrid(groundGrid: boolean) {
+    this.painterGroundGrid.enabled = groundGrid;
+    if (groundGrid) this.updateGroundGrid();
+  }
+
   get somaRadius(): number {
     return this._somaRadius;
   }
@@ -89,6 +112,19 @@ class PainterManager {
       painterCellInfos.somaRadius = somaRadius;
     }
     this.adaptativeResolution.reset();
+  }
+
+  get neuronOpacity(): number {
+    return this._neuronOpacity;
+  }
+  set neuronOpacity(neuronOpacity: number) {
+    const opacity = clamp01(neuronOpacity);
+    if (this._neuronOpacity === opacity) return;
+
+    this._neuronOpacity = opacity;
+    if (this.painterCellInfos) {
+      this.painterCellInfos.opacity = opacity;
+    }
   }
 
   get canvas(): HTMLCanvasElement | null {
@@ -143,6 +179,30 @@ class PainterManager {
     this.initialize();
   }
 
+  setOverlays(
+    overlays: MorphoViewerWorldOverlay[] | undefined,
+    overlaysRadius: number,
+    overlaysMinRadiusInPixels: number
+  ) {
+    this._overlays = overlays ?? [];
+    this._overlaysRadius = overlaysRadius;
+    this._overlaysMinRadiusInPixels = overlaysMinRadiusInPixels;
+    this.applyOverlays();
+    // Do NOT expand the circuit camera bbox or re-fit for overlays.
+    // Orbit must stay centered on the somas (same as small-circuit).
+    this.context?.paint();
+    this.updateGroundGrid();
+  }
+
+  private applyOverlays() {
+    const { painterOverlays } = this;
+    if (!painterOverlays) return;
+
+    painterOverlays.overlays = this._overlays;
+    painterOverlays.radius = this._overlaysRadius;
+    painterOverlays.minRadiusInPixels = this._overlaysMinRadiusInPixels;
+  }
+
   /** rebuild only the point cloud inside the existing scene/context. */
   private recolorInPlace() {
     const { context, state, cellInfos } = this;
@@ -152,6 +212,7 @@ class PainterManager {
     const painterCellInfos = new PainterCellInfos(context, {
       cellInfos,
       somaRadius: this.somaRadius,
+      opacity: this._neuronOpacity,
     });
     this.painterCellInfos = painterCellInfos;
     this.bbox = painterCellInfos.bbox;
@@ -257,6 +318,7 @@ class PainterManager {
     this.context = context;
     this.adaptativeResolution.context = context;
     this.scalebarCleanup = watchSpacePerPixel(context, this.eventScalebar);
+    this.eventScalebar.addListener(this.handleSpacePerPixel);
     this.parsedBackgroundColor.parse(this._backgroundColor);
     const clear = new TgdPainterClear(context, {
       color: this.parsedBackgroundColor.toArayNumber4(),
@@ -266,17 +328,34 @@ class PainterManager {
     const painterCellInfos = new PainterCellInfos(context, {
       cellInfos,
       somaRadius: this.somaRadius,
+      opacity: this._neuronOpacity,
     });
     this.painterCellInfos = painterCellInfos;
+    const painterOverlays = new PainterWorldOverlays(context);
+    this.painterOverlays = painterOverlays;
+    this.applyOverlays();
+    // Translucent somas first; overlays with depth off so they stay visible.
     const state = new TgdPainterState(context, {
       depth: "less",
+      blend: "alpha",
       children: [painterCellInfos],
     });
     this.state = state;
     this.painterGizmo.context = context;
-    context.add(clear, state, this.painterGizmo);
+    this.painterGroundGrid.context = context;
+    context.add(
+      clear,
+      this.painterGroundGrid,
+      state,
+      new TgdPainterState(context, {
+        depth: "off",
+        children: [painterOverlays],
+      }),
+      this.painterGizmo
+    );
     const { bbox } = painterCellInfos;
     this.bbox = bbox;
+    this.updateGroundGrid();
     const camera = this.cameraType === "orthographic" ? this.cameraOrtho : this.cameraPersp;
     context.camera = camera;
     this.applyBBoxToCamera();
@@ -288,6 +367,28 @@ class PainterManager {
     this.orbit.eventChange.addListener(this.handleCameraChange);
     context.paint();
     context.execAfterNextPaint(() => this.cameraReset());
+  }
+
+  private readonly handleSpacePerPixel = (spacePerPixel: number) => {
+    this.spacePerPixel = spacePerPixel;
+    // Only refresh grid *spacing* on zoom — never rebuild markers/bounds here.
+    // Full rebuilds during orbit paint loops destroy rotation smoothness.
+    if (!this.painterGroundGrid.enabled) return;
+    this.painterGroundGrid.setStep(resolveGroundGridStep(spacePerPixel));
+  };
+
+  private updateGroundGrid() {
+    if (!this.painterGroundGrid.enabled) return;
+    // Markers expand the floor patch to cover electrodes, but we do not draw
+    // drop lines — those world-locked stalks made orbit feel like tumbling space.
+    const markers = flattenOverlayMarkers(this._overlays);
+    const { min, max } = this.bbox;
+    this.painterGroundGrid.setLayout(
+      boundsFromBBox(min, max, 0.2, markers),
+      resolveGroundGridStep(this.spacePerPixel),
+      // empty markers → no drop lines
+      []
+    );
   }
 
   private _cameraChangeTimeout = -1;
@@ -312,11 +413,15 @@ class PainterManager {
     }
 
     this.scalebarCleanup?.();
+    this.eventScalebar.removeListener(this.handleSpacePerPixel);
     this.orbit?.detach();
     this.orbit = null;
     this.painterClear = null;
     this.state = null;
     this.painterCellInfos = null;
+    this.painterOverlays = null;
+    this.painterGroundGrid.context = null;
+    this.painterGizmo.context = null;
     this.context.delete();
     this.context = null;
   }
@@ -343,12 +448,22 @@ function sameGeometry(a: MorphoViewerCellInfo[], b: MorphoViewerCellInfo[]): boo
   return true;
 }
 
+function clamp01(value: number): number {
+  if (Number.isNaN(value)) return 1;
+  return Math.min(1, Math.max(0, value));
+}
+
 export function useManager({
   cellInfos,
   somaRadius,
   gizmo,
+  groundGrid = false,
   cameraType,
   backgroundColor,
+  overlays,
+  overlaysRadius = 5,
+  overlaysMinRadiusInPixels = 4,
+  neuronOpacity = 1,
   signals,
 }: MorphoViewerSomasOnlyProps): PainterManager {
   const refManager = React.useRef<PainterManager | null>(null);
@@ -377,8 +492,17 @@ export function useManager({
     manager.somaRadius = somaRadius ?? DEFAULT_SOMA_RADIUS;
   }, [somaRadius, manager]);
   React.useEffect(() => {
+    manager.neuronOpacity = neuronOpacity;
+  }, [neuronOpacity, manager]);
+  React.useEffect(() => {
+    manager.setOverlays(overlays, overlaysRadius, overlaysMinRadiusInPixels);
+  }, [overlays, overlaysRadius, overlaysMinRadiusInPixels, manager]);
+  React.useEffect(() => {
     manager.gizmo = gizmo;
   }, [gizmo, manager]);
+  React.useEffect(() => {
+    manager.groundGrid = groundGrid;
+  }, [groundGrid, manager]);
   return refManager.current;
 }
 

@@ -1,7 +1,12 @@
 import type { ControlsLayoutProps } from "../controls-layout";
 import type { MorphoViewerTree } from "../morpho-viewer-simul";
 import type { MorphoViewerSignals } from "../signals";
-import type { PropsForGizmo, PropsForScalebar } from "../types";
+import type {
+  MorphoViewerWorldOverlay,
+  PropsForGizmo,
+  PropsForGroundGrid,
+  PropsForScalebar,
+} from "../types";
 
 export interface SectionColors {
   soma: string;
@@ -26,16 +31,33 @@ export type MorphoViewerSmallCircuitCellData = {
 };
 
 export type MorphoViewerSmallCircuitProps = PropsForGizmo &
-  PropsForScalebar & {
+  PropsForScalebar &
+  PropsForGroundGrid & {
     className?: string;
     backgroundColor?: string;
     circuit: MorphoViewerSmallCircuitCell[];
+    /**
+     * World-space point overlays (electrodes, markers, …).
+     * Independent from {@link synapses}.
+     */
+    overlays?: MorphoViewerWorldOverlay[];
+    overlaysRadius?: number;
+    overlaysMinRadiusInPixels?: number;
+    /**
+     * Synapse point groups (colour + flat xyz coordinates).
+     * Independent from {@link overlays}.
+     */
     synapses?: Array<{
       color: string;
       coordinates: Float32Array | number[];
     }>;
     synapsesRadius?: number;
     synapsesMinRadiusInPixels?: number;
+    /**
+     * Neuron mesh opacity in `[0..1]`. Default `1` (opaque).
+     * Translucent neurons are painted before overlays.
+     */
+    neuronOpacity?: number;
     /**
      * Ids of the cells we want to highlight.
      */

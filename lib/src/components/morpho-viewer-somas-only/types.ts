@@ -1,7 +1,12 @@
 import type { ArrayNumber3 } from "@tolokoban/tgd";
 import type { ControlsLayoutProps } from "../controls-layout";
 import type { MorphoViewerSignals } from "../signals";
-import type { PropsForGizmo, PropsForScalebar } from "../types";
+import type {
+  MorphoViewerWorldOverlay,
+  PropsForGizmo,
+  PropsForGroundGrid,
+  PropsForScalebar,
+} from "../types";
 
 export interface MorphoViewerCellInfo {
   morphologyId: string;
@@ -24,7 +29,8 @@ export interface MorphoViewerCellInfo {
 }
 
 export type MorphoViewerSomasOnlyProps = PropsForGizmo &
-  PropsForScalebar & {
+  PropsForScalebar &
+  PropsForGroundGrid & {
     className?: string;
     somaRadius?: number;
     cellInfos: MorphoViewerCellInfo[];
@@ -34,6 +40,17 @@ export type MorphoViewerSomasOnlyProps = PropsForGizmo &
      * defaults to black to preserve legacy behavior
      */
     backgroundColor?: string;
+    /**
+     * World-space point overlays (electrodes, markers, …).
+     */
+    overlays?: MorphoViewerWorldOverlay[];
+    overlaysRadius?: number;
+    overlaysMinRadiusInPixels?: number;
+    /**
+     * Soma point-cloud opacity in `[0..1]`. Default `1` (opaque).
+     * Translucent somas are painted before overlays.
+     */
+    neuronOpacity?: number;
     /**
      * imperative signal bus for camera reset and image capture. Create one with
      * `new MorphoViewerSignals()` and dispatch its signals to trigger actions;
