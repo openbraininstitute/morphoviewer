@@ -27,5 +27,15 @@ export { useEventState, useEventValue } from "./utils";
 export type { CanvasOptions } from "./abstract-canvas";
 export type { ColorsInterface } from "./colors";
 export type { MorphoViewerSignalSnapshotOptions as MorphoViewerSnapshotOptions } from "./components/signals";
-export type { ScalebarConfig } from "./components/types";
+export type {
+  PropsForGizmo,
+  PropsForScalebar,
+  ScalebarConfig,
+  ScalebarLabelsConfig,
+  ScalebarOrientation,
+  ScalebarPinsConfig,
+  ScalebarPlacement,
+  ScalebarSide,
+  ScalebarWhen,
+} from "./components/types";
 export type { ColoringType } from "./types";
