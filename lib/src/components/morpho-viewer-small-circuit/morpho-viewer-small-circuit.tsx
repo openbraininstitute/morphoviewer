@@ -64,7 +64,7 @@ export function MorphoViewerSmallCircuit(props: MorphoViewerSmallCircuitProps) {
         handleToggleFullscreen();
         break;
       case "reset-camera":
-        manager.cameraReset();
+        manager.cameraReset({ zoom: 1 });
         break;
       case "close":
         props.onClose?.();

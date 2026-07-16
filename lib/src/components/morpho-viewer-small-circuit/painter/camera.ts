@@ -9,6 +9,8 @@ import {
   tgdEasingFunctionInOutCubic,
 } from "@tolokoban/tgd";
 
+import { MorphoViewerSignalCameraResetOptions } from "@/components/signals";
+
 const ZOOM_MIN = 0.25;
 const ZOOM_MAX = 100;
 
@@ -33,8 +35,9 @@ export class CameraManager {
     eventRestingPosition.dispatch(true);
   }
 
-  resetCamera() {
+  resetCamera(options: MorphoViewerSignalCameraResetOptions = {}) {
     const { context } = this;
+    this.target.zoom = options.zoom ?? this.target.zoom;
     context.animCancelArray(this.animations);
     this.animations = context.animSchedule({
       duration: 0.5,

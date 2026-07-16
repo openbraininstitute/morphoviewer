@@ -1,9 +1,16 @@
 /** options for an image capture */
-export interface MorphoViewerSnapshotOptions {
+export interface MorphoViewerSignalSnapshotOptions {
   /** output image type. Defaults to `"image/png"`. */
   type?: "image/png" | "image/webp" | "image/jpeg";
   /** quality between `0` and `1` for lossy types (webp/jpeg). Defaults to `0.92`. */
   quality?: number;
+}
+
+export interface MorphoViewerSignalCameraResetOptions {
+  /**
+   * By default, the zoom is reset to 1.
+   */
+  zoom?: number;
 }
 
 /**
@@ -40,7 +47,9 @@ export class MorphoViewerSignal<Input = void, Output = void> {
  */
 export class MorphoViewerSignals {
   /** dispatch to reset the camera to fit the scene's bounding box */
-  public readonly cameraReset = new MorphoViewerSignal();
+  public readonly cameraReset = new MorphoViewerSignal<
+    MorphoViewerSignalCameraResetOptions | undefined
+  >();
   /**
    * dispatch to capture the current view as an image (the gizmo is excluded).
    *
@@ -49,7 +58,7 @@ export class MorphoViewerSignals {
    * revoking.
    */
   public readonly snapshot = new MorphoViewerSignal<
-    MorphoViewerSnapshotOptions | undefined,
+    MorphoViewerSignalSnapshotOptions | undefined,
     HTMLImageElement | null
   >();
 }

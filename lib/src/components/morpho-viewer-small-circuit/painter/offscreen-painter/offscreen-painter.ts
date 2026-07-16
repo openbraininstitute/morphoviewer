@@ -9,7 +9,7 @@ import {
 
 import { vec3ToInt16 } from "@/utils";
 
-import { PainterCell } from "../painter-cell";
+import { PainterCellId } from "../painter-cell";
 
 import type { CacheLRU } from "@/tools/cache-lru";
 import type { MorphoViewerSmallCircuitCell, MorphoViewerSmallCircuitCellData } from "../../types";
@@ -57,10 +57,10 @@ export class OffscreenPainter {
     );
     let index = FIRST_INDEX;
     for (const cell of this.circuit) {
-      const mesh = new PainterCell(context, {
+      const mesh = new PainterCellId(context, {
         cell,
         loadCell: options.loadCell,
-        matrerial: index,
+        id: index,
       });
       this.group.add(mesh);
       index++;

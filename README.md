@@ -32,6 +32,15 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.30.1
+
+- Fix **bounding box** computation in `MorphoViewerSmallCircuit` by recentering each cell's bbox around its soma center
+  - Prevents camera framing issues when morphologies extend asymmetrically from their soma
+- Add **`zoom` option** to `cameraReset` signal for controlling zoom level on reset
+- Simplify **snapshot** pipeline by removing the `reencodeSnapshot` step and passing options directly to `takeSnapshot`
+- Export additional **scalebar types** (`ScalebarLabelsConfig`, `ScalebarOrientation`, `ScalebarPinsConfig`, `ScalebarPlacement`, `ScalebarSide`, `ScalebarWhen`)
+- Refactor `PainterCell` into separate `PainterCellFlat` and `PainterCellId` subclasses for cleaner separation of concerns
+
 ### v0.30.0
 
 - Add **per-cell soma coloring** to `MorphoViewerSomasOnly` via optional `color` on each cell info

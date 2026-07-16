@@ -19,13 +19,15 @@ import { watchSpacePerPixel } from "@/behaviors";
 import { PainterGizmo } from "@/painters/gizmo";
 import { CacheLRU } from "@/tools/cache-lru";
 
-import { reencodeSnapshot } from "../../snapshot";
 import { CameraManager } from "./camera";
 import { OffscreenPainter } from "./offscreen-painter";
-import { PainterCell } from "./painter-cell";
+import { PainterCell, PainterCellFlat } from "./painter-cell";
 import { PainterSynapses } from "./painter-synapses";
 
-import type { MorphoViewerSnapshotOptions } from "../../signals";
+import type {
+  MorphoViewerSignalCameraResetOptions,
+  MorphoViewerSignalSnapshotOptions,
+} from "../../signals";
 import type {
   MorphoViewerSmallCircuitCell,
   MorphoViewerSmallCircuitCellData,
@@ -97,6 +99,7 @@ export class PainterManager {
   private _verbose = false;
   private readonly painterGizmo = new PainterGizmo();
   private painterSynapses: PainterSynapses | null = null;
+  private readonly cellPainters: PainterCell[] = [];
 
   get gizmo() {
     return this.painterGizmo.options;
@@ -105,7 +108,8 @@ export class PainterManager {
     this.painterGizmo.options = gizmo ?? false;
   }
 
-  readonly cameraReset = () => this.cameraManager?.resetCamera();
+  readonly cameraReset = (options?: MorphoViewerSignalCameraResetOptions) =>
+    this.cameraManager?.resetCamera(options);
 
   /**
    * capture the current view as an image, without the gizmo. The snapshot is
@@ -114,8 +118,8 @@ export class PainterManager {
    * resolution so text and edges stay crisp on HiDPI screens; the gizmo is
    * hidden for the capture frame and both are restored right after.
    */
-  readonly capture = async (
-    options?: MorphoViewerSnapshotOptions
+  readonly snapshot = async (
+    options?: MorphoViewerSignalSnapshotOptions
   ): Promise<HTMLImageElement | null> => {
     const context = this.context.value;
     if (!context) return null;
@@ -124,13 +128,17 @@ export class PainterManager {
     const resolutionWas = context.resolution;
     this.painterGizmo.options = false;
     context.resolution = Math.max(1, Math.min(globalThis.devicePixelRatio || 1, 3));
-    const snapshot = context.takeSnapshot();
+    const snapshot = context.takeSnapshot({
+      type: "image/png",
+      quality: 0.8,
+      ...options,
+    });
     context.paint();
     const image = await snapshot;
     this.painterGizmo.options = gizmoWas;
     context.resolution = resolutionWas;
     context.paint();
-    return reencodeSnapshot(image, options);
+    return image;
   };
 
   get verbose(): boolean {
@@ -199,6 +207,7 @@ export class PainterManager {
       return;
     }
 
+    console.log(">>> updateCircuit");
     try {
       this.groupCells.removeAll();
       this.onLoadProgress?.(0);
@@ -214,6 +223,7 @@ export class PainterManager {
       highlightingCells.clear();
       this.groupHighlithedCells.removeAll(false);
       this.bbox = new TgdBoundingBox();
+      this.cellPainters.splice(0);
       for (const cell of this.circuit) {
         const [x, y, z] = cell.center;
         const r = cell.somaRadius;
@@ -224,7 +234,8 @@ export class PainterManager {
           matrerial: "full",
           onCellLoaded: (bbox) => {
             if (bbox) {
-              this.bbox.addBBox(bbox);
+              //   recenterBBox(bbox, x, y, z);
+              //   this.bbox.addBBox(bbox);
             }
             if (this.fitCameraOnUpdate) {
               this.adaptCameraFromBBox();
@@ -233,11 +244,11 @@ export class PainterManager {
             this.onLoadProgress?.(this.cellCountLoaded / this.cellCountTotal);
           },
         });
+        this.cellPainters.push(painterCell);
         this.groupCells.add(painterCell);
-        const highlightedCell = new PainterCell(context, {
+        const highlightedCell = new PainterCellFlat(context, {
           cell,
           loadCell,
-          matrerial: "flat",
         });
         highlightingCells.set(cell.id, highlightedCell);
       }
@@ -248,6 +259,9 @@ export class PainterManager {
       context.paint();
     } catch (ex) {
       console.error("Unable ton update circuit:", ex);
+    } finally {
+      console.log("🐞 [manager@258] this.cellPainters.length =", this.cellPainters.length); // @FIXME: Remove this line written on 2026-07-10 at 11:10
+      console.log("<<< updateCircuit");
     }
   };
 
@@ -256,7 +270,7 @@ export class PainterManager {
       const context = this.context.value;
       if (!context) return;
 
-      const { bbox } = this;
+      const bbox = this.combineCellsBBoxes();
       if (bbox.min[0] > bbox.max[0]) return;
 
       const { camera } = context;
@@ -295,6 +309,15 @@ export class PainterManager {
       console.error("Unable to adapt camera to bbox:", ex);
     }
   };
+
+  private combineCellsBBoxes() {
+    const bbox = new TgdBoundingBox();
+    for (const painter of this.cellPainters) {
+      bbox.addBBox(painter.bbox);
+    }
+    this.bbox.copyFrom(bbox);
+    return bbox;
+  }
 
   public get highlightedCellIds() {
     return this._highlightedCellIds;
@@ -495,8 +518,8 @@ export function usePainterManager({
   React.useEffect(() => {
     if (!signals) return;
 
-    const unregisterReset = signals.cameraReset.register(() => manager.cameraReset());
-    const unregisterSnapshot = signals.snapshot.register((options) => manager.capture(options));
+    const unregisterReset = signals.cameraReset.register((options) => manager.cameraReset(options));
+    const unregisterSnapshot = signals.snapshot.register((options) => manager.snapshot(options));
     return () => {
       unregisterReset();
       unregisterSnapshot();
