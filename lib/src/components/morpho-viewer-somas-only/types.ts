@@ -4,7 +4,7 @@ import type { MorphoViewerSignals } from "../signals";
 import type {
   MorphoViewerWorldOverlay,
   PropsForGizmo,
-  PropsForGroundGrid,
+  PropsForOverlayInteraction,
   PropsForScalebar,
 } from "../types";
 
@@ -30,7 +30,7 @@ export interface MorphoViewerCellInfo {
 
 export type MorphoViewerSomasOnlyProps = PropsForGizmo &
   PropsForScalebar &
-  PropsForGroundGrid & {
+  PropsForOverlayInteraction & {
     className?: string;
     somaRadius?: number;
     cellInfos: MorphoViewerCellInfo[];
@@ -42,13 +42,16 @@ export type MorphoViewerSomasOnlyProps = PropsForGizmo &
     backgroundColor?: string;
     /**
      * World-space point overlays (electrodes, markers, …).
+     * Drag/rotate when {@link PropsForOverlayInteraction.overlaysInteractive} is true.
      */
     overlays?: MorphoViewerWorldOverlay[];
+    /** World-space radius multiplier for overlay spheres. */
     overlaysRadius?: number;
+    /** Minimum on-screen size so distant electrodes stay pickable. */
     overlaysMinRadiusInPixels?: number;
     /**
      * Soma point-cloud opacity in `[0..1]`. Default `1` (opaque).
-     * Translucent somas are painted before overlays.
+     * Overlay electrode markers stay fully opaque independently of this value.
      */
     neuronOpacity?: number;
     /**
