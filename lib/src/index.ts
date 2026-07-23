@@ -28,6 +28,8 @@ export type { CanvasOptions } from "./abstract-canvas";
 export type { ColorsInterface } from "./colors";
 export type { MorphoViewerSignalSnapshotOptions as MorphoViewerSnapshotOptions } from "./components/signals";
 export type {
+  MorphoViewerOverlayTransformEvent,
+  MorphoViewerWorldOverlay,
   PropsForGizmo,
   PropsForScalebar,
   ScalebarConfig,

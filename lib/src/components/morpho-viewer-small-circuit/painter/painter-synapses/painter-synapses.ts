@@ -6,9 +6,18 @@ import {
   tgdCanvasCreatePalette,
 } from "@tolokoban/tgd";
 
+export type MorphoViewerSynapseGroup = {
+  color: string;
+  coordinates: Float32Array | number[];
+};
+
+/**
+ * Synapse point-cloud painter for small circuits.
+ * Separate from {@link PainterWorldOverlays} (electrodes / markers).
+ */
 export class PainterSynapses extends TgdPainterGroup {
   private readonly texture: TgdTexture2D;
-  private _synapses: Array<{ coordinates: number[] | Float32Array; color: string }> = [];
+  private _synapses: MorphoViewerSynapseGroup[] = [];
   private painter: TgdPainterPointsCloud | null = null;
   private _radius = 5;
   private _minRadiusInPixels = 4;
@@ -51,14 +60,15 @@ export class PainterSynapses extends TgdPainterGroup {
     }
   }
 
-  get synapses(): Array<{ coordinates: number[] | Float32Array; color: string }> {
+  get synapses(): MorphoViewerSynapseGroup[] {
     return this._synapses;
   }
-  set synapses(synapses: Array<{ coordinates: number[] | Float32Array; color: string }>) {
+  set synapses(synapses: MorphoViewerSynapseGroup[]) {
     if (this._synapses === synapses) return;
 
     this._synapses = synapses;
     this.removeAll();
+    this.painter = null;
     if (synapses.length > 0) {
       this.texture.loadBitmap(tgdCanvasCreatePalette(synapses.map((synapse) => synapse.color)));
       const attXYZR: number[] = [];

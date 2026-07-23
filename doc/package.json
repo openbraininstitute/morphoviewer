@@ -1,6 +1,6 @@
 {
     "name": "extended-swc-viewer",
-    "version": "0.30.1",
+    "version": "0.31.0",
     "private": false,
     "homepage": "./",
     "sideEffects": [
@@ -21,7 +21,7 @@
         "@mdx-js/react": "^3.1.1",
         "@openbraininstitute/morphoviewer": "file:../lib",
         "@tolokoban/react-state": "^0.7.3",
-        "@tolokoban/tgd": "^2.0.132",
+        "@tolokoban/tgd": "2.4.0",
         "@tolokoban/type-guards": "^0.9.0",
         "@tolokoban/ui": "^0.25.4",
         "colord": "^2.9.3",

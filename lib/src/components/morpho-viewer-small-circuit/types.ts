@@ -1,7 +1,12 @@
 import type { ControlsLayoutProps } from "../controls-layout";
 import type { MorphoViewerTree } from "../morpho-viewer-simul";
 import type { MorphoViewerSignals } from "../signals";
-import type { PropsForGizmo, PropsForScalebar } from "../types";
+import type {
+  MorphoViewerWorldOverlay,
+  PropsForGizmo,
+  PropsForOverlayInteraction,
+  PropsForScalebar,
+} from "../types";
 
 export interface SectionColors {
   soma: string;
@@ -26,16 +31,38 @@ export type MorphoViewerSmallCircuitCellData = {
 };
 
 export type MorphoViewerSmallCircuitProps = PropsForGizmo &
-  PropsForScalebar & {
+  PropsForScalebar &
+  PropsForOverlayInteraction & {
     className?: string;
     backgroundColor?: string;
     circuit: MorphoViewerSmallCircuitCell[];
+    /**
+     * World-space point overlays (electrodes, markers, …).
+     * Independent from {@link synapses}. Drag/rotate when
+     * {@link PropsForOverlayInteraction.overlaysInteractive} is true.
+     */
+    overlays?: MorphoViewerWorldOverlay[];
+    /** World-space radius multiplier for overlay spheres. */
+    overlaysRadius?: number;
+    /** Minimum on-screen size so distant electrodes stay pickable. */
+    overlaysMinRadiusInPixels?: number;
+    /**
+     * Synapse point groups (colour + flat xyz coordinates).
+     * Independent from {@link overlays}.
+     */
     synapses?: Array<{
       color: string;
       coordinates: Float32Array | number[];
     }>;
     synapsesRadius?: number;
     synapsesMinRadiusInPixels?: number;
+    /**
+     * Neuron mesh opacity in `[0..1]`. Default `1` (opaque).
+     * Translucent neurons enable alpha blending without back-to-front sorting,
+     * so draw-order artifacts are expected. Overlay markers stay fully opaque
+     * (`blend: "off"`) and do not inherit this alpha.
+     */
+    neuronOpacity?: number;
     /**
      * Ids of the cells we want to highlight.
      */

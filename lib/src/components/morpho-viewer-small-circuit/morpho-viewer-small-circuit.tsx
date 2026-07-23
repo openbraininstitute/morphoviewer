@@ -102,16 +102,29 @@ export function MorphoViewerSmallCircuit(props: MorphoViewerSmallCircuitProps) {
 
 const Canvas = React.memo(({ painterManager }: { painterManager: PainterManager }) => {
   return (
-    <canvas
-      key="canvas"
-      className={styles.webgl}
-      ref={(canvas: HTMLCanvasElement | null) => {
-        painterManager.canvas = canvas;
-        return () => {
-          painterManager.canvas = null;
-        };
-      }}
-    />
+    <>
+      <canvas
+        key="canvas"
+        className={styles.webgl}
+        ref={(canvas: HTMLCanvasElement | null) => {
+          painterManager.canvas = canvas;
+          return () => {
+            painterManager.canvas = null;
+          };
+        }}
+      />
+      {/* Electrodes only — pointer-events none; picking stays on the circuit canvas. */}
+      <canvas
+        key="overlays"
+        className={styles.webglOverlays}
+        ref={(canvas: HTMLCanvasElement | null) => {
+          painterManager.overlayCanvas = canvas;
+          return () => {
+            painterManager.overlayCanvas = null;
+          };
+        }}
+      />
+    </>
   );
 });
 

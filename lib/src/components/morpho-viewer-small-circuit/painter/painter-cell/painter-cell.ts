@@ -5,7 +5,6 @@ import {
   TgdGeometrySphereIco,
   TgdLight,
   type TgdMaterial,
-  TgdMaterialDiffuse,
   TgdMaterialFlat,
   TgdMaterialFlatTexture,
   TgdPainterAxes,
@@ -23,6 +22,7 @@ import { type MorphoViewerTree, MorphoViewerTreeItemType } from "@/components/mo
 import { int16ToVec3 } from "@/utils";
 
 import { createCellFromTree } from "./factory/tree";
+import { MaterialDiffuseAlpha } from "./material-diffuse-alpha";
 
 import type {
   MorphoViewerSmallCircuitCell,
@@ -40,6 +40,8 @@ export interface PainterCellOptions {
    * In case of failure, `bbox` will be `null`.
    */
   onCellLoaded?(bbox: TgdBoundingBox | null): void;
+  /** Neuron mesh opacity in `[0..1]`. Default `1`. */
+  opacity?: number;
 }
 
 export type PainterCellMaterialName = "full" | "flat" | number;
@@ -73,9 +75,10 @@ export class PainterCell extends TgdPainterGroup {
     switch (materialType) {
       // What the user will actually see.
       case "full":
-        this.material = new TgdMaterialDiffuse({
+        this.material = new MaterialDiffuseAlpha({
           color: texture,
           lockLightsToCamera: true,
+          opacity: options.opacity ?? 1,
           ambient: new TgdLight({
             color: [0.8, 0.8, 0.8, 0],
           }),
@@ -130,6 +133,20 @@ export class PainterCell extends TgdPainterGroup {
     const { material } = this;
     if (material instanceof TgdMaterialFlatTexture) {
       material.texture = value ? this.textureBlack : this.texturePalette;
+    }
+  }
+
+  get opacity(): number {
+    const { material } = this;
+    if (material instanceof MaterialDiffuseAlpha) {
+      return material.opacity;
+    }
+    return 1;
+  }
+  set opacity(opacity: number) {
+    const { material } = this;
+    if (material instanceof MaterialDiffuseAlpha) {
+      material.opacity = opacity;
     }
   }
 

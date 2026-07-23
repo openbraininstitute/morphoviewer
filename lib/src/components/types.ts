@@ -114,3 +114,69 @@ export interface PropsForScalebar {
    */
   scalebar?: boolean | string | ScalebarConfig;
 }
+
+/**
+ * One coloured world-space point group for {@link PainterWorldOverlays}.
+ *
+ * `coordinates` is a flat xyz array: `[x0,y0,z0, x1,y1,z1, ...]`.
+ * Synapses are configured separately via the small-circuit `synapses` prop.
+ *
+ * Why `id` + `origin` + `rotation`: interactive drag/rotate writes absolute
+ * placement back to the host form (Obi-One electrode_locations).
+ */
+export interface MorphoViewerWorldOverlay {
+  color: string;
+  coordinates: Float32Array | number[];
+  /**
+   * Host identity (e.g. electrode block name). Required for interactive drag /
+   * rotate so transforms can be written back to config. Contacts + origin tip
+   * share one id so a single gesture moves the whole array.
+   */
+  id?: string;
+  /** Semantic role within a shared `id` group. */
+  kind?: "electrodes" | "origin" | string;
+  /**
+   * When `false`, this group is ignored by overlay picking. Default: interactive
+   * when the viewer has `overlaysInteractive` enabled and `id` is set.
+   */
+  interactive?: boolean;
+  /** Placement origin (rotation pivot), world XYZ. */
+  origin?: [number, number, number];
+  /** Absolute placement rotations in degrees (Obi-One ZXY: Rx, Ry, Rz). */
+  rotation?: { x?: number; y?: number; z?: number };
+}
+
+/**
+ * Fired when the user transforms an interactive overlay group.
+ *
+ * Emitted only on pointer-up (`phase: "end"`). Mid-gesture painting stays in
+ * the viewer so hosts can persist without React/config churn during the drag.
+ */
+export interface MorphoViewerOverlayTransformEvent {
+  id: string;
+  origin: { x: number; y: number; z: number };
+  rotation: { x: number; y: number; z: number };
+  /** Pointer-up only — live mid-drag updates are painted inside the viewer. */
+  phase: "end";
+}
+
+/**
+ * Shared React props for small-circuit and somas-only overlay interaction.
+ */
+export interface PropsForOverlayInteraction {
+  /**
+   * Allow click-drag on overlays with an `id`:
+   * - left-drag → translate (updates origin)
+   * - right-drag / Alt-drag / Shift-drag → rotate (updates Rx / Rz; Ry preserved)
+   *
+   * Default `false` (display-only overlays).
+   */
+  overlaysInteractive?: boolean;
+  /** Called when the user moves / rotates an interactive overlay. */
+  onOverlayTransform?: (event: MorphoViewerOverlayTransformEvent) => void;
+  /**
+   * Host-controlled overlay highlight (e.g. selected electrode block name).
+   * Matches {@link MorphoViewerWorldOverlay.id}. Cleared hover restores this.
+   */
+  highlightedOverlayId?: string | null;
+}

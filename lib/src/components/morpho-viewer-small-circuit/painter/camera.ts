@@ -35,6 +35,13 @@ export class CameraManager {
     eventRestingPosition.dispatch(true);
   }
 
+  get enabled(): boolean {
+    return this.orbit?.enabled ?? false;
+  }
+  set enabled(enabled: boolean) {
+    if (this.orbit) this.orbit.enabled = enabled;
+  }
+
   resetCamera(options: MorphoViewerSignalCameraResetOptions = {}) {
     const { context } = this;
     this.target.zoom = options.zoom ?? this.target.zoom;

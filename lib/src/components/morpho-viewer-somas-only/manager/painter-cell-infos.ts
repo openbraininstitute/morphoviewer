@@ -28,6 +28,8 @@ const DEFAULT_PALETTE_COLORS = [
 export interface PainterCellInfosOptions {
   cellInfos: MorphoViewerCellInfo[];
   somaRadius: number;
+  /** Soma colour opacity in `[0..1]`. Default `1`. */
+  opacity?: number;
 }
 
 export class PainterCellInfos extends TgdPainterGroup {
@@ -35,6 +37,8 @@ export class PainterCellInfos extends TgdPainterGroup {
 
   private readonly texturePalette: TgdTexture2D;
   private readonly painterPointsCloud: TgdPainterPointsCloud;
+  private readonly paletteColors: string[] | null;
+  private _opacity: number;
 
   constructor(
     public readonly context: TgdContext,
@@ -42,6 +46,7 @@ export class PainterCellInfos extends TgdPainterGroup {
   ) {
     const bbox = new TgdBoundingBox();
     const { paletteColors, painterPointsCloudOptions } = parseCellInfos(options.cellInfos, bbox);
+    const opacity = clamp01(options.opacity ?? 1);
     const texturePalette = new TgdTexture2D(context, {
       params: {
         magFilter: "LINEAR",
@@ -50,11 +55,7 @@ export class PainterCellInfos extends TgdPainterGroup {
         wrapS: "CLAMP_TO_EDGE",
         wrapT: "CLAMP_TO_EDGE",
       },
-    }).loadBitmap(
-      paletteColors
-        ? createCategoricalPalette(paletteColors, PALETTE_AO_ROWS)
-        : tgdCanvasCreatePalette(DEFAULT_PALETTE_COLORS, 1)
-    );
+    }).loadBitmap(createPaletteBitmap(paletteColors, opacity));
     const uvs =
       middleLuminance(painterPointsCloudOptions.dataUV) ??
       new Float32Array(2 * options.cellInfos.length);
@@ -74,6 +75,8 @@ export class PainterCellInfos extends TgdPainterGroup {
     });
     this.painterPointsCloud = painterPointsCloud;
     this.texturePalette = texturePalette;
+    this.paletteColors = paletteColors;
+    this._opacity = opacity;
     this.bbox = bbox;
   }
 
@@ -84,6 +87,18 @@ export class PainterCellInfos extends TgdPainterGroup {
     if (this.somaRadius === somaRadius) return;
 
     this.painterPointsCloud.radiusMultiplier = somaRadius;
+    this.context.paint();
+  }
+
+  get opacity(): number {
+    return this._opacity;
+  }
+  set opacity(opacity: number) {
+    const next = clamp01(opacity);
+    if (this._opacity === next) return;
+
+    this._opacity = next;
+    this.texturePalette.loadBitmap(createPaletteBitmap(this.paletteColors, next));
     this.context.paint();
   }
 
@@ -210,6 +225,34 @@ function createCategoricalPalette(colors: string[], rows: number): HTMLCanvasEle
   ctx.fillStyle = shade;
   ctx.fillRect(0, 0, width, rows);
   return canvas;
+}
+
+function createPaletteBitmap(paletteColors: string[] | null, opacity: number): HTMLCanvasElement {
+  const canvas = paletteColors
+    ? createCategoricalPalette(paletteColors, PALETTE_AO_ROWS)
+    : tgdCanvasCreatePalette(DEFAULT_PALETTE_COLORS, 1);
+  return applyCanvasOpacity(canvas, opacity);
+}
+
+/** Force every pixel's alpha channel to `opacity` (keeps RGB shading intact). */
+function applyCanvasOpacity(canvas: HTMLCanvasElement, opacity: number): HTMLCanvasElement {
+  if (opacity >= 1) return canvas;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return canvas;
+
+  const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const alpha = Math.round(clamp01(opacity) * 255);
+  for (let i = 3; i < image.data.length; i += 4) {
+    image.data[i] = alpha;
+  }
+  ctx.putImageData(image, 0, 0);
+  return canvas;
+}
+
+function clamp01(value: number): number {
+  if (Number.isNaN(value)) return 1;
+  return Math.min(1, Math.max(0, value));
 }
 
 function middleLuminance(dataUV: Float32Array | undefined): Float32Array | undefined {

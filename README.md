@@ -32,6 +32,17 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.31.0
+
+- Add **world-space overlay point clouds** to `MorphoViewerSmallCircuit` and `MorphoViewerSomasOnly` via `overlays`
+  - Per-group color, optional `id` / `kind` / `origin` / `rotation` for placement metadata
+- Add **interactive overlay transforms** (`overlaysInteractive`, `onOverlayTransform`)
+  - Left-drag translates; right-drag / Alt-drag / Shift-drag rotates
+  - Emits absolute origin + rotation with `phase: "end"` on pointer-up so hosts can sync forms without mid-drag churn
+- Add **`highlightedOverlayId`** for host-controlled overlay selection highlighting
+- Add **`neuronOpacity`** to fade neuron geometry while keeping overlay markers fully opaque
+- Add **`overlaysRadius`** / **`overlaysMinRadiusInPixels`** for overlay marker sizing
+
 ### v0.30.1
 
 - Fix **bounding box** computation in `MorphoViewerSmallCircuit` by recentering each cell's bbox around its soma center

@@ -10,11 +10,17 @@ import {
   type TgdPainterGizmoOptions,
   TgdPainterState,
   tgdActionCreateCameraInterpolation,
+  webglBlendGet,
+  webglBlendSet,
+  webglPresetBlend,
 } from "@tolokoban/tgd";
 import React from "react";
 
 import { watchSpacePerPixel } from "@/behaviors";
 import { PainterGizmo } from "@/painters/gizmo";
+import { OverlayInteractionController } from "@/painters/overlay-interaction";
+import { OverlaySurface } from "@/painters/overlay-surface";
+import { PainterWorldOverlays } from "@/painters/world-overlays";
 
 import { AdpatativeResolution } from "./adaptative-resolution";
 import { PainterCellInfos } from "./painter-cell-infos";
@@ -23,6 +29,10 @@ import type {
   MorphoViewerSignalCameraResetOptions,
   MorphoViewerSignalSnapshotOptions,
 } from "../../signals";
+import type {
+  MorphoViewerOverlayTransformEvent,
+  MorphoViewerWorldOverlay,
+} from "../../types";
 import type { MorphoViewerCellInfo, MorphoViewerSomasOnlyProps } from "../types";
 
 class PainterManager {
@@ -32,10 +42,30 @@ class PainterManager {
   public readonly eventScalebar = new TgdEvent<number>();
 
   private _canvas: HTMLCanvasElement | null = null;
+  private _overlayCanvas: HTMLCanvasElement | null = null;
   private _cellInfos: MorphoViewerCellInfo[] = [];
   private _backgroundColor = "black";
   private readonly parsedBackgroundColor = new TgdColor(0, 0, 0, 1);
   private painterCellInfos: PainterCellInfos | null = null;
+  private painterOverlays: PainterWorldOverlays | null = null;
+  private readonly overlaySurface = new OverlaySurface();
+  private overlayInteraction: OverlayInteractionController | null = null;
+  private _overlays: MorphoViewerWorldOverlay[] = [];
+  private _overlaysRadius = 5;
+  private _overlaysMinRadiusInPixels = 4;
+  private _overlaysInteractive = false;
+  private _onOverlayTransform?: (event: MorphoViewerOverlayTransformEvent) => void;
+  /** Host-selected overlay id (form selection); restored when hover clears. */
+  private _highlightedOverlayId: string | null = null;
+  /** After a drag, ignore host overlays until origin + tip catch up (API). */
+  private _pinnedOverlayOrigin: {
+    id: string;
+    origin: [number, number, number];
+    rotation: { x: number; y: number; z: number };
+    tip: [number, number, number];
+  } | null = null;
+  /** Escape hatch if the host never echoes matching geometry. */
+  private _pinTimeout: ReturnType<typeof setTimeout> | null = null;
   /** the scene node that holds the point cloud; kept so a recolor can swap the
    * cloud in place without recreating the context (preserving the camera). */
   private state: TgdPainterState | null = null;
@@ -47,6 +77,8 @@ class PainterManager {
   private readonly painterGizmo = new PainterGizmo();
   private readonly adaptativeResolution = new AdpatativeResolution();
   private _somaRadius = 1;
+  private _neuronOpacity = 1;
+  private spacePerPixel = 1;
   private readonly cameraOrtho = new TgdCameraOrthographic({
     name: "CameraOrtho",
   });
@@ -91,6 +123,19 @@ class PainterManager {
     this.adaptativeResolution.reset();
   }
 
+  get neuronOpacity(): number {
+    return this._neuronOpacity;
+  }
+  set neuronOpacity(neuronOpacity: number) {
+    const opacity = clamp01(neuronOpacity);
+    if (this._neuronOpacity === opacity) return;
+
+    this._neuronOpacity = opacity;
+    if (this.painterCellInfos) {
+      this.painterCellInfos.opacity = opacity;
+    }
+  }
+
   get canvas(): HTMLCanvasElement | null {
     return this._canvas;
   }
@@ -100,6 +145,15 @@ class PainterManager {
     this._canvas = canvas;
     if (canvas) this.initialize();
     else this.delete();
+  }
+
+  get overlayCanvas(): HTMLCanvasElement | null {
+    return this._overlayCanvas;
+  }
+  set overlayCanvas(canvas: HTMLCanvasElement | null) {
+    if (this._overlayCanvas === canvas) return;
+    this._overlayCanvas = canvas;
+    this.bindOverlaySurface();
   }
 
   get backgroundColor(): string {
@@ -143,6 +197,94 @@ class PainterManager {
     this.initialize();
   }
 
+  /**
+   * Apply host overlay props into the painter / interaction layer.
+   *
+   * How / why guards:
+   * - While dragging: ignore host geometry (keeps optimistic live buffers)
+   * - While pinned after drag: ignore host until origin + tip match (API catch-up)
+   */
+  setOverlays(
+    overlays: MorphoViewerWorldOverlay[] | undefined,
+    overlaysRadius: number,
+    overlaysMinRadiusInPixels: number
+  ) {
+    this._overlaysRadius = overlaysRadius;
+    this._overlaysMinRadiusInPixels = overlaysMinRadiusInPixels;
+    if (this.overlayInteraction?.isDragging) {
+      const painter = this.painterOverlays;
+      if (painter) {
+        painter.radius = this._overlaysRadius;
+        painter.minRadiusInPixels = this._overlaysMinRadiusInPixels;
+      }
+      return;
+    }
+    if (this._pinnedOverlayOrigin && overlays?.length) {
+      const host = overlays.find((o) => o.id === this._pinnedOverlayOrigin!.id && o.origin);
+      const tip = readOverlayTip(overlays, this._pinnedOverlayOrigin.id);
+      if (
+        host?.origin &&
+        tip &&
+        originsNearlyEqual(host.origin, this._pinnedOverlayOrigin.origin) &&
+        rotationsNearlyEqual(host.rotation, this._pinnedOverlayOrigin.rotation) &&
+        originsNearlyEqual(tip, this._pinnedOverlayOrigin.tip)
+      ) {
+        this.clearPinnedOverlay();
+      } else {
+        const painter = this.painterOverlays;
+        if (painter) {
+          painter.radius = this._overlaysRadius;
+          painter.minRadiusInPixels = this._overlaysMinRadiusInPixels;
+        }
+        return;
+      }
+    }
+    // Clone so drag/rotate copy-on-write never mutates the host's React props.
+    this._overlays = cloneOverlays(overlays);
+    this.applyOverlays();
+    // Do NOT expand the circuit camera bbox or re-fit for overlays.
+    // Orbit must stay centered on the somas (same as small-circuit).
+    this.context?.paint();
+  }
+
+  /**
+   * Enable/disable {@link OverlayInteractionController} and refresh its transform callback.
+   */
+  setOverlayInteraction(
+    interactive: boolean,
+    onTransform?: (event: MorphoViewerOverlayTransformEvent) => void
+  ) {
+    this._overlaysInteractive = interactive;
+    this._onOverlayTransform = onTransform;
+    this.overlayInteraction?.setOnTransform(onTransform);
+    if (interactive) {
+      this.overlayInteraction?.attach();
+    } else {
+      this.overlayInteraction?.detach();
+    }
+  }
+
+  get highlightedOverlayId(): string | null {
+    return this._highlightedOverlayId;
+  }
+  set highlightedOverlayId(id: string | null | undefined) {
+    const next = id ?? null;
+    if (this._highlightedOverlayId === next) return;
+    this._highlightedOverlayId = next;
+    if (!this.overlayInteraction?.isDragging && this.painterOverlays) {
+      this.painterOverlays.highlightedId = next;
+    }
+  }
+
+  private applyOverlays() {
+    const { painterOverlays } = this;
+    if (!painterOverlays) return;
+
+    painterOverlays.overlays = this._overlays;
+    painterOverlays.radius = this._overlaysRadius;
+    painterOverlays.minRadiusInPixels = this._overlaysMinRadiusInPixels;
+  }
+
   /** rebuild only the point cloud inside the existing scene/context. */
   private recolorInPlace() {
     const { context, state, cellInfos } = this;
@@ -152,6 +294,7 @@ class PainterManager {
     const painterCellInfos = new PainterCellInfos(context, {
       cellInfos,
       somaRadius: this.somaRadius,
+      opacity: this._neuronOpacity,
     });
     this.painterCellInfos = painterCellInfos;
     this.bbox = painterCellInfos.bbox;
@@ -257,6 +400,7 @@ class PainterManager {
     this.context = context;
     this.adaptativeResolution.context = context;
     this.scalebarCleanup = watchSpacePerPixel(context, this.eventScalebar);
+    this.eventScalebar.addListener(this.handleSpacePerPixel);
     this.parsedBackgroundColor.parse(this._backgroundColor);
     const clear = new TgdPainterClear(context, {
       color: this.parsedBackgroundColor.toArayNumber4(),
@@ -266,11 +410,26 @@ class PainterManager {
     const painterCellInfos = new PainterCellInfos(context, {
       cellInfos,
       somaRadius: this.somaRadius,
+      opacity: this._neuronOpacity,
     });
     this.painterCellInfos = painterCellInfos;
+    // Translucent somas on the circuit canvas; electrodes on OverlaySurface.
+    // Alpha blend only while somas are translucent — opaque path keeps the
+    // previous (no-blend) state. See `neuronOpacity` docs for draw-order limits.
+    let savedNeuronBlend: ReturnType<typeof webglBlendGet> | undefined;
     const state = new TgdPainterState(context, {
       depth: "less",
       children: [painterCellInfos],
+      onEnter: () => {
+        if (this._neuronOpacity >= 1) return;
+        savedNeuronBlend = webglBlendGet(context);
+        webglBlendSet(context, webglPresetBlend.alpha);
+      },
+      onExit: () => {
+        if (!savedNeuronBlend) return;
+        webglBlendSet(context, savedNeuronBlend);
+        savedNeuronBlend = undefined;
+      },
     });
     this.state = state;
     this.painterGizmo.context = context;
@@ -286,8 +445,79 @@ class PainterManager {
       inertiaZoom: 300,
     });
     this.orbit.eventChange.addListener(this.handleCameraChange);
+    this.overlayInteraction = new OverlayInteractionController({
+      context,
+      getOverlays: () => this._overlays,
+      setOverlays: (overlays) => {
+        this._overlays = overlays;
+        this.applyOverlays();
+      },
+      syncOverlayPositions: () => {
+        this.painterOverlays?.syncPositions();
+      },
+      getHitRadiusPixels: () =>
+        Math.max(this._overlaysMinRadiusInPixels * 1.8, this._overlaysRadius / Math.max(this.spacePerPixel, 1e-6)),
+      getOrbit: () => this.orbit,
+      setHighlightedId: (id) => {
+        if (this.painterOverlays) {
+          this.painterOverlays.highlightedId = id ?? this._highlightedOverlayId;
+        }
+      },
+      onTransform: this._onOverlayTransform,
+      onDragStart: () => this.overlaySurface.beginDrag(),
+      onDragEnd: (id) => {
+        this.overlaySurface.endDrag();
+        this.pinOverlaysAfterDrag(id);
+      },
+    });
+    if (this._overlaysInteractive) this.overlayInteraction.attach();
+    this.bindOverlaySurface();
     context.paint();
     context.execAfterNextPaint(() => this.cameraReset());
+  }
+
+  private bindOverlaySurface() {
+    this.overlaySurface.setCanvas(this._overlayCanvas, this.context);
+    this.painterOverlays = this.overlaySurface.overlaysPainter;
+    if (this.painterOverlays) this.applyOverlays();
+  }
+
+  private readonly handleSpacePerPixel = (spacePerPixel: number) => {
+    this.spacePerPixel = spacePerPixel;
+  };
+
+  /**
+   * Snapshot live origin / rotation / tip after drag for the dragged overlay id.
+   * Only pins when `onOverlayTransform` is provided; escapes after timeout.
+   */
+  private pinOverlaysAfterDrag(id: string) {
+    this.clearPinnedOverlay();
+    if (!this._onOverlayTransform) return;
+
+    const withOrigin = this._overlays.find((o) => o.id === id && o.origin);
+    if (!withOrigin?.id || !withOrigin.origin) return;
+    const tip = readOverlayTip(this._overlays, withOrigin.id);
+    if (!tip) return;
+    const rot = withOrigin.rotation;
+    this._pinnedOverlayOrigin = {
+      id: withOrigin.id,
+      origin: [withOrigin.origin[0], withOrigin.origin[1], withOrigin.origin[2]],
+      rotation: {
+        x: rot?.x ?? 0,
+        y: rot?.y ?? 0,
+        z: rot?.z ?? 0,
+      },
+      tip,
+    };
+    this._pinTimeout = setTimeout(() => this.clearPinnedOverlay(), OVERLAY_PIN_TIMEOUT_MS);
+  }
+
+  private clearPinnedOverlay() {
+    this._pinnedOverlayOrigin = null;
+    if (this._pinTimeout !== null) {
+      clearTimeout(this._pinTimeout);
+      this._pinTimeout = null;
+    }
   }
 
   private _cameraChangeTimeout = -1;
@@ -305,6 +535,7 @@ class PainterManager {
   };
 
   private delete() {
+    this.clearPinnedOverlay();
     this.adaptativeResolution.context = null;
     if (!this.context) {
       // Nothing to delete.
@@ -312,11 +543,17 @@ class PainterManager {
     }
 
     this.scalebarCleanup?.();
+    this.eventScalebar.removeListener(this.handleSpacePerPixel);
+    this.overlayInteraction?.detach();
+    this.overlayInteraction = null;
+    this.overlaySurface.delete();
     this.orbit?.detach();
     this.orbit = null;
     this.painterClear = null;
     this.state = null;
     this.painterCellInfos = null;
+    this.painterOverlays = null;
+    this.painterGizmo.context = null;
     this.context.delete();
     this.context = null;
   }
@@ -343,12 +580,78 @@ function sameGeometry(a: MorphoViewerCellInfo[], b: MorphoViewerCellInfo[]): boo
   return true;
 }
 
+function clamp01(value: number): number {
+  if (Number.isNaN(value)) return 1;
+  return Math.min(1, Math.max(0, value));
+}
+
+/** Drop the post-drag pin if the host never echoes matching geometry. */
+const OVERLAY_PIN_TIMEOUT_MS = 2000;
+
+/** Shallow-clone overlay groups so interaction never mutates host React props. */
+function cloneOverlays(
+  overlays: MorphoViewerWorldOverlay[] | undefined
+): MorphoViewerWorldOverlay[] {
+  if (!overlays?.length) return [];
+  return overlays.map((overlay) => ({
+    ...overlay,
+    origin: overlay.origin ? ([...overlay.origin] as [number, number, number]) : undefined,
+    rotation: overlay.rotation ? { ...overlay.rotation } : undefined,
+  }));
+}
+
+const ORIGIN_EPS = 0.05;
+const ROT_EPS = 0.05;
+
+function originsNearlyEqual(
+  a: readonly [number, number, number] | number[],
+  b: readonly [number, number, number]
+): boolean {
+  return (
+    Math.abs(a[0] - b[0]) <= ORIGIN_EPS &&
+    Math.abs(a[1] - b[1]) <= ORIGIN_EPS &&
+    Math.abs(a[2] - b[2]) <= ORIGIN_EPS
+  );
+}
+
+function rotationsNearlyEqual(
+  a: { x?: number; y?: number; z?: number } | undefined,
+  b: { x: number; y: number; z: number }
+): boolean {
+  return (
+    Math.abs((a?.x ?? 0) - b.x) <= ROT_EPS &&
+    Math.abs((a?.y ?? 0) - b.y) <= ROT_EPS &&
+    Math.abs((a?.z ?? 0) - b.z) <= ROT_EPS
+  );
+}
+
+/** First contact XYZ for pin comparison (prefers `kind: electrodes`). */
+function readOverlayTip(
+  overlays: MorphoViewerWorldOverlay[],
+  id: string
+): [number, number, number] | null {
+  const prefer = overlays.find(
+    (o) => o.id === id && (o.kind === "electrodes" || !o.kind) && o.coordinates.length >= 3
+  );
+  const fallback = overlays.find((o) => o.id === id && o.coordinates.length >= 3);
+  const coords = prefer?.coordinates ?? fallback?.coordinates;
+  if (!coords || coords.length < 3) return null;
+  return [coords[0], coords[1], coords[2]];
+}
+
 export function useManager({
   cellInfos,
   somaRadius,
   gizmo,
   cameraType,
   backgroundColor,
+  overlays,
+  overlaysRadius = 5,
+  overlaysMinRadiusInPixels = 4,
+  overlaysInteractive = false,
+  onOverlayTransform,
+  highlightedOverlayId,
+  neuronOpacity = 1,
   signals,
 }: MorphoViewerSomasOnlyProps): PainterManager {
   const refManager = React.useRef<PainterManager | null>(null);
@@ -376,6 +679,18 @@ export function useManager({
   React.useEffect(() => {
     manager.somaRadius = somaRadius ?? DEFAULT_SOMA_RADIUS;
   }, [somaRadius, manager]);
+  React.useEffect(() => {
+    manager.neuronOpacity = neuronOpacity;
+  }, [neuronOpacity, manager]);
+  React.useEffect(() => {
+    manager.setOverlays(overlays, overlaysRadius, overlaysMinRadiusInPixels);
+  }, [overlays, overlaysRadius, overlaysMinRadiusInPixels, manager]);
+  React.useEffect(() => {
+    manager.setOverlayInteraction(overlaysInteractive, onOverlayTransform);
+  }, [overlaysInteractive, onOverlayTransform, manager]);
+  React.useEffect(() => {
+    manager.highlightedOverlayId = highlightedOverlayId ?? null;
+  }, [highlightedOverlayId, manager]);
   React.useEffect(() => {
     manager.gizmo = gizmo;
   }, [gizmo, manager]);
