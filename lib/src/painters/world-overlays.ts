@@ -1,5 +1,6 @@
 import {
   type TgdContext,
+  TgdColor,
   TgdPainterGroup,
   TgdPainterPointsCloud,
   TgdTexture2D,
@@ -43,8 +44,6 @@ export class PainterWorldOverlays extends TgdPainterGroup {
   private _overlays: MorphoViewerWorldOverlay[] = [];
   private painter: TgdPainterPointsCloud | null = null;
   private dataPoint: Float32Array | null = null;
-  /** Reused interleaved upload scratch (avoids alloc per drag frame). */
-  private uploadScratch: Float32Array | null = null;
   private _radius = 5;
   private _minRadiusInPixels = 4;
   private _highlightedId: string | null = null;
@@ -125,6 +124,10 @@ export class PainterWorldOverlays extends TgdPainterGroup {
   /**
    * Upload `dataPoint` into the points-cloud VAO without reallocating attributes.
    * Falls back to {@link rebuild} if the buffer layout is unavailable.
+   *
+   * Layout assumption (tgd 2.4.0 `createDatasetForInstances`):
+   * interleaved `attPoint: vec4` + `attUV: vec2` → stride 6 floats per instance.
+   * Asserted at runtime so a future tgd layout change rebuilds instead of corrupting.
    */
   private uploadPositions() {
     const { painter, dataPoint, context } = this;
@@ -138,35 +141,27 @@ export class PainterWorldOverlays extends TgdPainterGroup {
     }
     // Avoid TgdDataset.set's per-vertex Uint8 copies — write floats directly
     // into the interleaved buffer (attPoint vec4 + attUV vec2 → stride 6).
-    const floats = dataset.data.byteLength >> 2;
-    let interleaved = this.uploadScratch;
-    if (!interleaved || interleaved.length !== floats) {
-      interleaved = new Float32Array(floats);
-      this.uploadScratch = interleaved;
-    }
-    // Share storage with the VAO dataset when possible (zero-copy path).
     const shared = new Float32Array(dataset.data);
-    const target = shared.length === floats ? shared : interleaved;
-    const stride = target.length === dataPoint.length ? 4 : 6;
-    if (stride === 4) {
-      target.set(dataPoint);
-    } else {
-      const count = dataPoint.length >> 2;
-      for (let i = 0; i < count; i++) {
-        const src = i * 4;
-        const dst = i * stride;
-        target[dst] = dataPoint[src];
-        target[dst + 1] = dataPoint[src + 1];
-        target[dst + 2] = dataPoint[src + 2];
-        target[dst + 3] = dataPoint[src + 3];
-      }
+    const count = dataPoint.length >> 2;
+    const expectedFloats = count * 6;
+    if (shared.length !== expectedFloats) {
+      this.rebuild();
+      return;
+    }
+    for (let i = 0; i < count; i++) {
+      const src = i * 4;
+      const dst = i * 6;
+      shared[dst] = dataPoint[src];
+      shared[dst + 1] = dataPoint[src + 1];
+      shared[dst + 2] = dataPoint[src + 2];
+      shared[dst + 3] = dataPoint[src + 3];
     }
     const buffer = internals.vao.getBuffer?.(0);
     if (buffer) {
       // bufferSubData keeps GPU allocation; bufferData reallocates every frame.
       const { gl } = context;
       buffer.bind();
-      gl.bufferSubData(gl.ARRAY_BUFFER, 0, target);
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, shared);
     } else {
       dataset.set("attPoint", dataPoint);
       internals.vao.updateDataset(dataset);
@@ -183,7 +178,6 @@ export class PainterWorldOverlays extends TgdPainterGroup {
     this.removeAll();
     this.painter = null;
     this.dataPoint = null;
-    this.uploadScratch = null;
     if (overlays.length > 0) {
       const palette = overlays.map((overlay) =>
         forceOpaque(
@@ -228,7 +222,7 @@ export class PainterWorldOverlays extends TgdPainterGroup {
 
 /** Brighten a CSS colour toward white for hover/drag highlight feedback. */
 function highlightColor(color: string): string {
-  return mixTowardWhite(color, 0.55);
+  return TgdColor.fromMix(0.55, color, "#ffffff").alphaSet(1).toString();
 }
 
 /**
@@ -236,43 +230,7 @@ function highlightColor(color: string): string {
  * Why: host may pass rgba for selection styling; alpha would show the circuit through markers.
  */
 function forceOpaque(color: string): string {
-  const rgb = parseCssColor(color);
-  if (!rgb) return color;
-  return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
-}
-
-function mixTowardWhite(color: string, amount: number): string {
-  const rgb = parseCssColor(color);
-  if (!rgb) return "#ffffff";
-  const t = Math.min(1, Math.max(0, amount));
-  const r = Math.round(rgb[0] + (255 - rgb[0]) * t);
-  const g = Math.round(rgb[1] + (255 - rgb[1]) * t);
-  const b = Math.round(rgb[2] + (255 - rgb[2]) * t);
-  return `rgb(${r}, ${g}, ${b})`;
-}
-
-function parseCssColor(color: string): [number, number, number] | null {
-  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim());
-  if (hex) {
-    const h = hex[1];
-    if (h.length === 3) {
-      return [
-        Number.parseInt(h[0] + h[0], 16),
-        Number.parseInt(h[1] + h[1], 16),
-        Number.parseInt(h[2] + h[2], 16),
-      ];
-    }
-    return [
-      Number.parseInt(h.slice(0, 2), 16),
-      Number.parseInt(h.slice(2, 4), 16),
-      Number.parseInt(h.slice(4, 6), 16),
-    ];
-  }
-  const rgb = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i.exec(color.trim());
-  if (rgb) {
-    return [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])];
-  }
-  return null;
+  return TgdColor.fromString(color).alphaSet(1).toString();
 }
 
 /**

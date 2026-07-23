@@ -10,6 +10,9 @@ import {
   type TgdPainterGizmoOptions,
   TgdPainterState,
   tgdActionCreateCameraInterpolation,
+  webglBlendGet,
+  webglBlendSet,
+  webglPresetBlend,
 } from "@tolokoban/tgd";
 import React from "react";
 
@@ -61,6 +64,8 @@ class PainterManager {
     rotation: { x: number; y: number; z: number };
     tip: [number, number, number];
   } | null = null;
+  /** Escape hatch if the host never echoes matching geometry. */
+  private _pinTimeout: ReturnType<typeof setTimeout> | null = null;
   /** the scene node that holds the point cloud; kept so a recolor can swap the
    * cloud in place without recreating the context (preserving the camera). */
   private state: TgdPainterState | null = null;
@@ -224,7 +229,7 @@ class PainterManager {
         rotationsNearlyEqual(host.rotation, this._pinnedOverlayOrigin.rotation) &&
         originsNearlyEqual(tip, this._pinnedOverlayOrigin.tip)
       ) {
-        this._pinnedOverlayOrigin = null;
+        this.clearPinnedOverlay();
       } else {
         const painter = this.painterOverlays;
         if (painter) {
@@ -234,7 +239,8 @@ class PainterManager {
         return;
       }
     }
-    this._overlays = overlays ?? [];
+    // Clone so drag/rotate copy-on-write never mutates the host's React props.
+    this._overlays = cloneOverlays(overlays);
     this.applyOverlays();
     // Do NOT expand the circuit camera bbox or re-fit for overlays.
     // Orbit must stay centered on the somas (same as small-circuit).
@@ -408,10 +414,22 @@ class PainterManager {
     });
     this.painterCellInfos = painterCellInfos;
     // Translucent somas on the circuit canvas; electrodes on OverlaySurface.
+    // Alpha blend only while somas are translucent — opaque path keeps the
+    // previous (no-blend) state. See `neuronOpacity` docs for draw-order limits.
+    let savedNeuronBlend: ReturnType<typeof webglBlendGet> | undefined;
     const state = new TgdPainterState(context, {
       depth: "less",
-      blend: "alpha",
       children: [painterCellInfos],
+      onEnter: () => {
+        if (this._neuronOpacity >= 1) return;
+        savedNeuronBlend = webglBlendGet(context);
+        webglBlendSet(context, webglPresetBlend.alpha);
+      },
+      onExit: () => {
+        if (!savedNeuronBlend) return;
+        webglBlendSet(context, savedNeuronBlend);
+        savedNeuronBlend = undefined;
+      },
     });
     this.state = state;
     this.painterGizmo.context = context;
@@ -447,9 +465,9 @@ class PainterManager {
       },
       onTransform: this._onOverlayTransform,
       onDragStart: () => this.overlaySurface.beginDrag(),
-      onDragEnd: () => {
+      onDragEnd: (id) => {
         this.overlaySurface.endDrag();
-        this.pinOverlaysAfterDrag();
+        this.pinOverlaysAfterDrag(id);
       },
     });
     if (this._overlaysInteractive) this.overlayInteraction.attach();
@@ -469,20 +487,17 @@ class PainterManager {
   };
 
   /**
-   * Snapshot live origin / rotation / tip after drag so host refetch cannot
-   * flash unrotated placeholder geometry before the API tip matches.
+   * Snapshot live origin / rotation / tip after drag for the dragged overlay id.
+   * Only pins when `onOverlayTransform` is provided; escapes after timeout.
    */
-  private pinOverlaysAfterDrag() {
-    const withOrigin = this._overlays.find((o) => o.id && o.origin);
-    if (!withOrigin?.id || !withOrigin.origin) {
-      this._pinnedOverlayOrigin = null;
-      return;
-    }
+  private pinOverlaysAfterDrag(id: string) {
+    this.clearPinnedOverlay();
+    if (!this._onOverlayTransform) return;
+
+    const withOrigin = this._overlays.find((o) => o.id === id && o.origin);
+    if (!withOrigin?.id || !withOrigin.origin) return;
     const tip = readOverlayTip(this._overlays, withOrigin.id);
-    if (!tip) {
-      this._pinnedOverlayOrigin = null;
-      return;
-    }
+    if (!tip) return;
     const rot = withOrigin.rotation;
     this._pinnedOverlayOrigin = {
       id: withOrigin.id,
@@ -494,6 +509,15 @@ class PainterManager {
       },
       tip,
     };
+    this._pinTimeout = setTimeout(() => this.clearPinnedOverlay(), OVERLAY_PIN_TIMEOUT_MS);
+  }
+
+  private clearPinnedOverlay() {
+    this._pinnedOverlayOrigin = null;
+    if (this._pinTimeout !== null) {
+      clearTimeout(this._pinTimeout);
+      this._pinTimeout = null;
+    }
   }
 
   private _cameraChangeTimeout = -1;
@@ -511,6 +535,7 @@ class PainterManager {
   };
 
   private delete() {
+    this.clearPinnedOverlay();
     this.adaptativeResolution.context = null;
     if (!this.context) {
       // Nothing to delete.
@@ -558,6 +583,21 @@ function sameGeometry(a: MorphoViewerCellInfo[], b: MorphoViewerCellInfo[]): boo
 function clamp01(value: number): number {
   if (Number.isNaN(value)) return 1;
   return Math.min(1, Math.max(0, value));
+}
+
+/** Drop the post-drag pin if the host never echoes matching geometry. */
+const OVERLAY_PIN_TIMEOUT_MS = 2000;
+
+/** Shallow-clone overlay groups so interaction never mutates host React props. */
+function cloneOverlays(
+  overlays: MorphoViewerWorldOverlay[] | undefined
+): MorphoViewerWorldOverlay[] {
+  if (!overlays?.length) return [];
+  return overlays.map((overlay) => ({
+    ...overlay,
+    origin: overlay.origin ? ([...overlay.origin] as [number, number, number]) : undefined,
+    rotation: overlay.rotation ? { ...overlay.rotation } : undefined,
+  }));
 }
 
 const ORIGIN_EPS = 0.05;

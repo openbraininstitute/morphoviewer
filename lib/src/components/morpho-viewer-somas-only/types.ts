@@ -51,7 +51,9 @@ export type MorphoViewerSomasOnlyProps = PropsForGizmo &
     overlaysMinRadiusInPixels?: number;
     /**
      * Soma point-cloud opacity in `[0..1]`. Default `1` (opaque).
-     * Overlay electrode markers stay fully opaque independently of this value.
+     * Translucent somas enable alpha blending without back-to-front sorting,
+     * so draw-order artifacts are expected. Overlay electrode markers stay
+     * fully opaque independently of this value.
      */
     neuronOpacity?: number;
     /**

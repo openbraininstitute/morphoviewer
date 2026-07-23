@@ -58,8 +58,9 @@ export type MorphoViewerSmallCircuitProps = PropsForGizmo &
     synapsesMinRadiusInPixels?: number;
     /**
      * Neuron mesh opacity in `[0..1]`. Default `1` (opaque).
-     * Translucent neurons are painted before overlays; overlay markers stay
-     * fully opaque (`blend: "off"`) so they do not inherit this alpha.
+     * Translucent neurons enable alpha blending without back-to-front sorting,
+     * so draw-order artifacts are expected. Overlay markers stay fully opaque
+     * (`blend: "off"`) and do not inherit this alpha.
      */
     neuronOpacity?: number;
     /**

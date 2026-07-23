@@ -149,15 +149,15 @@ export interface MorphoViewerWorldOverlay {
 /**
  * Fired when the user transforms an interactive overlay group.
  *
- * How hosts use it: ignore `phase: "move"` (viewer already paints live);
- * persist only on `"end"` to avoid React/config churn mid-drag.
+ * Emitted only on pointer-up (`phase: "end"`). Mid-gesture painting stays in
+ * the viewer so hosts can persist without React/config churn during the drag.
  */
 export interface MorphoViewerOverlayTransformEvent {
   id: string;
   origin: { x: number; y: number; z: number };
   rotation: { x: number; y: number; z: number };
-  /** `move` during the gesture; `end` on pointer up. */
-  phase: "move" | "end";
+  /** Pointer-up only — live mid-drag updates are painted inside the viewer. */
+  phase: "end";
 }
 
 /**

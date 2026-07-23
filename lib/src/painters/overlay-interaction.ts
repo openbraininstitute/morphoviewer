@@ -36,7 +36,7 @@ type OverlayInteractionOptions = {
   /** Gesture start — used to freeze the circuit canvas (overlay surface only paints). */
   onDragStart?: () => void;
   /** Optional hook after gesture end (e.g. pin overlays until host API catches up). */
-  onDragEnd?: () => void;
+  onDragEnd?: (id: string) => void;
 };
 
 type DragMode = "translate" | "rotate";
@@ -59,6 +59,8 @@ type DragState = {
   startGrab: TgdVec3;
   planeAnchor: TgdVec3;
   startPointer: { x: number; y: number };
+  /** Orbit enabled flag before this gesture disabled it. */
+  orbitWasEnabled: boolean;
 };
 
 /** Degrees per CSS pixel for electrode rotation. */
@@ -180,7 +182,6 @@ export class OverlayInteractionController {
     if (evt.buttonMiddle) return;
     const rotate = wantsRotate(evt);
     if (!rotate && !evt.buttonLeft && evt.buttons !== 0) return;
-    if (!rotate && evt.buttons !== 0 && !evt.buttonLeft) return;
 
     const hit = this.pickOverlay(evt.current.x, evt.current.y);
     if (!hit) return;
@@ -214,16 +215,22 @@ export class OverlayInteractionController {
         ? groupIndices.map((_, g) => toLocalCoords(startCoords[g], origin, rotation))
         : [];
 
+    // Copy-on-write so we never mutate the host's React state objects/array.
+    const next = overlays.slice();
     for (let g = 0; g < groupIndices.length; g++) {
       const index = groupIndices[g];
-      overlays[index] = {
+      next[index] = {
         ...overlays[index],
         coordinates: liveCoords[g],
         origin: [origin.x, origin.y, origin.z],
         rotation: { ...rotation },
       };
     }
-    this.options.setOverlays(overlays);
+    this.options.setOverlays(next);
+
+    const orbit = this.options.getOrbit();
+    const orbitWasEnabled = orbit?.enabled ?? true;
+    if (orbit) orbit.enabled = false;
 
     this.drag = {
       id: hit.id,
@@ -239,10 +246,9 @@ export class OverlayInteractionController {
       startGrab,
       planeAnchor,
       startPointer: { x: evt.current.x, y: evt.current.y },
+      orbitWasEnabled,
     };
 
-    const orbit = this.options.getOrbit();
-    if (orbit) orbit.enabled = false;
     this.setHover(hit.id);
     this.setCursor(mode === "rotate" ? "move" : "grabbing");
     this.options.onDragStart?.();
@@ -259,7 +265,7 @@ export class OverlayInteractionController {
     } else {
       this.applyRotate(evt.current.x, evt.current.y);
     }
-    // Host form updates only on drop — no emit("move").
+    // Host form updates only on drop — live paint via syncOverlayPositions.
     this.scheduleSync();
     return true;
   };
@@ -290,6 +296,8 @@ export class OverlayInteractionController {
     const dy = hit.y - drag.startGrab.y;
     const dz = hit.z - drag.startGrab.z;
 
+    // `_overlays` is library-owned (cloned on host intake); replace slots, don't
+    // mutate the previous group objects (which may still be referenced by React).
     const overlays = this.options.getOverlays();
     for (let g = 0; g < drag.groupIndices.length; g++) {
       const start = drag.startCoords[g];
@@ -300,17 +308,15 @@ export class OverlayInteractionController {
         live[i + 2] = start[i + 2] + dz;
       }
       const index = drag.groupIndices[g];
-      const ox = drag.startOrigin.x + dx;
-      const oy = drag.startOrigin.y + dy;
-      const oz = drag.startOrigin.z + dz;
-      const prev = overlays[index].origin;
-      if (prev) {
-        prev[0] = ox;
-        prev[1] = oy;
-        prev[2] = oz;
-      } else {
-        overlays[index].origin = [ox, oy, oz];
-      }
+      overlays[index] = {
+        ...overlays[index],
+        coordinates: live,
+        origin: [
+          drag.startOrigin.x + dx,
+          drag.startOrigin.y + dy,
+          drag.startOrigin.z + dz,
+        ],
+      };
     }
     drag.origin.x = drag.startOrigin.x + dx;
     drag.origin.y = drag.startOrigin.y + dy;
@@ -344,14 +350,11 @@ export class OverlayInteractionController {
     for (let g = 0; g < drag.groupIndices.length; g++) {
       fromLocalCoordsInto(drag.localCoords[g], drag.startOrigin, mat, drag.liveCoords[g]);
       const index = drag.groupIndices[g];
-      const prev = overlays[index].rotation;
-      if (prev) {
-        prev.x = rotation.x;
-        prev.y = rotation.y;
-        prev.z = rotation.z;
-      } else {
-        overlays[index].rotation = { ...rotation };
-      }
+      overlays[index] = {
+        ...overlays[index],
+        coordinates: drag.liveCoords[g],
+        rotation: { ...rotation },
+      };
     }
     drag.origin.from(drag.startOrigin);
     drag.currentRotation = rotation;
@@ -395,12 +398,13 @@ export class OverlayInteractionController {
 
   private finishDrag(emit: boolean) {
     if (!this.drag) return;
+    const { id, orbitWasEnabled } = this.drag;
     if (emit) this.emit("end");
     this.drag = null;
     const orbit = this.options.getOrbit();
-    if (orbit) orbit.enabled = true;
+    if (orbit) orbit.enabled = orbitWasEnabled;
     this.setCursor(this.hoverId ? (this.modifierRotate ? "move" : "grab") : "");
-    this.options.onDragEnd?.();
+    this.options.onDragEnd?.(id);
   }
 
   private setHover(id: string | null) {

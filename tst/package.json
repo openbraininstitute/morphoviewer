@@ -12,7 +12,7 @@
     "dependencies": {
         "@openbraininstitute/morphoviewer": "file:..",
         "@tauri-apps/api": "^2.10.1",
-        "@tolokoban/tgd": "^2.0.128",
+        "@tolokoban/tgd": "2.4.0",
         "@tolokoban/type-guards": "^0.9.0",
         "@tolokoban/ui": "^0.25.4",
         "react": "^19.2.5",
