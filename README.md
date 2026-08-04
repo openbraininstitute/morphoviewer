@@ -32,6 +32,17 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.31.1
+
+- Fix **adaptive resolution** in `MorphoViewerSomasOnly` lowering the render resolution on machines fast enough not to need it
+  - Ending an interaction now always closes the measurement window. It did not when the resolution had never been reduced — i.e. always, on a fast GPU — which left the detector armed for the rest of the session and judging idle repaints, whose spacing reflects how often something asked for a repaint rather than how long a frame takes
+  - Entering **fullscreen** or changing the **colours** no longer degrades the view
+- Decide on the **median of the last 8 frames** instead of a single frame, so a one-off stall (layout, point cloud rebuild, garbage collection) no longer collapses the resolution
+- **Give the resolution back** as soon as frames are fast again; a reduction used to persist for the lifetime of the viewer, so one bad measurement degraded every later interaction
+- Limit a single adjustment to at most **halving** or **+40%** of the pixel count, and discard frames slower than 1s as stalls rather than steady-state render cost
+- Ignore frames measured across a **canvas resize** or a **recolor**, which stall the main thread without saying anything about rendering speed
+- Restore `context.resolution` from a `finally` block in **snapshot**, so a failed capture can no longer strand the canvas at device-pixel resolution with the gizmo hidden
+
 ### v0.31.0
 
 - Add **world-space overlay point clouds** to `MorphoViewerSmallCircuit` and `MorphoViewerSomasOnly` via `overlays`
