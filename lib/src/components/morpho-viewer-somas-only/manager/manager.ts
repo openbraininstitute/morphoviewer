@@ -290,6 +290,9 @@ class PainterManager {
     const { context, state, cellInfos } = this;
     if (!context || !state) return;
 
+    // rebuilding the cloud (parsing + ambient occlusion + buffer upload) blocks
+    // the main thread for as long as it takes; that is not render cost.
+    this.adaptativeResolution.invalidate();
     state.removeAll(true);
     const painterCellInfos = new PainterCellInfos(context, {
       cellInfos,
@@ -349,20 +352,26 @@ class PainterManager {
 
     const gizmoWas = this.painterGizmo.options;
     this.painterGizmo.options = false;
-    context.resolution = captureResolution();
-    const snapshot = context.takeSnapshot({
-      type: "image/png",
-      quality: 0.8,
-      ...options,
-    });
-    context.paint();
-    const image = await snapshot;
-    this.painterGizmo.options = gizmoWas;
-    // restore the live view to full (non-HiDPI) resolution; the adaptive
-    // downscaler re-adjusts on the next interaction.
-    this.adaptativeResolution.highRes();
-    context.paint();
-    return image;
+    // the capture owns `context.resolution` until it resolves, so an
+    // interaction starting meanwhile must not downscale the captured frame.
+    this.adaptativeResolution.suspend();
+    try {
+      context.resolution = captureResolution();
+      const snapshot = context.takeSnapshot({
+        type: "image/png",
+        quality: 0.8,
+        ...options,
+      });
+      context.paint();
+      return await snapshot;
+    } finally {
+      this.painterGizmo.options = gizmoWas;
+      // restore the live view to full (non-HiDPI) resolution; the adaptive
+      // downscaler re-adjusts on the next interaction. A failed capture must
+      // not strand the canvas at device-pixel resolution with no gizmo.
+      this.adaptativeResolution.resume();
+      context.paint();
+    }
   };
 
   private applyBBoxToCamera() {
@@ -399,6 +408,7 @@ class PainterManager {
     });
     this.context = context;
     this.adaptativeResolution.context = context;
+    context.eventResize.addListener(this.handleResize);
     this.scalebarCleanup = watchSpacePerPixel(context, this.eventScalebar);
     this.eventScalebar.addListener(this.handleSpacePerPixel);
     this.parsedBackgroundColor.parse(this._backgroundColor);
@@ -487,6 +497,15 @@ class PainterManager {
   };
 
   /**
+   * A canvas resize — entering fullscreen, most notably — reallocates the
+   * drawing buffer and comes with a layout stall. Those frames say nothing
+   * about how fast the machine renders.
+   */
+  private readonly handleResize = () => {
+    this.adaptativeResolution.invalidate();
+  };
+
+  /**
    * Snapshot live origin / rotation / tip after drag for the dragged overlay id.
    * Only pins when `onOverlayTransform` is provided; escapes after timeout.
    */
@@ -543,6 +562,7 @@ class PainterManager {
     }
 
     this.scalebarCleanup?.();
+    this.context.eventResize.removeListener(this.handleResize);
     this.eventScalebar.removeListener(this.handleSpacePerPixel);
     this.overlayInteraction?.detach();
     this.overlayInteraction = null;
