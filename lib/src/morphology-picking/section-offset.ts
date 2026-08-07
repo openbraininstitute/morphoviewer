@@ -1,16 +1,23 @@
 import { type TgdCamera, TgdMat4, TgdVec2, TgdVec4, tgdCalcClamp } from "@tolokoban/tgd";
 
-import type { Structure, StructureItem } from "./structure";
+import type { PickableSegment, SectionSegmentIndex } from "./types";
 
+/**
+ * Where along its section a click landed, as a `0..1` offset — SONATA's normalized section
+ * offset.
+ *
+ * The pick buffer resolves only which segment was hit, so the position within it comes from
+ * projecting the click onto that segment, then walking the section to accumulate distance.
+ */
 export function computeSectionOffset(
-  structure: Structure,
-  item: StructureItem,
+  sections: SectionSegmentIndex,
+  item: PickableSegment,
   camera: TgdCamera,
   xScreen: number,
   yScreen: number
 ) {
   const offsetSegment = computeSegmentOffset(item, camera, xScreen, yScreen);
-  const segments = structure.getSegmentsOfSection(item.sectionName);
+  const segments = sections.getSegmentsOfSection(item.sectionName);
   let distance = 0;
   let totalDistance = 0;
   for (const segment of segments) {
@@ -24,8 +31,14 @@ export function computeSectionOffset(
   return totalDistance > 0 ? distance / totalDistance : 0;
 }
 
+/**
+ * Where along one segment the click landed, as a `0..1` offset.
+ *
+ * Done in screen space because a click carries no depth: there is no world-space point to
+ * compare against, only the 2D line the user actually saw.
+ */
 function computeSegmentOffset(
-  item: StructureItem,
+  item: PickableSegment,
   camera: TgdCamera,
   xScreen: number,
   yScreen: number

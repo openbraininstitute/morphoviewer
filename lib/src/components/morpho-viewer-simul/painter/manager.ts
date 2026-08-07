@@ -15,11 +15,11 @@ import {
 } from "@tolokoban/tgd";
 import React from "react";
 
+import { computeSectionOffset } from "@/morphology-picking";
 import { useEventValue } from "@/utils";
 
 import { makeCamera } from "./camera";
 import { Initializer } from "./initializer";
-import { computeSectionOffset } from "./math";
 import { OffscreenPainter } from "./offscreen-painter";
 import { Painter } from "./painters";
 import { SpikingManager } from "./spiking-manager";
