@@ -32,6 +32,15 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.33.0
+
+- Add a **dendrogram** to `MorphoViewerSmallCircuit` via `dendrogram`: the same segments in the same order, laid out with branching across x and path distance up y
+  - Morphed on the GPU rather than switched, so a branch stays traceable from one view to the other
+  - **Picking follows the chart.** Both offscreen buffers are seeded with the current morph when they are built, since they are rebuilt on circuit updates and when location picking is enabled; offsets and markers blend with the live mix, so they stay correct mid-animation
+  - Stroke weights are scaled to the chart's own geometry, not taken from the morphology in microns: radius on a path-distance axis is styling, not measurement. Connectors are the lightest mark, the soma the heaviest, branches graded between by log-compressed calibre
+  - Rotation is locked while the chart is shown, since it is flat; zoom and pan stay live
+- Add `somaAsSphere`, drawing each soma as one fitted sphere rather than the contour chain the file records. **Off by default**, and it must stay off wherever `synapses` are drawn: those positions are recorded against the file's own geometry, so replacing the soma moves the surface out from under them. Meant for a lone neuron shown without a circuit around it
+
 ### v0.32.1
 
 - Make the **fitted-sphere soma opt-in** through `somaAsSphere` on `MorphoViewerSmallCircuit`, defaulting to `false`. v0.32.0 always replaced the file's contour chain with one sphere, which moves the drawn surface out from under synapses positioned against the file's geometry. Branches leaving the soma keep their own radius and colour either way

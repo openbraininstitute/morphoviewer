@@ -9,7 +9,7 @@ import {
   tgdEasingFunctionInOutCubic,
 } from "@tolokoban/tgd";
 
-import { MorphoViewerSignalCameraResetOptions } from "@/components/signals";
+import type { MorphoViewerSignalCameraResetOptions } from "@/components/signals";
 
 const ZOOM_MIN = 0.25;
 const ZOOM_MAX = 100;
@@ -19,6 +19,7 @@ export class CameraManager {
 
   private animations: TgdAnimation[] = [];
   private orbit: TgdControllerCameraOrbit | null = null;
+  private savedSpeedOrbit: number | null = null;
 
   constructor(
     private readonly context: TgdContext,
@@ -37,6 +38,22 @@ export class CameraManager {
 
   get enabled(): boolean {
     return this.orbit?.enabled ?? false;
+  }
+
+  /** Freeze rotation while keeping zoom and pan, for flat views like the dendrogram. */
+  get rotationLocked(): boolean {
+    return this.orbit !== null && this.orbit.speedOrbit === 0;
+  }
+  set rotationLocked(locked: boolean) {
+    const { orbit } = this;
+    if (!orbit) return;
+    if (locked) {
+      if (this.savedSpeedOrbit === null) this.savedSpeedOrbit = orbit.speedOrbit;
+      orbit.speedOrbit = 0;
+    } else if (this.savedSpeedOrbit !== null) {
+      orbit.speedOrbit = this.savedSpeedOrbit;
+      this.savedSpeedOrbit = null;
+    }
   }
   set enabled(enabled: boolean) {
     if (this.orbit) this.orbit.enabled = enabled;
