@@ -15,6 +15,9 @@ export interface CellSegment extends PickableSegment {
   sectionType: MorphoViewerTreeItemType;
   /** Whether this is the connector drawn from the soma to the section's first point. */
   isSomaStub: boolean;
+  /** Where this segment sits once morphed into the dendrogram. */
+  chartStart: ArrayNumber3;
+  chartEnd: ArrayNumber3;
 }
 
 /**
@@ -38,7 +41,9 @@ export class CellSectionIndex implements SectionSegmentIndex {
     item: MorphoViewerTreeItem,
     start: ArrayNumber3,
     end: ArrayNumber3,
-    isSomaStub = false
+    isSomaStub = false,
+    chartStart: ArrayNumber3 = start,
+    chartEnd: ArrayNumber3 = end
   ): CellSegment {
     const sectionName = item.sectionId;
     const siblings = this.bySection.get(sectionName) ?? [];
@@ -52,6 +57,8 @@ export class CellSectionIndex implements SectionSegmentIndex {
       segmentLength: distance(start, end),
       start,
       end,
+      chartStart,
+      chartEnd,
       sonataSectionId: item.sonataSectionId,
       sectionType: item.type,
       isSomaStub,
@@ -93,23 +100,28 @@ export class CellSectionIndex implements SectionSegmentIndex {
    *
    * Inverse of a pick, so a stored `(section, offset)` can be drawn back as a marker.
    */
-  getPointAtOffset(sectionName: string, offset: number): ArrayNumber3 | null {
+  /**
+   * Point at a normalised offset along a section.
+   *
+   * @param mix - Dendrogram morph: 0 reads the morphology, 1 the chart.
+   */
+  getPointAtOffset(sectionName: string, offset: number, mix = 0): ArrayNumber3 | null {
     const segments = this.getSegmentsOfSection(sectionName);
     if (segments.length === 0) return null;
 
     const total = segments.reduce((sum, segment) => sum + segment.segmentLength, 0);
-    if (total <= 0) return segments[0].start;
+    if (total <= 0) return at(segments[0], 0, mix);
 
     const target = Math.min(Math.max(offset, 0), 1) * total;
     let walked = 0;
     for (const segment of segments) {
       if (walked + segment.segmentLength >= target) {
         const within = segment.segmentLength > 0 ? (target - walked) / segment.segmentLength : 0;
-        return lerp(segment.start, segment.end, within);
+        return at(segment, within, mix);
       }
       walked += segment.segmentLength;
     }
-    return segments[segments.length - 1].end;
+    return at(segments[segments.length - 1], 1, mix);
   }
 }
 
@@ -123,4 +135,12 @@ function lerp(from: ArrayNumber3, to: ArrayNumber3, alpha: number): ArrayNumber3
 
 function distance([x1, y1, z1]: ArrayNumber3, [x2, y2, z2]: ArrayNumber3): number {
   return Math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2 + (z1 - z2) ** 2);
+}
+
+/** Point along a segment, blended between its morphology and dendrogram placements. */
+function at(segment: CellSegment, within: number, mix: number): ArrayNumber3 {
+  const solid = lerp(segment.start, segment.end, within);
+  if (mix <= 0) return solid;
+  const chart = lerp(segment.chartStart, segment.chartEnd, within);
+  return lerp(solid, chart, mix);
 }

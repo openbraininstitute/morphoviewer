@@ -34,7 +34,7 @@ import type { CellSectionIndex } from "./factory/section-index";
 
 export interface PainterCellOptions {
   name?: string;
-  matrerial?: PainterCellMaterialName;
+  material?: PainterCellMaterialName;
   cell: MorphoViewerSmallCircuitCell;
   loadCell(id: string): Promise<MorphoViewerSmallCircuitCellData | null>;
   /**
@@ -45,11 +45,11 @@ export interface PainterCellOptions {
   /** Neuron mesh opacity in `[0..1]`. Default `1`. */
   opacity?: number;
   /**
-   * Draw the soma as one fitted sphere instead of the contour chain the file records.
-   * Default `false`.
+   * Draw the soma as one fitted sphere rather than the contour chain the file records.
    *
-   * Only safe where no synapses are drawn: their positions are recorded against the file's
-   * geometry, so replacing the soma moves the surface out from under them.
+   * Off by default, and it must stay off wherever synapse positions are drawn: those are
+   * recorded against the file's own geometry, so replacing it moves the surface out from under
+   * them. Meant for a lone neuron shown without a circuit around it.
    */
   somaAsSphere?: boolean;
 }
@@ -75,6 +75,8 @@ export class PainterCell extends TgdPainterGroup {
   private _isDeleted = false;
   private _bbox = new TgdBoundingBox();
   private _sections: CellSectionIndex | null = null;
+  private _dendrogramMix = 0;
+  private applyDendrogramMix: ((mix: number) => void) | null = null;
 
   constructor(
     public readonly context: TgdContext,
@@ -83,7 +85,7 @@ export class PainterCell extends TgdPainterGroup {
     super({
       name:
         options.name ??
-        `PainterCell / ${options.cell.id} #${PainterCell.ID++} [${typeof options.matrerial === "number" ? `ID: ${options.matrerial}` : options.matrerial}]`,
+        `PainterCell / ${options.cell.id} #${PainterCell.ID++} [${typeof options.material === "number" ? `ID: ${options.material}` : options.material}]`,
     });
     const { cell } = options;
     const [x, y, z] = options.cell.center;
@@ -91,7 +93,7 @@ export class PainterCell extends TgdPainterGroup {
     const texture = createPaletteTexture(context, cell.color);
     this.texturePalette = texture;
     this.textureBlack = new TgdTexture2D(context).fill("#000");
-    const materialType = options.matrerial ?? "full";
+    const materialType = options.material ?? "full";
     switch (materialType) {
       // What the user will actually see.
       case "full":
@@ -145,6 +147,16 @@ export class PainterCell extends TgdPainterGroup {
    */
   get sections(): CellSectionIndex | null {
     return this._sections;
+  }
+
+  /** 0 paints the morphology, 1 the dendrogram; values between are the transition. */
+  get dendrogramMix(): number {
+    return this._dendrogramMix;
+  }
+
+  set dendrogramMix(mix: number) {
+    this._dendrogramMix = mix;
+    this.applyDendrogramMix?.(mix);
   }
 
   get isDeleted(): boolean {
@@ -204,14 +216,17 @@ export class PainterCell extends TgdPainterGroup {
       if (this.isDeleted) return;
 
       if (isCellAsTree(data)) {
-        const { node, bbox, sections } = createCellFromTree(
+        const { node, bbox, sections, setDendrogramMix } = createCellFromTree(
           context,
           material,
           data.data,
-          isSelectionMaterial(this.options.matrerial ?? "full"),
+          isSelectionMaterial(this.options.material ?? "full"),
           this.options.somaAsSphere ?? false
         );
         this._sections = sections;
+        this.applyDendrogramMix = setDendrogramMix;
+        // A cell can load while the viewer is already in dendrogram mode.
+        setDendrogramMix(this._dendrogramMix);
         const [x, y, z] = cell.center;
         const quat = new TgdQuat(cell.orientation);
         node.transfo.setPosition(x, y, z);

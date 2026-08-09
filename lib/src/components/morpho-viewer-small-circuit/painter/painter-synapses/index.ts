@@ -1,1 +1,1 @@
-export * from "./painter-synapses"
+export * from "./painter-synapses";
