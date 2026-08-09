@@ -143,6 +143,7 @@ export class PainterManager {
   /** when false, the next circuit update rebuilds cells but keeps the camera
    * (used for recolor, where only cell colors change) */
   private fitCameraOnUpdate = true;
+  private placementSignature = "";
   private bbox = new TgdBoundingBox();
   private _verbose = false;
   private readonly painterGizmo = new PainterGizmo();
@@ -620,9 +621,13 @@ export class PainterManager {
     }
 
     const signature = circuit.map((item) => item.id).join("\n");
-    // same cell ids → geometry is unchanged and only colors differ: rebuild the
-    // cells to apply the new colors but keep the current camera (no zoom reset)
-    this.fitCameraOnUpdate = this.circuitSignature !== signature;
+    // A cell id's query part (after `?`) is a reload key: changing it reloads morphologies
+    // (hosts use it for filters like the axon toggle) but says nothing about where the cells
+    // are. The camera only refits when the cells themselves change, so a reload does not
+    // throw away the zoom the user is standing at.
+    const placementSignature = circuit.map((item) => item.id.split("?")[0]).join("\n");
+    this.fitCameraOnUpdate = this.placementSignature !== placementSignature;
+    this.placementSignature = placementSignature;
     if (this.circuitSignature !== signature) {
       this.circuitSignature = signature;
       this.loadedCellsCache.clear();
