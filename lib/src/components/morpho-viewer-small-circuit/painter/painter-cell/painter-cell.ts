@@ -44,6 +44,14 @@ export interface PainterCellOptions {
   onCellLoaded?(bbox: TgdBoundingBox | null): void;
   /** Neuron mesh opacity in `[0..1]`. Default `1`. */
   opacity?: number;
+  /**
+   * Draw the soma as one fitted sphere instead of the contour chain the file records.
+   * Default `false`.
+   *
+   * Only safe where no synapses are drawn: their positions are recorded against the file's
+   * geometry, so replacing the soma moves the surface out from under them.
+   */
+  somaAsSphere?: boolean;
 }
 
 /**
@@ -200,7 +208,8 @@ export class PainterCell extends TgdPainterGroup {
           context,
           material,
           data.data,
-          isSelectionMaterial(this.options.matrerial ?? "full")
+          isSelectionMaterial(this.options.matrerial ?? "full"),
+          this.options.somaAsSphere ?? false
         );
         this._sections = sections;
         const [x, y, z] = cell.center;

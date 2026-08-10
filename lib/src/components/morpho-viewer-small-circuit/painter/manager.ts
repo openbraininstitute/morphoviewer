@@ -194,7 +194,21 @@ export class PainterManager {
   private _synapsesRadius = 5;
   private _synapsesMinRadiusInPixels = 4;
   private _neuronOpacity = 1;
+  private _somaAsSphere = false;
   private spacePerPixel = 1;
+
+  /** Draw the soma as one fitted sphere instead of the contour chain. Default `false`. */
+  get somaAsSphere(): boolean {
+    return this._somaAsSphere;
+  }
+  set somaAsSphere(somaAsSphere: boolean) {
+    if (somaAsSphere === this._somaAsSphere) return;
+
+    this._somaAsSphere = somaAsSphere;
+    // The soma is baked into the segment buffers, so the cells have to be rebuilt. The
+    // morphology cache holds fetched data, not geometry, so it stays warm.
+    this.updateCircuit();
+  }
 
   get gizmo() {
     return this.painterGizmo.options;
@@ -681,6 +695,7 @@ export class PainterManager {
           loadCell,
           matrerial: "full",
           opacity: this._neuronOpacity,
+          somaAsSphere: this._somaAsSphere,
           onCellLoaded: (bbox) => {
             if (bbox) {
               //   recenterBBox(bbox, x, y, z);
@@ -1227,6 +1242,7 @@ export function usePainterManager({
   synapsesRadius = 5,
   synapsesMinRadiusInPixels = 4,
   neuronOpacity = 1,
+  somaAsSphere = false,
   signals,
   locationSelection,
 }: MorphoViewerSmallCircuitProps) {
@@ -1330,6 +1346,9 @@ export function usePainterManager({
   React.useEffect(() => {
     manager.neuronOpacity = neuronOpacity;
   }, [neuronOpacity, manager]);
+  React.useEffect(() => {
+    manager.somaAsSphere = somaAsSphere;
+  }, [somaAsSphere, manager]);
   React.useEffect(() => {
     if (!onCellHover) return;
 
