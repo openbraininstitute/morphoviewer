@@ -1,4 +1,4 @@
-import { TgdEvent } from "@tolokoban/tgd";
+import type { TgdEvent } from "@tolokoban/tgd";
 
 export interface MorphoViewerElectrodeRecording {
   section: string;
@@ -102,6 +102,16 @@ export interface MorphoViewerTreeItem {
   type: MorphoViewerTreeItemType;
   sectionId: string;
   segmentId: string;
+  /**
+   * SONATA global section id of the section this item belongs to: 0 for the soma, then
+   * nrn_order neurites.
+   *
+   * Optional because only a source that resolved the morphology through MorphIO can produce
+   * it — `sectionId` above identifies a section within one tree, which is enough to draw and
+   * to link parents to children, but is not a number that can be stored in a simulation
+   * config. Set it and a click can be turned into a morphology location.
+   */
+  sonataSectionId?: number;
   distanceFromSoma: number;
   children?: MorphoViewerTreeItem[];
 }

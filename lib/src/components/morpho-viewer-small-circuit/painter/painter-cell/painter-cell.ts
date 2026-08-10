@@ -19,6 +19,7 @@ import {
 } from "@tolokoban/tgd";
 
 import { type MorphoViewerTree, MorphoViewerTreeItemType } from "@/components/morpho-viewer-simul";
+import { MaterialSegmentIndex } from "@/morphology-picking";
 import { int16ToVec3 } from "@/utils";
 
 import { createCellFromTree } from "./factory/tree";
@@ -29,6 +30,7 @@ import type {
   MorphoViewerSmallCircuitCellData,
   SectionColors,
 } from "../../types";
+import type { CellSectionIndex } from "./factory/section-index";
 
 export interface PainterCellOptions {
   name?: string;
@@ -44,7 +46,16 @@ export interface PainterCellOptions {
   opacity?: number;
 }
 
-export type PainterCellMaterialName = "full" | "flat" | number;
+/**
+ * `full` is what the user sees, `flat` the hover highlight, a number the cell's offscreen id,
+ * and `segment` the per-segment offscreen id used to resolve a click to a location.
+ */
+export type PainterCellMaterialName = "full" | "flat" | "segment" | number;
+
+/** Material variants drawn into an offscreen pick buffer rather than shown to the user. */
+function isSelectionMaterial(material: PainterCellMaterialName): boolean {
+  return typeof material === "number" || material === "segment";
+}
 
 export class PainterCell extends TgdPainterGroup {
   private static ID = 1;
@@ -55,6 +66,7 @@ export class PainterCell extends TgdPainterGroup {
   private readonly textureBlack: TgdTexture2D;
   private _isDeleted = false;
   private _bbox = new TgdBoundingBox();
+  private _sections: CellSectionIndex | null = null;
 
   constructor(
     public readonly context: TgdContext,
@@ -88,6 +100,10 @@ export class PainterCell extends TgdPainterGroup {
       case "flat":
         this.material = new TgdMaterialFlatTexture({ texture });
         break;
+      // Offscreen selection IDs, one per segment rather than one per cell.
+      case "segment":
+        this.material = new MaterialSegmentIndex();
+        break;
       // Offscreen selection IDs.
       default:
         this.material = new TgdMaterialFlat({
@@ -111,6 +127,16 @@ export class PainterCell extends TgdPainterGroup {
 
   get bbox(): Readonly<TgdBoundingBox> {
     return this._bbox;
+  }
+
+  /**
+   * Which section each drawn segment belongs to, once the morphology has loaded.
+   *
+   * `null` until then, and on cells whose morphology failed to load. Resolving a pick has to
+   * go through here: the pick buffer only yields an index.
+   */
+  get sections(): CellSectionIndex | null {
+    return this._sections;
   }
 
   get isDeleted(): boolean {
@@ -163,13 +189,20 @@ export class PainterCell extends TgdPainterGroup {
     try {
       const [path] = cell.id.split("?");
       const data = await loadCell(path);
+      // Morphologies arrive long after the request, and a painter can be torn down while its
+      // load is still in flight — switching location picking on and off rebuilds the segment
+      // pass, taking its context with it. Building geometry against a deleted context throws,
+      // so stop here instead.
+      if (this.isDeleted) return;
+
       if (isCellAsTree(data)) {
-        const { node, bbox } = createCellFromTree(
+        const { node, bbox, sections } = createCellFromTree(
           context,
           material,
           data.data,
-          typeof this.options.matrerial === "number"
+          isSelectionMaterial(this.options.matrerial ?? "full")
         );
+        this._sections = sections;
         const [x, y, z] = cell.center;
         const quat = new TgdQuat(cell.orientation);
         node.transfo.setPosition(x, y, z);
@@ -187,6 +220,11 @@ export class PainterCell extends TgdPainterGroup {
         context.paint();
       }
     } catch (error) {
+      // A painter torn down mid-load is routine, not a failure: toggling location picking
+      // rebuilds the segment pass and takes its context with it while morphologies are still
+      // in flight. Reporting those as load errors buries the real ones.
+      if (this.isDeleted || this.context.isDeleted) return;
+
       console.error(`Error loading cell "${cell.id}":`, error);
       onCellLoaded?.(null);
     }

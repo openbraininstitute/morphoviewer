@@ -1,5 +1,7 @@
 import {
   type ArrayNumber2,
+  type ArrayNumber3,
+  type ArrayNumber4,
   TgdBoundingBox,
   type TgdContext,
   type TgdMaterial,
@@ -13,18 +15,77 @@ import {
   type MorphoViewerTreeItem,
   MorphoViewerTreeItemType,
 } from "@/components/morpho-viewer-simul";
+import { encodeSegmentIndex } from "@/morphology-picking";
+
+import { CellSectionIndex } from "./section-index";
+
+/** One segment waiting to be uploaded, held until the cell's segment count is known. */
+interface PendingSegment {
+  item: MorphoViewerTreeItem;
+  parent?: MorphoViewerTreeItem;
+  parentType: MorphoViewerTreeItemType;
+  start: ArrayNumber3;
+  end: ArrayNumber3;
+  radiusStart: number;
+  radiusEnd: number;
+  /** Soma and neurites go to separate datasets so they can be drawn with different roundness. */
+  isSoma: boolean;
+}
 
 export function createCellFromTree(
   context: TgdContext,
   material: TgdMaterial,
   tree: MorphoViewerTree,
   forSelection: boolean
-): { bbox: TgdBoundingBox; node: TgdPainterNode } {
+): { bbox: TgdBoundingBox; node: TgdPainterNode; sections: CellSectionIndex } {
+  // Two passes: the per-segment index is encoded as a fraction of the cell's total segment
+  // count, and that total is only known once the whole tree has been walked.
+  const pending: PendingSegment[] = [];
+  for (const item of tree.roots) {
+    collectSegments(undefined, item, pending);
+  }
+
+  // One index across both datasets: soma and neurites are drawn by separate painters but
+  // share one pick buffer, so a decoded value has to be unambiguous across the whole cell.
+  const sections = new CellSectionIndex();
   const segmentsSoma = new TgdPainterSegmentsData();
   const segmentsNeurites = new TgdPainterSegmentsData();
-  for (const item of tree.roots) {
-    fillSegments(undefined, item, segmentsSoma, segmentsNeurites);
+  const somaSphere = fitSomaSphere(pending);
+  let somaDrawn = false;
+
+  for (const segment of pending) {
+    const recorded = sections.add(segment.item, segment.start, segment.end);
+    const uv0 = makeUV(segment.parentType, recorded.index, pending.length);
+    const uv1 = makeUV(segment.item.type, recorded.index, pending.length);
+    const target = segment.isSoma ? segmentsSoma : segmentsNeurites;
+
+    if (segment.isSoma) {
+      // One fitted sphere, not the file's contour chain, which draws as a string of capsules.
+      const radius = somaDrawn ? 0 : somaSphere.radius;
+      somaDrawn = true;
+      target.add(
+        [...somaSphere.center, radius] as ArrayNumber4,
+        [...somaSphere.center, radius] as ArrayNumber4,
+        uv1,
+        uv1
+      );
+      continue;
+    }
+
+    // Stubs start at the sphere centre and at their own weight: inheriting the soma's radius
+    // and colour would grow a fat grey cone out of the cell body.
+    const stubOffSoma = segment.parent?.type === MorphoViewerTreeItemType.Soma;
+    target.add(
+      [
+        ...(stubOffSoma ? somaSphere.center : segment.start),
+        stubOffSoma ? Math.min(segment.radiusStart, segment.radiusEnd) : segment.radiusStart,
+      ] as ArrayNumber4,
+      [...segment.end, segment.radiusEnd] as ArrayNumber4,
+      stubOffSoma ? uv1 : uv0,
+      uv1
+    );
   }
+
   const bbox = new TgdBoundingBox();
   for (const segments of [segmentsSoma, segmentsNeurites]) {
     for (let i = 0; i < segments.count; i++) {
@@ -51,49 +112,78 @@ export function createCellFromTree(
   painterNeurites.name = "painterNeurites";
   return {
     bbox,
+    sections,
     node: new TgdPainterNode({
       children: [painterSoma, painterNeurites],
     }),
   };
 }
 
-function fillSegments(
+/**
+ * One sphere standing in for the soma's contour chain.
+ *
+ * Centred on the contour's mean; radius is the larger of the spread around that centre and the
+ * largest per-point radius, covering both contour somas and stacked-point somas.
+ */
+function fitSomaSphere(pending: PendingSegment[]): { center: ArrayNumber3; radius: number } {
+  const points: { p: ArrayNumber3; r: number }[] = [];
+  for (const segment of pending) {
+    if (segment.isSoma) points.push({ p: segment.end, r: segment.radiusEnd });
+  }
+  if (!points.length) return { center: [0, 0, 0], radius: 0 };
+
+  const center: ArrayNumber3 = [0, 0, 0];
+  for (const { p } of points) {
+    center[0] += p[0] / points.length;
+    center[1] += p[1] / points.length;
+    center[2] += p[2] / points.length;
+  }
+  let meanDistance = 0;
+  let maxRadius = 0;
+  for (const { p, r } of points) {
+    meanDistance +=
+      Math.hypot(p[0] - center[0], p[1] - center[1], p[2] - center[2]) / points.length;
+    maxRadius = Math.max(maxRadius, r);
+  }
+  return { center, radius: Math.max(meanDistance, maxRadius) };
+}
+
+function collectSegments(
   parent: MorphoViewerTreeItem | undefined,
   item: MorphoViewerTreeItem,
-  segmentsSoma: TgdPainterSegmentsData,
-  segmentsNeurites: TgdPainterSegmentsData
+  pending: PendingSegment[]
 ) {
-  const u1: number = computeCoordU(item.type);
-  const v1 = 0;
-  const uv1: ArrayNumber2 = [u1, v1];
-  const u0: number = computeCoordU(parent?.type ?? u1);
-  const v0 = v1;
-  const uv0: ArrayNumber2 = [u0, v0];
-  if (!parent) {
-    segmentsSoma.add(
-      [item.x, item.y, item.z, item.radius],
-      [item.x, item.y, item.z, item.radius],
-      uv1,
-      uv1
-    );
-  } else if (item.type === MorphoViewerTreeItemType.Soma) {
-    segmentsSoma.add(
-      [parent.x, parent.y, parent.z, parent.radius],
-      [item.x, item.y, item.z, item.radius],
-      uv0,
-      uv1
-    );
-  } else {
-    segmentsNeurites.add(
-      [parent.x, parent.y, parent.z, parent.radius],
-      [item.x, item.y, item.z, item.radius],
-      uv0,
-      uv1
-    );
-  }
+  const from = parent ?? item;
+  pending.push({
+    item,
+    parent,
+    parentType: parent?.type ?? item.type,
+    start: [from.x, from.y, from.z],
+    end: [item.x, item.y, item.z],
+    radiusStart: from.radius,
+    radiusEnd: item.radius,
+    // A root has no parent, so it is drawn as a degenerate segment on itself — a sphere at
+    // the soma. Soma-typed children keep the rounder soma painter too.
+    isSoma: !parent || item.type === MorphoViewerTreeItemType.Soma,
+  });
   for (const child of item.children ?? []) {
-    fillSegments(item, child, segmentsSoma, segmentsNeurites);
+    collectSegments(item, child, pending);
   }
+}
+
+/**
+ * `u` picks the colour from the horizontal palette; `v` carries the segment index.
+ *
+ * `v` was previously always `0` and unused: the palette canvas is a single row, so any `v`
+ * samples the same texel and the visible colours are unaffected by what is stored there. The
+ * offscreen pick material reads it instead of the colour.
+ */
+function makeUV(
+  type: MorphoViewerTreeItemType,
+  segmentIndex: number,
+  segmentCount: number
+): ArrayNumber2 {
+  return [computeCoordU(type), encodeSegmentIndex(segmentIndex, segmentCount)];
 }
 
 /**

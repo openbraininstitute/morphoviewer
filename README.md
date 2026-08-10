@@ -32,6 +32,16 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.32.0
+
+- Add **morphology location picking** to `MorphoViewerSmallCircuit`: a pointer resolves to a `(section, offset)` point on a cell, reported through `locationSelection` as pick, hover and label events
+  - Segment picking runs on its own offscreen buffer at half resolution; the existing cell-level hover and click keep their coarser, cheaper one, which was too lossy to hit a thin dendrite
+  - The per-segment index rides in the free `v` UV channel, so no extra vertex attribute is needed
+  - `MorphoViewerTreeItem` carries `sonataSectionId`, letting a host name the branch a click landed on
+- Draw the **soma as a single fitted sphere** rather than the morphology file's contour chain, which rendered as a string of capsules where the instantiated cell shows one compact body
+- Give **branches leaving the soma their own radius and colour**. They inherited both from their parent — a soma contour point — which drew a fat, soma-coloured cone off the cell body for every branch. Visible only once cells are coloured by section type, but wrong before that too
+- Per-section-type cell colours via `SectionColors` on `MorphoViewerSmallCircuitCell.color`, alongside the existing flat colour
+
 ### v0.31.1
 
 - Fix **adaptive resolution** in `MorphoViewerSomasOnly` lowering the render resolution on machines fast enough not to need it

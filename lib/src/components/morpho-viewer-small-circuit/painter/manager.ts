@@ -1,4 +1,5 @@
 import {
+  type ArrayNumber3,
   TgdBoundingBox,
   TgdCameraOrthographic,
   TgdColor,
@@ -6,12 +7,16 @@ import {
   TgdEvent,
   type TgdInputPointerEventMove,
   type TgdInputPointerEventTap,
+  TgdMat4,
   TgdPainterClear,
   type TgdPainterGizmoOptions,
   TgdPainterGroup,
   TgdPainterState,
+  TgdQuat,
   type TgdTexture2D,
+  TgdTransfo,
   TgdValueWaitable,
+  TgdVec4,
   webglBlendGet,
   webglBlendSet,
   webglPresetBlend,
@@ -19,26 +24,29 @@ import {
 import React from "react";
 
 import { watchSpacePerPixel } from "@/behaviors";
+import { computeSectionOffset } from "@/morphology-picking";
 import { PainterGizmo } from "@/painters/gizmo";
 import { OverlayInteractionController } from "@/painters/overlay-interaction";
 import { OverlaySurface } from "@/painters/overlay-surface";
-import { PainterWorldOverlays } from "@/painters/world-overlays";
 import { CacheLRU } from "@/tools/cache-lru";
 
 import { CameraManager } from "./camera";
-import { OffscreenPainter } from "./offscreen-painter";
+import { OffscreenPainter, SegmentOffscreenPainter } from "./offscreen-painter";
 import { PainterCell, PainterCellFlat } from "./painter-cell";
+import { PainterLocationMarkers } from "./painter-location-markers";
 import { PainterSynapses } from "./painter-synapses";
 
+import type { PainterWorldOverlays } from "@/painters/world-overlays";
 import type {
   MorphoViewerSignalCameraResetOptions,
   MorphoViewerSignalSnapshotOptions,
 } from "../../signals";
+import type { MorphoViewerOverlayTransformEvent, MorphoViewerWorldOverlay } from "../../types";
 import type {
-  MorphoViewerOverlayTransformEvent,
-  MorphoViewerWorldOverlay,
-} from "../../types";
-import type {
+  MorphoViewerMorphologyLocationHover,
+  MorphoViewerMorphologyLocationLabel,
+  MorphoViewerMorphologyLocationMarker,
+  MorphoViewerMorphologyLocationPick,
   MorphoViewerSmallCircuitCell,
   MorphoViewerSmallCircuitCellData,
   MorphoViewerSmallCircuitProps,
@@ -49,10 +57,37 @@ interface Framebuffer {
   delete(): void;
 }
 
+/** Warm amber, chosen to stay legible against the blue/violet neuron palette. */
+const DEFAULT_LOCATION_MARKER_COLOR = "#ef9f27";
+/** Cheap enough for hover, coarse enough that thin neurites fall between its pixels. */
+const CELL_PICKING_RESOLUTION_DIVIDER = 4;
+/** Matches the segment buffer, so both agree on what was hit. */
+const LOCATION_PICKING_RESOLUTION_DIVIDER = 2;
+/** Larger than a synapse: there are a handful of these and they are the point of the view. */
+export const DEFAULT_LOCATION_MARKER_RADIUS = 3;
+const LOCATION_MARKER_MIN_RADIUS_IN_PIXELS = 6;
+/** How far a click may miss a neurite and still count. Small enough that background misses. */
+const LOCATION_PICK_SEARCH_IN_PIXELS = 4;
+/** Slightly wider than the marker, so the popover does not flicker at its edge. */
+const LOCATION_HOVER_TOLERANCE_IN_PIXELS = 9;
+/** Tighter than the click search, so the preview does not latch onto neighbouring branches. */
+const LOCATION_HOVER_SEARCH_IN_PIXELS = 2;
+
 export class PainterManager {
   public readonly eventRestingPosition = new TgdEvent<boolean>();
   public readonly eventCellHover = new TgdEvent<MorphoViewerSmallCircuitCell | undefined>();
   public readonly eventCellClick = new TgdEvent<MorphoViewerSmallCircuitCell | undefined>();
+  /** A click resolved down to one point on one neurite. Only fires while picking is enabled. */
+  public readonly eventLocationPick = new TgdEvent<MorphoViewerMorphologyLocationPick>();
+  /** The selected location under the pointer, or `null` on leaving one. */
+  public readonly eventLocationHover = new TgdEvent<MorphoViewerMorphologyLocationHover | null>();
+  /**
+   * Every selected location and where it currently sits on screen.
+   *
+   * Fires on each repaint so labels can stay pinned to their point while the camera orbits.
+   * Only computed when a host has asked for it.
+   */
+  public readonly eventLocationLabels = new TgdEvent<MorphoViewerMorphologyLocationLabel[]>();
   /**
    * Dispatch the `spacePerPixel`.
    */
@@ -77,6 +112,9 @@ export class PainterManager {
   private cameraManager: CameraManager | null = null;
   private painterClear: TgdPainterClear | null = null;
   private offscreen: OffscreenPainter | null = null;
+  private segmentOffscreen: SegmentOffscreenPainter | null = null;
+  /** Built lazily: the extra pick buffer only exists while a host is asking for locations. */
+  private _locationPickingEnabled = false;
   private _highlightedCellIds: string[] = [];
   private hoveredCellId: string | undefined = "";
   private readonly groupCells = new TgdPainterGroup({ name: "GroupCell" });
@@ -110,6 +148,25 @@ export class PainterManager {
   private readonly painterGizmo = new PainterGizmo();
   private painterOverlays: PainterWorldOverlays | null = null;
   private painterSynapses: PainterSynapses | null = null;
+  private painterLocationMarkers: PainterLocationMarkers | null = null;
+  private _locationMarkers: MorphoViewerMorphologyLocationMarker[] = [];
+  private _locationMarkerColor = DEFAULT_LOCATION_MARKER_COLOR;
+  private _locationMarkerRadius = DEFAULT_LOCATION_MARKER_RADIUS;
+  /**
+   * Each marker that could be placed, with where it ended up.
+   *
+   * One list rather than two parallel arrays: markers whose cell has not loaded are skipped,
+   * so a separate positions array would fall out of step with the markers it indexes.
+   */
+  private resolvedLocationMarkers: Array<{
+    marker: MorphoViewerMorphologyLocationMarker;
+    point: ArrayNumber3;
+  }> = [];
+  private hoveredLocationIndex: number | null = null;
+  /** Last previewed spot, so the popover is not re-dispatched on every pixel of travel. */
+  private previewedLocationKey: string | null = null;
+  /** Off unless a host subscribes: projecting on every frame is wasted work otherwise. */
+  private _locationLabelsEnabled = false;
   private readonly cellPainters: PainterCell[] = [];
   /** Transparent electrode canvas — painted without re-drawing morphologies. */
   private readonly overlaySurface = new OverlaySurface();
@@ -318,6 +375,237 @@ export class PainterManager {
     painterSynapses.minRadiusInPixels = this._synapsesMinRadiusInPixels;
   }
 
+  /** Markers for the currently selected morphology locations. */
+  setLocationMarkers(
+    markers: MorphoViewerMorphologyLocationMarker[],
+    color?: string,
+    radius?: number
+  ) {
+    this._locationMarkers = markers;
+    this._locationMarkerColor = color ?? DEFAULT_LOCATION_MARKER_COLOR;
+    this._locationMarkerRadius = radius ?? DEFAULT_LOCATION_MARKER_RADIUS;
+    this.applyLocationMarkers();
+  }
+
+  /**
+   * Resolve each selected `(cell, section, offset)` to a world point and hand them to the
+   * marker painter.
+   *
+   * Silently skips markers whose cell has not finished loading — its geometry is not known
+   * yet, so there is nowhere to put the marker. `setCircuit` re-applies once cells arrive.
+   */
+  private applyLocationMarkers() {
+    const { painterLocationMarkers, segmentOffscreen } = this;
+    if (!painterLocationMarkers) return;
+
+    const resolved: typeof this.resolvedLocationMarkers = [];
+    if (segmentOffscreen) {
+      for (const marker of this._locationMarkers) {
+        const cell = this.circuit.find((candidate) => candidate.id === marker.cellId);
+        if (!cell) continue;
+
+        const sections = segmentOffscreen.getSections(cell);
+        const point = sections?.getPointAtOffset(marker.sectionName, marker.offset);
+        if (!sections || !point) continue;
+
+        resolved.push({
+          // The host only knows the section id and offset it stored, so the type is filled in
+          // here from the geometry it resolved against.
+          marker: { ...marker, sectionType: sections.getSectionType(marker.sectionName) },
+          point: applyMatrixToPoint(makeCellMatrix(cell), point),
+        });
+      }
+    }
+    this.resolvedLocationMarkers = resolved;
+    const points = resolved.map((entry) => entry.point);
+    painterLocationMarkers.color = this._locationMarkerColor;
+    painterLocationMarkers.radius = this._locationMarkerRadius;
+    painterLocationMarkers.minRadiusInPixels = LOCATION_MARKER_MIN_RADIUS_IN_PIXELS;
+    painterLocationMarkers.markers = points.map(([x, y, z]) => ({ x, y, z }));
+    // The set of markers just changed, so labels are stale even if the camera has not moved.
+    this.publishLocationLabels();
+    this.context.value?.paint();
+  }
+
+  /**
+   * Report the marker under the pointer, or `null` when there is none.
+   *
+   * Projects each marker to the screen and takes the nearest within a small radius, rather
+   * than rendering a third pick buffer: there are a handful of markers, and a buffer would
+   * cost a full pass every frame to answer a question a few dot products already answer.
+   *
+   * When markers overlap the closest to the pointer wins, which is what the eye expects.
+   */
+  private readonly updateLocationHover = (xScreen: number, yScreen: number) => {
+    const context = this.context.value;
+    if (!context) {
+      this.setHoveredLocation(null);
+      return;
+    }
+
+    // An existing marker wins over a preview: the pointer is on something already chosen, and
+    // reporting it as "click to add" would invite a duplicate.
+    const markerIndex = this.findMarkerAt(xScreen, yScreen);
+    if (markerIndex !== null) {
+      this.setHoveredLocation(markerIndex);
+      this.setPickCursor(true);
+      return;
+    }
+
+    this.setHoveredLocation(null);
+    this.previewLocationAt(xScreen, yScreen);
+  };
+
+  /**
+   * Resolve whatever neurite is under the pointer, without changing anything.
+   *
+   * The same work a click does, so a spot can be read before committing to it.
+   */
+  private previewLocationAt(xScreen: number, yScreen: number) {
+    const { offscreen, segmentOffscreen } = this;
+    const context = this.context.value;
+    if (!offscreen || !segmentOffscreen || !context) {
+      this.setPickCursor(false);
+      this.eventLocationHover.dispatch(null);
+      return;
+    }
+
+    const cell =
+      offscreen.getItemAt(xScreen, yScreen) ??
+      offscreen.getItemNear(xScreen, yScreen, LOCATION_HOVER_SEARCH_IN_PIXELS);
+    const segment = cell
+      ? segmentOffscreen.getSegmentNear(cell, xScreen, yScreen, LOCATION_HOVER_SEARCH_IN_PIXELS)
+      : undefined;
+    const sections = cell ? segmentOffscreen.getSections(cell) : null;
+    if (!cell || !segment || !sections || segment.sonataSectionId === undefined) {
+      this.setPickCursor(false);
+      if (this.previewedLocationKey !== null) {
+        this.previewedLocationKey = null;
+        this.eventLocationHover.dispatch(null);
+      }
+      return;
+    }
+
+    const matrix = makeCellMatrix(cell);
+    const offset = computeSectionOffset(
+      sections,
+      {
+        ...segment,
+        start: applyMatrixToPoint(matrix, segment.start),
+        end: applyMatrixToPoint(matrix, segment.end),
+      },
+      context.camera,
+      xScreen,
+      yScreen
+    );
+    this.setPickCursor(true);
+
+    // Keyed so the popover is not re-dispatched on every pixel of pointer travel along one
+    // segment, which would make it jitter.
+    const key = `${cell.id}/${segment.index}/${offset.toFixed(2)}`;
+    if (key === this.previewedLocationKey) return;
+
+    this.previewedLocationKey = key;
+    const point = sections.getPointAtOffset(segment.sectionName, offset);
+    this.eventLocationHover.dispatch({
+      kind: "preview",
+      cellId: cell.id,
+      sectionName: segment.sectionName,
+      sonataSectionId: segment.sonataSectionId,
+      sectionType: segment.sectionType,
+      offset,
+      screen: point
+        ? projectToNormalizedScreen(context, applyMatrixToPoint(matrix, point))
+        : { x: (xScreen + 1) / 2, y: (1 - yScreen) / 2 },
+    });
+  }
+
+  /** Publish label positions on every repaint. Gated: the work is per-frame. */
+  get locationLabelsEnabled(): boolean {
+    return this._locationLabelsEnabled;
+  }
+  set locationLabelsEnabled(enabled: boolean) {
+    if (enabled === this._locationLabelsEnabled) return;
+
+    this._locationLabelsEnabled = enabled;
+    if (enabled) this.publishLocationLabels();
+    else this.eventLocationLabels.dispatch([]);
+  }
+
+  /**
+   * Project every resolved marker to the screen and publish the result.
+   *
+   * Runs in the paint loop, so it stays cheap. Markers behind the camera are reported as not
+   * visible rather than dropped, keeping a host's label elements stable.
+   */
+  private readonly publishLocationLabels = () => {
+    if (!this._locationLabelsEnabled) return;
+
+    const context = this.context.value;
+    if (!context) return;
+
+    const matrix = new TgdMat4(context.camera.matrixProjection).multiply(
+      context.camera.matrixModelView
+    );
+    this.eventLocationLabels.dispatch(
+      this.resolvedLocationMarkers.map(({ marker, point: [x, y, z] }) => {
+        const projected = new TgdVec4(x, y, z, 1).applyMatrix(matrix);
+        const visible = projected.w > 0;
+        if (visible) projected.scale(1 / projected.w);
+        return {
+          marker,
+          visible,
+          screen: { x: (projected.x + 1) / 2, y: (1 - projected.y) / 2 },
+        };
+      })
+    );
+  };
+
+  /** Index of the selected marker under the pointer, or `null`. */
+  private findMarkerAt(xScreen: number, yScreen: number): number | null {
+    const context = this.context.value;
+    if (!context || this.resolvedLocationMarkers.length === 0) return null;
+
+    // The pointer arrives in clip space, so the pixel tolerance has to be converted too.
+    const toleranceX = (2 * LOCATION_HOVER_TOLERANCE_IN_PIXELS) / Math.max(1, context.width);
+    const toleranceY = (2 * LOCATION_HOVER_TOLERANCE_IN_PIXELS) / Math.max(1, context.height);
+    const matrix = new TgdMat4(context.camera.matrixProjection).multiply(
+      context.camera.matrixModelView
+    );
+    let nearest: { index: number; distance: number } | null = null;
+    this.resolvedLocationMarkers.forEach(({ point: [x, y, z] }, index) => {
+      const projected = new TgdVec4(x, y, z, 1).applyMatrix(matrix);
+      if (projected.w <= 0) return;
+
+      projected.scale(1 / projected.w);
+      const dx = (projected.x - xScreen) / toleranceX;
+      const dy = (projected.y - yScreen) / toleranceY;
+      const distance = dx * dx + dy * dy;
+      if (distance > 1) return;
+      if (!nearest || distance < nearest.distance) nearest = { index, distance };
+    });
+    return nearest ? (nearest as { index: number }).index : null;
+  }
+
+  private setHoveredLocation(index: number | null) {
+    if (index === this.hoveredLocationIndex) return;
+
+    this.hoveredLocationIndex = index;
+    const resolved = index === null ? null : this.resolvedLocationMarkers[index];
+    const marker = resolved?.marker;
+    const point = resolved?.point;
+    if (!marker || !point) {
+      // Leaving a marker does not necessarily mean leaving the neuron, so the caller decides
+      // whether a preview replaces it. Clearing here would make the popover flicker.
+      return;
+    }
+    // Entering a marker supersedes any preview, so forget it or the two will fight.
+    this.previewedLocationKey = null;
+    const context = this.context.value;
+    const screen = context ? projectToNormalizedScreen(context, point) : { x: 0, y: 0 };
+    this.eventLocationHover.dispatch({ ...marker, kind: "selected", screen });
+  }
+
   setCircuit(
     circuit: MorphoViewerSmallCircuitCell[],
     loadCell: (id: string) => Promise<MorphoViewerSmallCircuitCellData | null>
@@ -373,6 +661,7 @@ export class PainterManager {
         loadCell,
         loadedCells,
       });
+      this.rebuildSegmentOffscreen();
       const { cellsForHighights: highlightingCells } = this;
       highlightingCells.clear();
       this.groupHighlithedCells.removeAll(false);
@@ -536,7 +825,16 @@ export class PainterManager {
     });
     const painterSynapses = new PainterSynapses(context);
     this.painterSynapses = painterSynapses;
+    // A painter of its own rather than sharing the synapse one: hosts drive synapses from
+    // their own data, and location markers must not overwrite them (or be overwritten). It
+    // also draws round points, which matters once a marker is big enough to see.
+    const painterLocationMarkers = new PainterLocationMarkers(context);
+    this.painterLocationMarkers = painterLocationMarkers;
+    this.applyLocationMarkers();
     this.applySynapses();
+    // Labels are pinned to world points, so they have to be re-projected whenever the camera
+    // moves — which is exactly what a repaint means.
+    context.eventPaint.addListener(this.publishLocationLabels);
     this.context.value = context;
     context.camera = new TgdCameraOrthographic({
       zoom: 1,
@@ -559,7 +857,10 @@ export class PainterManager {
         this.painterOverlays?.syncPositions();
       },
       getHitRadiusPixels: () =>
-        Math.max(this._overlaysMinRadiusInPixels * 1.8, this._overlaysRadius / Math.max(this.spacePerPixel, 1e-6)),
+        Math.max(
+          this._overlaysMinRadiusInPixels * 1.8,
+          this._overlaysRadius / Math.max(this.spacePerPixel, 1e-6)
+        ),
       getOrbit: () => this.cameraManager,
       setHighlightedId: (id) => {
         if (this.painterOverlays) {
@@ -598,7 +899,7 @@ export class PainterManager {
       new TgdPainterState(context, {
         depth: "less",
         cull: "back",
-        children: [this.groupCells, painterSynapses],
+        children: [this.groupCells, painterSynapses, painterLocationMarkers],
         onEnter: () => {
           if (this._neuronOpacity >= 1) return;
           savedNeuronBlend = webglBlendGet(context);
@@ -711,6 +1012,12 @@ export class PainterManager {
     const { offscreen } = this;
     if (!offscreen) return;
 
+    // Runs before the early return below: a marker sits on a neurite, so the pointer usually
+    // has not changed cell and the hover would otherwise never be re-evaluated.
+    if (this._locationPickingEnabled) {
+      this.updateLocationHover(evt.current.x, evt.current.y);
+    }
+
     const cell = offscreen.getItemAt(evt.current.x, evt.current.y);
     if (cell?.id === this.hoveredCellId) return;
 
@@ -718,13 +1025,150 @@ export class PainterManager {
     this.eventCellHover.dispatch(cell);
   };
 
+  /**
+   * Show a hand over anything a click would act on.
+   *
+   * Written to the canvas directly: routing it through React state visibly lags the pointer.
+   */
+  private setPickCursor(pickable: boolean) {
+    const canvas = this._canvas;
+    if (!canvas) return;
+
+    const wanted = pickable ? "pointer" : "";
+    if (canvas.style.cursor !== wanted) canvas.style.cursor = wanted;
+  }
+
   private readonly handlePointerTap = (evt: TgdInputPointerEventTap) => {
     const { offscreen } = this;
     if (!offscreen) return;
 
     const cell = offscreen.getItemAt(evt.x, evt.y);
     if (cell) this.eventCellClick.dispatch(cell);
+
+    if (!this._locationPickingEnabled) return;
+
+    // Deliberately re-resolved rather than reusing `cell`: an exact-pixel miss is common on a
+    // thin neurite, and it is the difference between a click that works and one that quietly
+    // does nothing until the pointer is nudged.
+    // A click on an existing marker is a request to remove it, so it is resolved first and
+    // reported as-is: re-deriving which stored location was meant from a rounded offset would
+    // be guesswork.
+    const existingIndex = this.findMarkerAt(evt.x, evt.y);
+    if (existingIndex !== null) {
+      const { marker } = this.resolvedLocationMarkers[existingIndex];
+      const markerCell = this.circuit.find((candidate) => candidate.id === marker.cellId);
+      if (markerCell) {
+        this.eventLocationPick.dispatch({
+          cell: markerCell,
+          sectionName: marker.sectionName,
+          sonataSectionId: marker.sonataSectionId,
+          sectionType: marker.sectionType,
+          offset: marker.offset,
+          existingMarker: marker,
+        });
+        return;
+      }
+    }
+
+    const nearCell = cell ?? offscreen.getItemNear(evt.x, evt.y, LOCATION_PICK_SEARCH_IN_PIXELS);
+    if (nearCell) this.dispatchLocationPick(nearCell, evt.x, evt.y);
   };
+
+  /**
+   * Whether a click should also be resolved down to a point on a neurite.
+   *
+   * Setting this builds or tears down the extra pick buffer, so hosts that never ask for
+   * locations pay nothing — no second context, no second render per frame.
+   */
+  get locationPickingEnabled(): boolean {
+    return this._locationPickingEnabled;
+  }
+  set locationPickingEnabled(enabled: boolean) {
+    if (enabled === this._locationPickingEnabled) return;
+
+    this._locationPickingEnabled = enabled;
+    if (!enabled) {
+      // Otherwise the hand cursor and a stale popover outlive the mode that produced them.
+      this.setPickCursor(false);
+      this.previewedLocationKey = null;
+      this.hoveredLocationIndex = null;
+      this.eventLocationHover.dispatch(null);
+    }
+    this.rebuildSegmentOffscreen();
+  }
+
+  private rebuildSegmentOffscreen() {
+    this.segmentOffscreen?.delete();
+    this.segmentOffscreen = null;
+    const context = this.context.value;
+    const { loadCell } = this;
+    // A location pick needs a hit in both buffers, so the cell buffer has to be at least as
+    // sharp as the segment one — otherwise thin distal branches resolve to a segment but to
+    // no cell, and the click is dropped. Restored to the cheap default once picking is off.
+    if (this.offscreen) {
+      this.offscreen.resolutionDivider = this._locationPickingEnabled
+        ? LOCATION_PICKING_RESOLUTION_DIVIDER
+        : CELL_PICKING_RESOLUTION_DIVIDER;
+    }
+    if (!this._locationPickingEnabled || !context || !loadCell) return;
+
+    this.segmentOffscreen = new SegmentOffscreenPainter(context, {
+      circuit: this.circuit,
+      loadCell,
+      // Cells stream in, and a marker cannot be placed before its cell has geometry. Re-apply
+      // as each arrives so a selection restored from the config appears without needing an
+      // unrelated redraw to happen to come along.
+      onCellLoaded: () => this.applyLocationMarkers(),
+    });
+    // Markers resolve against the section index this painter owns, so any pending selection
+    // can only be drawn now that it exists.
+    this.applyLocationMarkers();
+  }
+
+  /**
+   * Turn a click into `(section, offset)` on the clicked cell.
+   *
+   * Segment coordinates are in the morphology's own space, so they go through the cell's
+   * transform before projection. Section lengths do not: placement is rigid.
+   */
+  private dispatchLocationPick(
+    cell: MorphoViewerSmallCircuitCell,
+    xScreen: number,
+    yScreen: number
+  ) {
+    const { segmentOffscreen } = this;
+    const context = this.context.value;
+    if (!segmentOffscreen || !context) return;
+
+    const segment = segmentOffscreen.getSegmentNear(
+      cell,
+      xScreen,
+      yScreen,
+      LOCATION_PICK_SEARCH_IN_PIXELS
+    );
+    const sections = segmentOffscreen.getSections(cell);
+    if (!segment || !sections) return;
+
+    const matrix = makeCellMatrix(cell);
+    const offset = computeSectionOffset(
+      sections,
+      {
+        ...segment,
+        start: applyMatrixToPoint(matrix, segment.start),
+        end: applyMatrixToPoint(matrix, segment.end),
+      },
+      context.camera,
+      xScreen,
+      yScreen
+    );
+    this.eventLocationPick.dispatch({
+      cell,
+      sectionName: segment.sectionName,
+      sonataSectionId: segment.sonataSectionId,
+      sectionType: segment.sectionType,
+      offset,
+    });
+  }
 
   private delete() {
     this.clearPinnedOverlay();
@@ -779,6 +1223,7 @@ export function usePainterManager({
   synapsesMinRadiusInPixels = 4,
   neuronOpacity = 1,
   signals,
+  locationSelection,
 }: MorphoViewerSmallCircuitProps) {
   const [, setSpacePerPixel] = React.useState(-1);
   const ref = React.useRef<PainterManager | null>(null);
@@ -808,6 +1253,60 @@ export function usePainterManager({
   React.useEffect(() => {
     manager.setCircuit(circuit, loadCell);
   }, [circuit, loadCell, manager]);
+
+  // Building the extra pick buffer is the expensive part, so it is keyed off presence alone;
+  // the selection and the callback change far more often and must not rebuild it.
+  const locationPickingEnabled = Boolean(locationSelection);
+  React.useEffect(() => {
+    manager.locationPickingEnabled = locationPickingEnabled;
+  }, [locationPickingEnabled, manager]);
+
+  const onPick = locationSelection?.onPick;
+  React.useEffect(() => {
+    if (!onPick) return;
+
+    manager.eventLocationPick.addListener(onPick);
+    return () => {
+      manager.eventLocationPick.removeListener(onPick);
+    };
+  }, [onPick, manager]);
+
+  const onLocationHover = locationSelection?.onHover;
+  React.useEffect(() => {
+    if (!onLocationHover) return;
+
+    manager.eventLocationHover.addListener(onLocationHover);
+    return () => {
+      manager.eventLocationHover.removeListener(onLocationHover);
+      // The popover outlives the listener otherwise, pinned to a marker nothing is tracking.
+      onLocationHover(null);
+    };
+  }, [onLocationHover, manager]);
+
+  const selectedLocations = locationSelection?.selected;
+  const locationColor = locationSelection?.color;
+  const locationRadius = locationSelection?.radius;
+  React.useEffect(() => {
+    manager.setLocationMarkers(selectedLocations ?? [], locationColor, locationRadius);
+  }, [selectedLocations, locationColor, locationRadius, manager]);
+
+  const onLabelsChange = locationSelection?.onLabelsChange;
+  React.useEffect(() => {
+    if (!onLabelsChange) {
+      manager.locationLabelsEnabled = false;
+      return;
+    }
+
+    // Subscribe *before* enabling. Switching it on publishes the current positions straight
+    // away, and with a static camera there is no repaint to follow up with — so a listener
+    // added afterwards would wait for a camera move that may never come.
+    manager.eventLocationLabels.addListener(onLabelsChange);
+    manager.locationLabelsEnabled = true;
+    return () => {
+      manager.locationLabelsEnabled = false;
+      manager.eventLocationLabels.removeListener(onLabelsChange);
+    };
+  }, [onLabelsChange, manager]);
   React.useEffect(() => {
     manager.highlightedCellIds = highlightedCellIds;
   }, [highlightedCellIds, manager]);
@@ -906,4 +1405,35 @@ function readOverlayTip(
   const coords = prefer?.coordinates ?? fallback?.coordinates;
   if (!coords || coords.length < 3) return null;
   return [coords[0], coords[1], coords[2]];
+}
+
+/** World matrix for a placed cell — the transform `PainterCell` applies to its geometry. */
+function makeCellMatrix(cell: MorphoViewerSmallCircuitCell): TgdMat4 {
+  const transfo = new TgdTransfo();
+  const [x, y, z] = cell.center;
+  transfo.setPosition(x, y, z);
+  transfo.orientation = new TgdQuat(cell.orientation);
+  return new TgdMat4(transfo.matrix);
+}
+
+function applyMatrixToPoint(matrix: TgdMat4, [x, y, z]: ArrayNumber3): ArrayNumber3 {
+  const point = new TgdVec4(x, y, z, 1).applyMatrix(matrix);
+  return [point.x, point.y, point.z];
+}
+
+/**
+ * Where a world point lands on the canvas, as fractions of its width and height.
+ *
+ * Normalized so a host can position with percentages and stay correct across resizes.
+ */
+function projectToNormalizedScreen(
+  context: TgdContext,
+  [x, y, z]: ArrayNumber3
+): { x: number; y: number } {
+  const matrix = new TgdMat4(context.camera.matrixProjection).multiply(
+    context.camera.matrixModelView
+  );
+  const point = new TgdVec4(x, y, z, 1).applyMatrix(matrix);
+  if (point.w !== 0) point.scale(1 / point.w);
+  return { x: (point.x + 1) / 2, y: (1 - point.y) / 2 };
 }

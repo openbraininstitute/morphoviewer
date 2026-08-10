@@ -1,6 +1,6 @@
 {
     "name": "@openbraininstitute/morphoviewer",
-    "version": "0.31.1",
+    "version": "0.32.0",
     "description": "Class to display SWC files in 3D on a canvas",
     "main": "./dist/index.js",
     "module": "./dist/index.js",
