@@ -32,6 +32,11 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.32.1
+
+- Make the **fitted-sphere soma opt-in** through `somaAsSphere` on `MorphoViewerSmallCircuit`, defaulting to `false`. v0.32.0 always replaced the file's contour chain with one sphere, which moves the drawn surface out from under synapses positioned against the file's geometry. Branches leaving the soma keep their own radius and colour either way
+- Keep the **camera** when only the query part of a cell's `id` changes. A host can use it as a reload key — flipping an axon toggle, say — to rebuild a cell's morphology in place without the view refitting and losing the user's zoom
+
 ### v0.32.0
 
 - Add **morphology location picking** to `MorphoViewerSmallCircuit`: a pointer resolves to a `(section, offset)` point on a cell, reported through `locationSelection` as pick, hover and label events

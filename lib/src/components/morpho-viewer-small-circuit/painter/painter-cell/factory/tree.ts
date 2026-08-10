@@ -36,7 +36,8 @@ export function createCellFromTree(
   context: TgdContext,
   material: TgdMaterial,
   tree: MorphoViewerTree,
-  forSelection: boolean
+  forSelection: boolean,
+  somaAsSphere = false
 ): { bbox: TgdBoundingBox; node: TgdPainterNode; sections: CellSectionIndex } {
   // Two passes: the per-segment index is encoded as a fraction of the cell's total segment
   // count, and that total is only known once the whole tree has been walked.
@@ -59,7 +60,7 @@ export function createCellFromTree(
     const uv1 = makeUV(segment.item.type, recorded.index, pending.length);
     const target = segment.isSoma ? segmentsSoma : segmentsNeurites;
 
-    if (segment.isSoma) {
+    if (segment.isSoma && somaAsSphere) {
       // One fitted sphere, not the file's contour chain, which draws as a string of capsules.
       const radius = somaDrawn ? 0 : somaSphere.radius;
       somaDrawn = true;
@@ -72,12 +73,15 @@ export function createCellFromTree(
       continue;
     }
 
-    // Stubs start at the sphere centre and at their own weight: inheriting the soma's radius
-    // and colour would grow a fat grey cone out of the cell body.
-    const stubOffSoma = segment.parent?.type === MorphoViewerTreeItemType.Soma;
+    // Stubs keep their own weight: inheriting the soma's radius and colour would grow a fat
+    // grey cone out of the cell body. They start at the sphere centre only when the soma is
+    // drawn as one, since otherwise the contour point they leave from is still drawn.
+    const stubOffSoma =
+      segment.parent?.type === MorphoViewerTreeItemType.Soma &&
+      segment.item.type !== MorphoViewerTreeItemType.Soma;
     target.add(
       [
-        ...(stubOffSoma ? somaSphere.center : segment.start),
+        ...(stubOffSoma && somaAsSphere ? somaSphere.center : segment.start),
         stubOffSoma ? Math.min(segment.radiusStart, segment.radiusEnd) : segment.radiusStart,
       ] as ArrayNumber4,
       [...segment.end, segment.radiusEnd] as ArrayNumber4,

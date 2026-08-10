@@ -143,6 +143,7 @@ export class PainterManager {
   /** when false, the next circuit update rebuilds cells but keeps the camera
    * (used for recolor, where only cell colors change) */
   private fitCameraOnUpdate = true;
+  private placementSignature = "";
   private bbox = new TgdBoundingBox();
   private _verbose = false;
   private readonly painterGizmo = new PainterGizmo();
@@ -193,7 +194,21 @@ export class PainterManager {
   private _synapsesRadius = 5;
   private _synapsesMinRadiusInPixels = 4;
   private _neuronOpacity = 1;
+  private _somaAsSphere = false;
   private spacePerPixel = 1;
+
+  /** Draw the soma as one fitted sphere instead of the contour chain. Default `false`. */
+  get somaAsSphere(): boolean {
+    return this._somaAsSphere;
+  }
+  set somaAsSphere(somaAsSphere: boolean) {
+    if (somaAsSphere === this._somaAsSphere) return;
+
+    this._somaAsSphere = somaAsSphere;
+    // The soma is baked into the segment buffers, so the cells have to be rebuilt. The
+    // morphology cache holds fetched data, not geometry, so it stays warm.
+    this.updateCircuit();
+  }
 
   get gizmo() {
     return this.painterGizmo.options;
@@ -620,9 +635,13 @@ export class PainterManager {
     }
 
     const signature = circuit.map((item) => item.id).join("\n");
-    // same cell ids → geometry is unchanged and only colors differ: rebuild the
-    // cells to apply the new colors but keep the current camera (no zoom reset)
-    this.fitCameraOnUpdate = this.circuitSignature !== signature;
+    // A cell id's query part (after `?`) is a reload key: changing it reloads morphologies
+    // (hosts use it for filters like the axon toggle) but says nothing about where the cells
+    // are. The camera only refits when the cells themselves change, so a reload does not
+    // throw away the zoom the user is standing at.
+    const placementSignature = circuit.map((item) => item.id.split("?")[0]).join("\n");
+    this.fitCameraOnUpdate = this.placementSignature !== placementSignature;
+    this.placementSignature = placementSignature;
     if (this.circuitSignature !== signature) {
       this.circuitSignature = signature;
       this.loadedCellsCache.clear();
@@ -676,6 +695,7 @@ export class PainterManager {
           loadCell,
           matrerial: "full",
           opacity: this._neuronOpacity,
+          somaAsSphere: this._somaAsSphere,
           onCellLoaded: (bbox) => {
             if (bbox) {
               //   recenterBBox(bbox, x, y, z);
@@ -1222,6 +1242,7 @@ export function usePainterManager({
   synapsesRadius = 5,
   synapsesMinRadiusInPixels = 4,
   neuronOpacity = 1,
+  somaAsSphere = false,
   signals,
   locationSelection,
 }: MorphoViewerSmallCircuitProps) {
@@ -1325,6 +1346,9 @@ export function usePainterManager({
   React.useEffect(() => {
     manager.neuronOpacity = neuronOpacity;
   }, [neuronOpacity, manager]);
+  React.useEffect(() => {
+    manager.somaAsSphere = somaAsSphere;
+  }, [somaAsSphere, manager]);
   React.useEffect(() => {
     if (!onCellHover) return;
 

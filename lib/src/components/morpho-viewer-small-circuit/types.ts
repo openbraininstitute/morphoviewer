@@ -175,6 +175,14 @@ export type MorphoViewerSmallCircuitProps = PropsForGizmo &
      */
     neuronOpacity?: number;
     /**
+     * Draw the soma as one fitted sphere instead of the contour chain the file records.
+     * Default `false`.
+     *
+     * Only safe where no synapses are drawn: their positions are recorded against the file's
+     * geometry, so replacing the soma moves the surface out from under them.
+     */
+    somaAsSphere?: boolean;
+    /**
      * Ids of the cells we want to highlight.
      */
     highlightedCellIds?: string[];
