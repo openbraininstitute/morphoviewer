@@ -55,7 +55,13 @@ export function createCellFromTree(
   let somaDrawn = false;
 
   for (const segment of pending) {
-    const recorded = sections.add(segment.item, segment.start, segment.end);
+    // Stubs keep their own weight: inheriting the soma's radius and colour would grow a fat
+    // grey cone out of the cell body. They start at the sphere centre only when the soma is
+    // drawn as one, since otherwise the contour point they leave from is still drawn.
+    const stubOffSoma =
+      segment.parent?.type === MorphoViewerTreeItemType.Soma &&
+      segment.item.type !== MorphoViewerTreeItemType.Soma;
+    const recorded = sections.add(segment.item, segment.start, segment.end, stubOffSoma);
     const uv0 = makeUV(segment.parentType, recorded.index, pending.length);
     const uv1 = makeUV(segment.item.type, recorded.index, pending.length);
     const target = segment.isSoma ? segmentsSoma : segmentsNeurites;
@@ -73,12 +79,6 @@ export function createCellFromTree(
       continue;
     }
 
-    // Stubs keep their own weight: inheriting the soma's radius and colour would grow a fat
-    // grey cone out of the cell body. They start at the sphere centre only when the soma is
-    // drawn as one, since otherwise the contour point they leave from is still drawn.
-    const stubOffSoma =
-      segment.parent?.type === MorphoViewerTreeItemType.Soma &&
-      segment.item.type !== MorphoViewerTreeItemType.Soma;
     target.add(
       [
         ...(stubOffSoma && somaAsSphere ? somaSphere.center : segment.start),

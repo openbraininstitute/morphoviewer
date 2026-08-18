@@ -66,6 +66,35 @@ describe("CellSectionIndex", () => {
     expect(index.getSegmentsOfSection("nope")).toEqual([]);
   });
 
+  it("leaves the soma stub out of the section it leads to", () => {
+    const index = new CellSectionIndex();
+
+    index.add(item("dend[0]", "0"), ORIGIN, [8, 0, 0], true);
+    index.add(item("dend[0]", "1"), [8, 0, 0], [58, 0, 0]);
+
+    const measured = index.getSegmentsOfSection("dend[0]");
+    expect(measured.map((s) => s.segmentIndex)).toEqual([1]);
+    expect(measured.reduce((sum, s) => sum + s.segmentLength, 0)).toBeCloseTo(50);
+    expect(index.length).toBe(2);
+    expect(index.get(0)?.isSomaStub).toBe(true);
+  });
+
+  it("keeps the stub when it is all a section has", () => {
+    const index = new CellSectionIndex();
+
+    index.add(item("dend[0]", "0"), ORIGIN, [8, 0, 0], true);
+
+    expect(index.getSegmentsOfSection("dend[0]")).toHaveLength(1);
+  });
+
+  it("places a point at an offset measured without the stub", () => {
+    const index = new CellSectionIndex();
+    index.add(item("dend[0]", "0"), ORIGIN, [8, 0, 0], true);
+    index.add(item("dend[0]", "1"), [8, 0, 0], [58, 0, 0]);
+
+    expect(index.getPointAtOffset("dend[0]", 0.5)).toEqual([33, 0, 0]);
+  });
+
   it("carries the SONATA section id through when the tree has one", () => {
     const index = new CellSectionIndex();
 

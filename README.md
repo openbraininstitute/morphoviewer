@@ -32,6 +32,10 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.32.2
+
+- Keep the **soma stub out of a section's own length**. A branch leaving the soma is drawn from the cell body to the branch's first point, and that connector was filed as segment 0 of the section it reaches — so `computeSectionOffset` divided by a length that included it and counted it whole for every click further along. A click halfway down a 50µm dendrite off an 8µm soma reported ~0.57 rather than 0.5, which is the offset a host stores as a morphology location. The stub is still recorded, so a click on it resolves, and it is kept when it is all a section has
+
 ### v0.32.1
 
 - Make the **fitted-sphere soma opt-in** through `somaAsSphere` on `MorphoViewerSmallCircuit`, defaulting to `false`. v0.32.0 always replaced the file's contour chain with one sphere, which moves the drawn surface out from under synapses positioned against the file's geometry. Branches leaving the soma keep their own radius and colour either way
