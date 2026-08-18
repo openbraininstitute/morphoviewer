@@ -13,6 +13,8 @@ export interface CellSegment extends PickableSegment {
   sonataSectionId?: number;
   /** Soma / axon / basal / apical — what the section is, not just which one it is. */
   sectionType: MorphoViewerTreeItemType;
+  /** Whether this is the connector drawn from the soma to the section's first point. */
+  isSomaStub: boolean;
 }
 
 /**
@@ -32,7 +34,12 @@ export class CellSectionIndex implements SectionSegmentIndex {
    * A geometry segment runs from a node's parent to the node, so section and position come
    * from `item` — the far end — matching how `collectSegments` picks a colour.
    */
-  add(item: MorphoViewerTreeItem, start: ArrayNumber3, end: ArrayNumber3): CellSegment {
+  add(
+    item: MorphoViewerTreeItem,
+    start: ArrayNumber3,
+    end: ArrayNumber3,
+    isSomaStub = false
+  ): CellSegment {
     const sectionName = item.sectionId;
     const siblings = this.bySection.get(sectionName) ?? [];
     const parsed = Number.parseInt(item.segmentId, 10);
@@ -47,6 +54,7 @@ export class CellSectionIndex implements SectionSegmentIndex {
       end,
       sonataSectionId: item.sonataSectionId,
       sectionType: item.type,
+      isSomaStub,
     };
     this.segments.push(segment);
     siblings.push(segment);
@@ -64,8 +72,11 @@ export class CellSectionIndex implements SectionSegmentIndex {
     return this.segments[index];
   }
 
+  /** A section's own segments, in order; the soma stub is not one of them. */
   getSegmentsOfSection(sectionName: string): CellSegment[] {
-    return this.bySection.get(sectionName) ?? [];
+    const all = this.bySection.get(sectionName) ?? [];
+    const measured = all.filter((segment) => !segment.isSomaStub);
+    return measured.length > 0 ? measured : all;
   }
 
   /**
