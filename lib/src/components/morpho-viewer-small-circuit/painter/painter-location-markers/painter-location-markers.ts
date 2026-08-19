@@ -3,14 +3,18 @@ import {
   TgdPainterGroup,
   TgdPainterPointsCloud,
   TgdTexture2D,
-  tgdCanvasCreateFill,
+  tgdCanvasCreatePalette,
 } from "@tolokoban/tgd";
+
+import { buildMarkerPalette } from "./palette";
 
 /** One selected morphology location, already placed in world coordinates. */
 export interface LocationMarker {
   x: number;
   y: number;
   z: number;
+  /** Marker colour. Falls back to the painter's own when a marker does not name one. */
+  color?: string;
 }
 
 /**
@@ -81,13 +85,14 @@ export class PainterLocationMarkers extends TgdPainterGroup {
     this.painter = null;
     const { _markers: markers } = this;
     if (markers.length > 0) {
-      this.texture.loadBitmap(tgdCanvasCreateFill(1, 1, this._color));
+      const { palette, slots } = buildMarkerPalette(markers, this._color);
+      this.texture.loadBitmap(tgdCanvasCreatePalette(palette));
       const attXYZR: number[] = [];
       const attUV: number[] = [];
-      for (const { x, y, z } of markers) {
+      markers.forEach(({ x, y, z }, index) => {
         attXYZR.push(x, y, z, 1);
-        attUV.push(0.5, 0.5);
-      }
+        attUV.push((slots[index] + 0.5) / palette.length, 0.5);
+      });
       const painter = new TgdPainterPointsCloud(this.context, {
         dataPoint: new Float32Array(attXYZR),
         dataUV: new Float32Array(attUV),

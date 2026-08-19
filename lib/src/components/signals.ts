@@ -61,4 +61,6 @@ export class MorphoViewerSignals {
     MorphoViewerSignalSnapshotOptions | undefined,
     HTMLImageElement | null
   >();
+  /** dispatch to make the cells grow once, then go back to normal size. */
+  public readonly nudgeMorphology = new MorphoViewerSignal();
 }

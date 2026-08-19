@@ -69,6 +69,8 @@ export interface MorphoViewerMorphologyLocationMarker {
    * need not know it up front — a config stores only a section id and an offset.
    */
   sectionType?: MorphoViewerTreeItemType;
+  /** Overrides {@link MorphoViewerMorphologyLocationSelection.color} for this marker. */
+  color?: string;
 }
 
 /** What is under the pointer, with where to anchor a popover. */
@@ -107,7 +109,8 @@ export interface MorphoViewerMorphologyLocationLabel {
  */
 export interface MorphoViewerMorphologyLocationSelection {
   selected: MorphoViewerMorphologyLocationMarker[];
-  onPick(this: void, pick: MorphoViewerMorphologyLocationPick): void;
+  /** Leave it out for read-only markers: no picking, no hand cursor, no preview. */
+  onPick?(this: void, pick: MorphoViewerMorphologyLocationPick): void;
   /**
    * Called with the marker under the pointer, and with `null` on leaving it.
    *
@@ -134,6 +137,11 @@ export interface MorphoViewerMorphologyLocationSelection {
    * can be seen at all.
    */
   radius?: number;
+  /**
+   * Section types that get the hand cursor. Clicks are still reported for all of them.
+   * Omit to treat every section as pickable.
+   */
+  pickableSectionTypes?: readonly MorphoViewerTreeItemType[];
 }
 
 export type MorphoViewerSmallCircuitCellData = {
