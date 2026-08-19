@@ -35,8 +35,10 @@ import { OffscreenPainter, SegmentOffscreenPainter } from "./offscreen-painter";
 import { PainterCell, PainterCellFlat } from "./painter-cell";
 import { PainterLocationMarkers } from "./painter-location-markers";
 import { PainterSynapses } from "./painter-synapses";
+import { isStillPointer } from "./still-pointer";
 
 import type { PainterWorldOverlays } from "@/painters/world-overlays";
+import type { MorphoViewerTreeItemType } from "../../morpho-viewer-simul";
 import type {
   MorphoViewerSignalCameraResetOptions,
   MorphoViewerSignalSnapshotOptions,
@@ -68,6 +70,10 @@ export const DEFAULT_LOCATION_MARKER_RADIUS = 3;
 const LOCATION_MARKER_MIN_RADIUS_IN_PIXELS = 6;
 /** How far a click may miss a neurite and still count. Small enough that background misses. */
 const LOCATION_PICK_SEARCH_IN_PIXELS = 4;
+
+const NUDGE_DURATION_IN_MS = 900;
+const NUDGE_AMPLITUDE = 0.06;
+
 /** Slightly wider than the marker, so the popover does not flicker at its edge. */
 const LOCATION_HOVER_TOLERANCE_IN_PIXELS = 9;
 /** Tighter than the click search, so the preview does not latch onto neighbouring branches. */
@@ -115,8 +121,11 @@ export class PainterManager {
   private segmentOffscreen: SegmentOffscreenPainter | null = null;
   /** Built lazily: the extra pick buffer only exists while a host is asking for locations. */
   private _locationPickingEnabled = false;
+  private _pickableSectionTypes: readonly MorphoViewerTreeItemType[] | null = null;
   private _highlightedCellIds: string[] = [];
   private hoveredCellId: string | undefined = "";
+  private nudgeStart: number | null = null;
+
   private readonly groupCells = new TgdPainterGroup({ name: "GroupCell" });
   private circuit: MorphoViewerSmallCircuitCell[] = [];
   private readonly cellsForHighights = new Map<string, PainterCell>();
@@ -396,9 +405,21 @@ export class PainterManager {
     color?: string,
     radius?: number
   ) {
+    const nextColor = color ?? DEFAULT_LOCATION_MARKER_COLOR;
+    const unchanged = this._locationMarkers === markers && this._locationMarkerColor === nextColor;
     this._locationMarkers = markers;
-    this._locationMarkerColor = color ?? DEFAULT_LOCATION_MARKER_COLOR;
+    this._locationMarkerColor = nextColor;
     this._locationMarkerRadius = radius ?? DEFAULT_LOCATION_MARKER_RADIUS;
+    // Radius alone has a cheap path; rebuilding would recompile the point-cloud shader.
+    if (unchanged && this.painterLocationMarkers) {
+      this.painterLocationMarkers.radius = this._locationMarkerRadius;
+      return;
+    }
+    if (this.needsSegmentOffscreen !== Boolean(this.segmentOffscreen)) {
+      // First markers with picking off, or the last one gone: the buffer follows them.
+      this.rebuildSegmentOffscreen();
+      return;
+    }
     this.applyLocationMarkers();
   }
 
@@ -432,11 +453,15 @@ export class PainterManager {
       }
     }
     this.resolvedLocationMarkers = resolved;
-    const points = resolved.map((entry) => entry.point);
     painterLocationMarkers.color = this._locationMarkerColor;
     painterLocationMarkers.radius = this._locationMarkerRadius;
     painterLocationMarkers.minRadiusInPixels = LOCATION_MARKER_MIN_RADIUS_IN_PIXELS;
-    painterLocationMarkers.markers = points.map(([x, y, z]) => ({ x, y, z }));
+    painterLocationMarkers.markers = resolved.map(({ marker, point: [x, y, z] }) => ({
+      x,
+      y,
+      z,
+      color: marker.color,
+    }));
     // The set of markers just changed, so labels are stale even if the camera has not moved.
     this.publishLocationLabels();
     this.context.value?.paint();
@@ -513,7 +538,7 @@ export class PainterManager {
       xScreen,
       yScreen
     );
-    this.setPickCursor(true);
+    this.setPickCursor(this.isPickable(segment.sectionType));
 
     // Keyed so the popover is not re-dispatched on every pixel of pointer travel along one
     // segment, which would make it jitter.
@@ -1045,6 +1070,18 @@ export class PainterManager {
     this.eventCellHover.dispatch(cell);
   };
 
+  /** Section types the host accepts; everything is pickable until it says otherwise. */
+  set pickableSectionTypes(value: readonly MorphoViewerTreeItemType[] | undefined) {
+    this._pickableSectionTypes = value ?? null;
+  }
+
+  private isPickable(sectionType: MorphoViewerTreeItemType | undefined): boolean {
+    const allowed = this._pickableSectionTypes;
+    if (!allowed) return true;
+
+    return sectionType !== undefined && allowed.includes(sectionType);
+  }
+
   /**
    * Show a hand over anything a click would act on.
    *
@@ -1066,6 +1103,10 @@ export class PainterManager {
     if (cell) this.eventCellClick.dispatch(cell);
 
     if (!this._locationPickingEnabled) return;
+
+    // A drag must not add a point.
+    const canvas = this.context.value?.canvas;
+    if (!isStillPointer(evt, canvas?.width ?? 0, canvas?.height ?? 0)) return;
 
     // Deliberately re-resolved rather than reusing `cell`: an exact-pixel miss is common on a
     // thin neurite, and it is the difference between a click that works and one that quietly
@@ -1117,6 +1158,10 @@ export class PainterManager {
     this.rebuildSegmentOffscreen();
   }
 
+  private get needsSegmentOffscreen(): boolean {
+    return this._locationPickingEnabled || this._locationMarkers.length > 0;
+  }
+
   private rebuildSegmentOffscreen() {
     this.segmentOffscreen?.delete();
     this.segmentOffscreen = null;
@@ -1130,7 +1175,9 @@ export class PainterManager {
         ? LOCATION_PICKING_RESOLUTION_DIVIDER
         : CELL_PICKING_RESOLUTION_DIVIDER;
     }
-    if (!this._locationPickingEnabled || !context || !loadCell) return;
+    // Needed for markers too, not just picking: it owns the section index they resolve
+    // against, so read-only markers have nowhere to sit without it.
+    if (!this.needsSegmentOffscreen || !context || !loadCell) return;
 
     this.segmentOffscreen = new SegmentOffscreenPainter(context, {
       circuit: this.circuit,
@@ -1143,6 +1190,35 @@ export class PainterManager {
     // Markers resolve against the section index this painter owns, so any pending selection
     // can only be drawn now that it exists.
     this.applyLocationMarkers();
+  }
+
+  /** Grow the cells briefly, then restore. Only the cells move; the camera does not. */
+  nudgeMorphology() {
+    if (this.nudgeStart !== null) return;
+
+    if (!this.context.value) return;
+
+    this.nudgeStart = performance.now();
+    const step = () => {
+      if (this.nudgeStart === null) return;
+
+      // The viewer can be torn down mid-nudge.
+      const current = this.context.value;
+      if (!current) {
+        this.nudgeStart = null;
+        return;
+      }
+
+      const elapsed = performance.now() - this.nudgeStart;
+      const progress = Math.min(1, elapsed / NUDGE_DURATION_IN_MS);
+      const scale = progress < 1 ? 1 + NUDGE_AMPLITUDE * Math.sin(progress * Math.PI) : 1;
+      for (const painter of this.cellPainters) painter.scale = scale;
+      current.paint();
+
+      if (progress < 1) requestAnimationFrame(step);
+      else this.nudgeStart = null;
+    };
+    requestAnimationFrame(step);
   }
 
   /**
@@ -1191,6 +1267,7 @@ export class PainterManager {
   }
 
   private delete() {
+    this.nudgeStart = null;
     this.clearPinnedOverlay();
     this.textureFramebufferCircuit?.delete();
     this.textureFramebufferCircuit = null;
@@ -1265,9 +1342,11 @@ export function usePainterManager({
 
     const unregisterReset = signals.cameraReset.register((options) => manager.cameraReset(options));
     const unregisterSnapshot = signals.snapshot.register((options) => manager.snapshot(options));
+    const unregisterNudge = signals.nudgeMorphology.register(() => manager.nudgeMorphology());
     return () => {
       unregisterReset();
       unregisterSnapshot();
+      unregisterNudge();
     };
   }, [signals, manager]);
 
@@ -1277,7 +1356,7 @@ export function usePainterManager({
 
   // Building the extra pick buffer is the expensive part, so it is keyed off presence alone;
   // the selection and the callback change far more often and must not rebuild it.
-  const locationPickingEnabled = Boolean(locationSelection);
+  const locationPickingEnabled = Boolean(locationSelection?.onPick);
   React.useEffect(() => {
     manager.locationPickingEnabled = locationPickingEnabled;
   }, [locationPickingEnabled, manager]);
@@ -1303,6 +1382,11 @@ export function usePainterManager({
       onLocationHover(null);
     };
   }, [onLocationHover, manager]);
+
+  const pickableSectionTypes = locationSelection?.pickableSectionTypes;
+  React.useEffect(() => {
+    manager.pickableSectionTypes = pickableSectionTypes;
+  }, [pickableSectionTypes, manager]);
 
   const selectedLocations = locationSelection?.selected;
   const locationColor = locationSelection?.color;

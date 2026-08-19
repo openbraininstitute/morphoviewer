@@ -32,6 +32,13 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.32.3
+
+- **Turning the view no longer adds a morphology location.** A short drag counted as a click, so points appeared while rotating. A point is now added only if the pointer stayed still. Clicking a cell after a drag still works
+- **New option `pickableSectionTypes` on `locationSelection`.** List the section types your app accepts. The hand cursor then shows only on those, so the pointer does not offer a click you will refuse. Clicks are still reported for every section, so you can say why one was turned down
+- **Markers can have a colour each.** Set `color` on a marker in `locationSelection.selected`. Use it to tell apart locations that come from different places, for example one colour per block of your config. Markers without a colour use `locationSelection.color` as before
+- **New signal `nudgeMorphology`.** Dispatch it to make the cells grow once and go back to normal size. Use it to show the user that the 3D view is the place to click. The camera does not move
+
 ### v0.32.2
 
 - Keep the **soma stub out of a section's own length**. A branch leaving the soma is drawn from the cell body to the branch's first point, and that connector was filed as segment 0 of the section it reaches — so `computeSectionOffset` divided by a length that included it and counted it whole for every click further along. A click halfway down a 50µm dendrite off an 8µm soma reported ~0.57 rather than 0.5, which is the offset a host stores as a morphology location. The stub is still recorded, so a click on it resolves, and it is kept when it is all a section has
