@@ -37,7 +37,7 @@ Copyright (c) 2025 Open Brain Institute
 - **Turning the view no longer adds a morphology location.** A short drag counted as a click, so points appeared while rotating. A point is now added only if the pointer stayed still. Clicking a cell after a drag still works
 - **New option `pickableSectionTypes` on `locationSelection`.** List the section types your app accepts. The hand cursor then shows only on those, so the pointer does not offer a click you will refuse. Clicks are still reported for every section, so you can say why one was turned down
 - **Markers can have a colour each.** Set `color` on a marker in `locationSelection.selected`. Use it to tell apart locations that come from different places, for example one colour per block of your config. Markers without a colour use `locationSelection.color` as before
-- **New signal `nudgeMorphology`.** Dispatch it to make the cells grow once and go back to normal size. Use it to show the user that the 3D view is the place to click. The camera does not move
+- **New signal `nudgeMorphology`.** Dispatch it to zoom in a little and back out once, to show the user that the 3D view is the place to click. Stops if the user moves the camera
 
 ### v0.32.2
 

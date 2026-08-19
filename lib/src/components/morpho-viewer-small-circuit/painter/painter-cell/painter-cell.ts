@@ -11,7 +11,6 @@ import {
   TgdPainterBBox,
   TgdPainterGroup,
   TgdPainterMesh,
-  type TgdPainterNode,
   TgdQuat,
   TgdTexture2D,
   type TgdTransfo,
@@ -76,8 +75,6 @@ export class PainterCell extends TgdPainterGroup {
   private _isDeleted = false;
   private _bbox = new TgdBoundingBox();
   private _sections: CellSectionIndex | null = null;
-  private cellNode: TgdPainterNode | null = null;
-  private _scale = 1;
 
   constructor(
     public readonly context: TgdContext,
@@ -173,17 +170,6 @@ export class PainterCell extends TgdPainterGroup {
     }
   }
 
-  /** Draw scale; 1 is normal size. */
-  get scale(): number {
-    return this._scale;
-  }
-  set scale(value: number) {
-    if (this._scale === value) return;
-
-    this._scale = value;
-    this.cellNode?.transfo.setScale(value, value, value);
-  }
-
   get opacity(): number {
     const { material } = this;
     if (material instanceof MaterialDiffuseAlpha) {
@@ -230,8 +216,6 @@ export class PainterCell extends TgdPainterGroup {
         const quat = new TgdQuat(cell.orientation);
         node.transfo.setPosition(x, y, z);
         node.transfo.orientation = quat;
-        node.transfo.setScale(this._scale, this._scale, this._scale);
-        this.cellNode = node;
         const [sx, sy, sz] = computeSomaCenter(data, node.transfo);
         const transformedBBox = recenterBBox(applyTransfoToBBox(node.transfo, bbox), sx, sy, sz);
         this.removeAll();

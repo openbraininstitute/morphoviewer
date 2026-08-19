@@ -1192,12 +1192,16 @@ export class PainterManager {
     this.applyLocationMarkers();
   }
 
-  /** Grow the cells briefly, then restore. Only the cells move; the camera does not. */
+  /** Zoom in a little and back out once, to point the user at the 3D view. */
   nudgeMorphology() {
     if (this.nudgeStart !== null) return;
 
-    if (!this.context.value) return;
+    // Zooming the camera, not scaling the cells: synapses and markers are separate painters
+    // in world space, so growing the cells alone lifts the neurite out from under them.
+    const restingZoom = this.context.value?.camera.zoom;
+    if (restingZoom === undefined) return;
 
+    let applied: number | null = null;
     this.nudgeStart = performance.now();
     const step = () => {
       if (this.nudgeStart === null) return;
@@ -1209,10 +1213,17 @@ export class PainterManager {
         return;
       }
 
+      // The user moved the camera: leave it where they put it.
+      if (applied !== null && current.camera.zoom !== applied) {
+        this.nudgeStart = null;
+        return;
+      }
+
       const elapsed = performance.now() - this.nudgeStart;
       const progress = Math.min(1, elapsed / NUDGE_DURATION_IN_MS);
-      const scale = progress < 1 ? 1 + NUDGE_AMPLITUDE * Math.sin(progress * Math.PI) : 1;
-      for (const painter of this.cellPainters) painter.scale = scale;
+      const grow = progress < 1 ? 1 + NUDGE_AMPLITUDE * Math.sin(progress * Math.PI) : 1;
+      applied = restingZoom * grow;
+      current.camera.zoom = applied;
       current.paint();
 
       if (progress < 1) requestAnimationFrame(step);
