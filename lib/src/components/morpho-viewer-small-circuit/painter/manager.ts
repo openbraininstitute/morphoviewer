@@ -128,9 +128,9 @@ export class PainterManager {
 
   private readonly groupCells = new TgdPainterGroup({ name: "GroupCell" });
   private circuit: MorphoViewerSmallCircuitCell[] = [];
-  private readonly cellsForHighights = new Map<string, PainterCell>();
-  private readonly groupHighlithedCells = new TgdPainterGroup({
-    name: "groupHighlisthedCells",
+  private readonly cellsForHighlights = new Map<string, PainterCell>();
+  private readonly groupHighlightedCells = new TgdPainterGroup({
+    name: "groupHighlightedCells",
   });
   private loadCell: null | ((id: string) => Promise<MorphoViewerSmallCircuitCellData | null>) =
     null;
@@ -178,6 +178,9 @@ export class PainterManager {
   /** Off unless a host subscribes: projecting on every frame is wasted work otherwise. */
   private _locationLabelsEnabled = false;
   private readonly cellPainters: PainterCell[] = [];
+  private _dendrogramMode = false;
+  private dendrogramMix = 0;
+  private dendrogramAnimation: number | null = null;
   /** Transparent electrode canvas — painted without re-drawing morphologies. */
   private readonly overlaySurface = new OverlaySurface();
   private _overlayCanvas: HTMLCanvasElement | null = null;
@@ -206,24 +209,21 @@ export class PainterManager {
   private _somaAsSphere = false;
   private spacePerPixel = 1;
 
-  /** Draw the soma as one fitted sphere instead of the contour chain. Default `false`. */
-  get somaAsSphere(): boolean {
-    return this._somaAsSphere;
-  }
-  set somaAsSphere(somaAsSphere: boolean) {
-    if (somaAsSphere === this._somaAsSphere) return;
-
-    this._somaAsSphere = somaAsSphere;
-    // The soma is baked into the segment buffers, so the cells have to be rebuilt. The
-    // morphology cache holds fetched data, not geometry, so it stays warm.
-    this.updateCircuit();
-  }
-
   get gizmo() {
     return this.painterGizmo.options;
   }
   set gizmo(gizmo: TgdPainterGizmoOptions | boolean | null | undefined) {
     this.painterGizmo.options = gizmo ?? false;
+  }
+
+  /** Applied when cells are built, so a change rebuilds the circuit rather than mutating it. */
+  get somaAsSphere(): boolean {
+    return this._somaAsSphere;
+  }
+  set somaAsSphere(somaAsSphere: boolean) {
+    if (somaAsSphere === this._somaAsSphere) return;
+    this._somaAsSphere = somaAsSphere;
+    this.updateCircuit();
   }
 
   get neuronOpacity(): number {
@@ -441,7 +441,11 @@ export class PainterManager {
         if (!cell) continue;
 
         const sections = segmentOffscreen.getSections(cell);
-        const point = sections?.getPointAtOffset(marker.sectionName, marker.offset);
+        const point = sections?.getPointAtOffset(
+          marker.sectionName,
+          marker.offset,
+          this.dendrogramMix
+        );
         if (!sections || !point) continue;
 
         resolved.push({
@@ -531,8 +535,14 @@ export class PainterManager {
       sections,
       {
         ...segment,
-        start: applyMatrixToPoint(matrix, segment.start),
-        end: applyMatrixToPoint(matrix, segment.end),
+        start: applyMatrixToPoint(
+          matrix,
+          blendPoint(segment.start, segment.chartStart, this.dendrogramMix)
+        ),
+        end: applyMatrixToPoint(
+          matrix,
+          blendPoint(segment.end, segment.chartEnd, this.dendrogramMix)
+        ),
       },
       context.camera,
       xScreen,
@@ -546,7 +556,7 @@ export class PainterManager {
     if (key === this.previewedLocationKey) return;
 
     this.previewedLocationKey = key;
-    const point = sections.getPointAtOffset(segment.sectionName, offset);
+    const point = sections.getPointAtOffset(segment.sectionName, offset, this.dendrogramMix);
     this.eventLocationHover.dispatch({
       kind: "preview",
       cellId: cell.id,
@@ -561,6 +571,65 @@ export class PainterManager {
   }
 
   /** Publish label positions on every repaint. Gated: the work is per-frame. */
+  /**
+   * Morph the cells between their morphology and a dendrogram of the same segments.
+   *
+   * Animated rather than switched, so a branch stays traceable from one view to the other.
+   */
+  get dendrogramMode(): boolean {
+    return this._dendrogramMode;
+  }
+
+  set dendrogramMode(enabled: boolean) {
+    if (enabled === this._dendrogramMode) return;
+    this._dendrogramMode = enabled;
+    this.animateDendrogram(enabled ? 1 : 0);
+    // The chart is flat, so rotation is locked; zoom and pan stay live.
+    if (enabled) this.cameraReset({ zoom: 1 });
+    if (this.cameraManager) this.cameraManager.rotationLocked = enabled;
+  }
+
+  private animateDendrogram(target: number) {
+    if (this.dendrogramAnimation !== null) {
+      cancelAnimationFrame(this.dendrogramAnimation);
+      this.dendrogramAnimation = null;
+    }
+
+    const from = this.dendrogramMix;
+    const span = target - from;
+    if (Math.abs(span) < 1e-3) return;
+
+    const DURATION = 600;
+    let elapsed = 0;
+    let last: number | null = null;
+
+    const step = (now: number) => {
+      elapsed += last === null ? 0 : now - last;
+      last = now;
+      const t = Math.min(1, elapsed / DURATION);
+      const eased = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2; // ease in-out
+      this.setDendrogramMix(from + span * eased);
+      if (t < 1) {
+        this.dendrogramAnimation = requestAnimationFrame(step);
+      } else {
+        this.dendrogramAnimation = null;
+      }
+    };
+
+    this.dendrogramAnimation = requestAnimationFrame(step);
+  }
+
+  private setDendrogramMix(mix: number) {
+    this.dendrogramMix = mix;
+    for (const painter of this.cellPainters) painter.dendrogramMix = mix;
+    // The pick buffers hold their own geometry, so they morph too or clicks miss.
+    if (this.offscreen) this.offscreen.dendrogramMix = mix;
+    if (this.segmentOffscreen) this.segmentOffscreen.dendrogramMix = mix;
+    // Markers sit on moving geometry.
+    this.applyLocationMarkers();
+    this.context.value?.paint();
+  }
+
   get locationLabelsEnabled(): boolean {
     return this._locationLabelsEnabled;
   }
@@ -688,7 +757,7 @@ export class PainterManager {
     const context = this.context.value;
     if (!context) return;
 
-    const { loadCell, loadedCellsCache: loadedCells } = this;
+    const { loadCell } = this;
     if (!loadCell) {
       return;
     }
@@ -703,12 +772,12 @@ export class PainterManager {
       this.offscreen = new OffscreenPainter(context, {
         circuit: this.circuit,
         loadCell,
-        loadedCells,
+        dendrogramMix: this.dendrogramMix,
       });
       this.rebuildSegmentOffscreen();
-      const { cellsForHighights: highlightingCells } = this;
+      const { cellsForHighlights: highlightingCells } = this;
       highlightingCells.clear();
-      this.groupHighlithedCells.removeAll(false);
+      this.groupHighlightedCells.removeAll(false);
       this.bbox = new TgdBoundingBox();
       this.cellPainters.splice(0);
       for (const cell of this.circuit) {
@@ -718,7 +787,7 @@ export class PainterManager {
         const painterCell = new PainterCell(context, {
           cell,
           loadCell,
-          matrerial: "full",
+          material: "full",
           opacity: this._neuronOpacity,
           somaAsSphere: this._somaAsSphere,
           onCellLoaded: (bbox) => {
@@ -734,6 +803,7 @@ export class PainterManager {
           },
         });
         this.cellPainters.push(painterCell);
+        painterCell.dendrogramMix = this.dendrogramMix;
         this.groupCells.add(painterCell);
         const highlightedCell = new PainterCellFlat(context, {
           cell,
@@ -791,6 +861,8 @@ export class PainterManager {
       camera.zoom = 2;
       if (!this.cameraManager) {
         this.cameraManager = new CameraManager(context, this.eventRestingPosition);
+        // Created lazily, possibly while already in dendrogram mode.
+        this.cameraManager.rotationLocked = this._dendrogramMode;
       }
       this.cameraManager.target = camera.getCurrentState();
       context.paint();
@@ -819,13 +891,13 @@ export class PainterManager {
   }
 
   private updateHightedCells() {
-    const { cellsForHighights, groupHighlithedCells, circuit, highlightedCellIds } = this;
-    groupHighlithedCells.removeAll(false);
+    const { cellsForHighlights, groupHighlightedCells, circuit, highlightedCellIds } = this;
+    groupHighlightedCells.removeAll(false);
     for (const cell of circuit) {
-      const painter = cellsForHighights.get(cell.id);
+      const painter = cellsForHighlights.get(cell.id);
       if (painter) {
         painter.black = !(highlightedCellIds ?? []).includes(cell.id);
-        groupHighlithedCells.add(painter);
+        groupHighlightedCells.add(painter);
       }
     }
     this.context.value?.paint();
@@ -964,7 +1036,7 @@ export class PainterManager {
         depth: "lessOrEqual",
         blend: "add",
         cull: "back",
-        children: [this.groupHighlithedCells],
+        children: [this.groupHighlightedCells],
       }),
       this.painterGizmo
     );
@@ -1186,6 +1258,7 @@ export class PainterManager {
       // as each arrives so a selection restored from the config appears without needing an
       // unrelated redraw to happen to come along.
       onCellLoaded: () => this.applyLocationMarkers(),
+      dendrogramMix: this.dendrogramMix,
     });
     // Markers resolve against the section index this painter owns, so any pending selection
     // can only be drawn now that it exists.
@@ -1261,8 +1334,14 @@ export class PainterManager {
       sections,
       {
         ...segment,
-        start: applyMatrixToPoint(matrix, segment.start),
-        end: applyMatrixToPoint(matrix, segment.end),
+        start: applyMatrixToPoint(
+          matrix,
+          blendPoint(segment.start, segment.chartStart, this.dendrogramMix)
+        ),
+        end: applyMatrixToPoint(
+          matrix,
+          blendPoint(segment.end, segment.chartEnd, this.dendrogramMix)
+        ),
       },
       context.camera,
       xScreen,
@@ -1333,6 +1412,7 @@ export function usePainterManager({
   somaAsSphere = false,
   signals,
   locationSelection,
+  dendrogram = false,
 }: MorphoViewerSmallCircuitProps) {
   const [, setSpacePerPixel] = React.useState(-1);
   const ref = React.useRef<PainterManager | null>(null);
@@ -1347,6 +1427,10 @@ export function usePainterManager({
     manager.background = backgroundColor ?? "#000";
     return () => manager.eventScalebar.removeListener(setSpacePerPixel);
   }, [onLoadProgress, manager, verbose, backgroundColor]);
+
+  React.useEffect(() => {
+    manager.dendrogramMode = dendrogram;
+  }, [manager, dendrogram]);
 
   React.useEffect(() => {
     if (!signals) return;
@@ -1441,9 +1525,10 @@ export function usePainterManager({
   React.useEffect(() => {
     manager.neuronOpacity = neuronOpacity;
   }, [neuronOpacity, manager]);
+
   React.useEffect(() => {
     manager.somaAsSphere = somaAsSphere;
-  }, [somaAsSphere, manager]);
+  }, [manager, somaAsSphere]);
   React.useEffect(() => {
     if (!onCellHover) return;
 
@@ -1533,6 +1618,17 @@ function makeCellMatrix(cell: MorphoViewerSmallCircuitCell): TgdMat4 {
   transfo.setPosition(x, y, z);
   transfo.orientation = new TgdQuat(cell.orientation);
   return new TgdMat4(transfo.matrix);
+}
+
+/**
+ * A segment endpoint as currently displayed: its 3D position, its dendrogram position, or the
+ * in-between while the morph is animating. Offsets are projections onto what the user sees, so
+ * they must use these — projecting the 3D endpoints under a dendrogram reads clicks against a
+ * shape that is not on screen.
+ */
+function blendPoint(a: ArrayNumber3, b: ArrayNumber3, mix: number): ArrayNumber3 {
+  if (mix <= 0) return a;
+  return [a[0] + (b[0] - a[0]) * mix, a[1] + (b[1] - a[1]) * mix, a[2] + (b[2] - a[2]) * mix];
 }
 
 function applyMatrixToPoint(matrix: TgdMat4, [x, y, z]: ArrayNumber3): ArrayNumber3 {
