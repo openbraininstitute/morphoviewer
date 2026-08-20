@@ -5,7 +5,7 @@ import {
   type MorphoViewerSmallCircuitCell,
   type MorphoViewerSmallCircuitCellData,
   type MorphoViewerSmallCircuitProps,
-  type MorphoViewerSmallCircuitSpikes,
+  type MorphoViewerSpikes,
   type MorphoViewerSomasOnlyProps,
   morphoViewerConvertMorphologyIntoTree,
 } from "@openbraininstitute/morphoviewer";
@@ -158,7 +158,7 @@ export default function Page() {
 }
 
 /** One second of Poisson firing across the circuit, for tuning the glow by eye. */
-function useRandomSpikes(cellCount: number): MorphoViewerSmallCircuitSpikes | undefined {
+function useRandomSpikes(cellCount: number): MorphoViewerSpikes | undefined {
   return React.useMemo(() => {
     if (cellCount === 0) return undefined;
 

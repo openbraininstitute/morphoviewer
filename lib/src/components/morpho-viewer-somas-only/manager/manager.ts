@@ -21,6 +21,11 @@ import { PainterGizmo } from "@/painters/gizmo";
 import { OverlayInteractionController } from "@/painters/overlay-interaction";
 import { OverlaySurface } from "@/painters/overlay-surface";
 import { PainterWorldOverlays } from "@/painters/world-overlays";
+import {
+  DEFAULT_SPIKE_AFTERGLOW_IN_SECONDS,
+  DEFAULT_SPIKE_SPEED,
+  SpikingCircuit,
+} from "@/spikes";
 
 import { AdpatativeResolution } from "./adaptative-resolution";
 import { PainterCellInfos } from "./painter-cell-infos";
@@ -33,6 +38,7 @@ import type {
   MorphoViewerOverlayTransformEvent,
   MorphoViewerWorldOverlay,
 } from "../../types";
+import type { MorphoViewerSpikes } from "@/spikes";
 import type { MorphoViewerCellInfo, MorphoViewerSomasOnlyProps } from "../types";
 
 class PainterManager {
@@ -41,12 +47,18 @@ class PainterManager {
    */
   public readonly eventScalebar = new TgdEvent<number>();
 
+  /** The spike replay playhead, in milliseconds, on every painted frame. */
+  public readonly eventSpikeTime = new TgdEvent<number>();
+  /** Playback stopping, whether the host asked for it or the recording ran out. */
+  public readonly eventSpikePlaying = new TgdEvent<boolean>();
+
   private _canvas: HTMLCanvasElement | null = null;
   private _overlayCanvas: HTMLCanvasElement | null = null;
   private _cellInfos: MorphoViewerCellInfo[] = [];
   private _backgroundColor = "black";
   private readonly parsedBackgroundColor = new TgdColor(0, 0, 0, 1);
   private painterCellInfos: PainterCellInfos | null = null;
+  private readonly spiking = new SpikingCircuit();
   private painterOverlays: PainterWorldOverlays | null = null;
   private readonly overlaySurface = new OverlaySurface();
   private overlayInteraction: OverlayInteractionController | null = null;
@@ -174,6 +186,102 @@ class PainterManager {
     }
   }
 
+  /**
+   * Push this frame's glow into the point cloud.
+   *
+   * One buffer upload for the whole circuit rather than a call per cell: the
+   * morphology viewer can afford to walk its cells because it has tens of them,
+   * and this one may have millions.
+   */
+  private applyCellGlow() {
+    this.painterCellInfos?.setGlow(this.spiking.glow);
+  }
+
+  /**
+   * The same, for the paths that also moved the clock.
+   *
+   * Split from {@link applyCellGlow} so that rebuilding the cloud — a recolour,
+   * a resize — does not announce a playhead that has not moved.
+   */
+  private applySpikeFrame() {
+    this.applyCellGlow();
+    this.eventSpikeTime.dispatch(this.spiking.timeInMs);
+  }
+
+  /**
+   * Advance the replay by one frame.
+   *
+   * Bound to a paint event rather than to a timer of its own, so the clock only
+   * moves when a frame is actually drawn — a viewer nobody is looking at costs
+   * nothing. `eventPaint` and not `eventPaintEnter` because tgd dispatches the
+   * latter twice per frame, which would upload the glow buffer twice.
+   */
+  private readonly handleSpikeFrame = () => {
+    const { spiking } = this;
+    if (!spiking.playing) return;
+
+    const reachedEnd = spiking.advance();
+    this.applySpikeFrame();
+    if (reachedEnd) {
+      this.context?.pause();
+      this.eventSpikePlaying.dispatch(false);
+    }
+  };
+
+  setSpikes(spikes: MorphoViewerSpikes | undefined) {
+    this.spiking.setSpikes(spikes ?? null, this._cellInfos.length);
+    this.applySpikeFrame();
+    this.context?.paint();
+  }
+
+  get spikeTime(): number {
+    return this.spiking.timeInMs;
+  }
+  set spikeTime(timeInMs: number) {
+    if (this.spiking.timeInMs === timeInMs) return;
+
+    this.spiking.timeInMs = timeInMs;
+    this.applySpikeFrame();
+    this.context?.paint();
+  }
+
+  get spikePlaying(): boolean {
+    return this.spiking.playing;
+  }
+  set spikePlaying(playing: boolean) {
+    if (this.spiking.playing === playing) return;
+
+    // Pressing play at the end restarts from the beginning, so the glow has to
+    // be recomputed even though only the flag was set.
+    this.spiking.playing = playing;
+    this.applySpikeFrame();
+    if (playing) this.context?.play();
+    else this.context?.pause();
+    this.eventSpikePlaying.dispatch(playing);
+  }
+
+  get spikeSpeed(): number {
+    return this.spiking.speed;
+  }
+  set spikeSpeed(speed: number) {
+    if (this.spiking.speed === speed) return;
+
+    this.spiking.speed = speed;
+    this.applyCellGlow();
+    this.context?.paint();
+  }
+
+  get spikeAfterglowInSeconds(): number {
+    return this.spiking.afterglowInSeconds;
+  }
+  set spikeAfterglowInSeconds(afterglowInSeconds: number) {
+    if (this.spiking.afterglowInSeconds === afterglowInSeconds) return;
+
+    this.spiking.afterglowInSeconds = afterglowInSeconds;
+    this.applyCellGlow();
+    this.context?.paint();
+  }
+
   get cellInfos(): MorphoViewerCellInfo[] {
     return this._cellInfos;
   }
@@ -182,6 +290,7 @@ class PainterManager {
 
     const previous = this._cellInfos;
     this._cellInfos = cellInfos;
+    this.spiking.setCellCount(cellInfos.length);
     // a recolor keeps the same somas (ids + positions) and only swaps colors:
     // swap the point cloud in place, keep the context/camera/orbit untouched so
     // the user's zoom/angle is preserved (and no flicker). Any geometry change
@@ -302,6 +411,9 @@ class PainterManager {
     this.painterCellInfos = painterCellInfos;
     this.bbox = painterCellInfos.bbox;
     state.add(painterCellInfos);
+    // The replacement cloud's glow buffer is zeroed, so a recolour mid-replay
+    // would blank every lit soma until the next frame moved the clock.
+    this.applyCellGlow();
     context.paint();
   }
 
@@ -423,6 +535,11 @@ class PainterManager {
       opacity: this._neuronOpacity,
     });
     this.painterCellInfos = painterCellInfos;
+    this.applyCellGlow();
+    context.eventPaint.addListener(this.handleSpikeFrame);
+    // A context is created paused. One that reopens mid-replay has to be told
+    // to run, or the clock would sit still until something else asked to paint.
+    if (this.spiking.playing) context.play();
     // Translucent somas on the circuit canvas; electrodes on OverlaySurface.
     // Alpha blend only while somas are translucent — opaque path keeps the
     // previous (no-blend) state. See `neuronOpacity` docs for draw-order limits.
@@ -562,6 +679,7 @@ class PainterManager {
     }
 
     this.scalebarCleanup?.();
+    this.context.eventPaint.removeListener(this.handleSpikeFrame);
     this.context.eventResize.removeListener(this.handleResize);
     this.eventScalebar.removeListener(this.handleSpacePerPixel);
     this.overlayInteraction?.detach();
@@ -673,6 +791,13 @@ export function useManager({
   highlightedOverlayId,
   neuronOpacity = 1,
   signals,
+  spikes,
+  spikeTime,
+  onSpikeTimeChange,
+  spikePlaying = false,
+  onSpikePlayingChange,
+  spikeSpeed = DEFAULT_SPIKE_SPEED,
+  spikeAfterglowInSeconds = DEFAULT_SPIKE_AFTERGLOW_IN_SECONDS,
 }: MorphoViewerSomasOnlyProps): PainterManager {
   const refManager = React.useRef<PainterManager | null>(null);
   if (!refManager.current) refManager.current = new PainterManager();
@@ -714,6 +839,37 @@ export function useManager({
   React.useEffect(() => {
     manager.gizmo = gizmo;
   }, [gizmo, manager]);
+
+  React.useEffect(() => {
+    manager.setSpikes(spikes);
+  }, [spikes, manager]);
+  React.useEffect(() => {
+    manager.spikeSpeed = spikeSpeed;
+  }, [spikeSpeed, manager]);
+  React.useEffect(() => {
+    manager.spikeAfterglowInSeconds = spikeAfterglowInSeconds;
+  }, [spikeAfterglowInSeconds, manager]);
+  // A seek, not a mirror of the playhead: the viewer moves the clock itself
+  // every frame, and a host that fed the reported time straight back would
+  // fight it. Hosts pass this only when the user scrubs.
+  React.useEffect(() => {
+    if (typeof spikeTime === "number") manager.spikeTime = spikeTime;
+  }, [spikeTime, manager]);
+  React.useEffect(() => {
+    manager.spikePlaying = spikePlaying;
+  }, [spikePlaying, manager]);
+  React.useEffect(() => {
+    if (!onSpikeTimeChange) return;
+
+    manager.eventSpikeTime.addListener(onSpikeTimeChange);
+    return () => manager.eventSpikeTime.removeListener(onSpikeTimeChange);
+  }, [onSpikeTimeChange, manager]);
+  React.useEffect(() => {
+    if (!onSpikePlayingChange) return;
+
+    manager.eventSpikePlaying.addListener(onSpikePlayingChange);
+    return () => manager.eventSpikePlaying.removeListener(onSpikePlayingChange);
+  }, [onSpikePlayingChange, manager]);
   return refManager.current;
 }
 

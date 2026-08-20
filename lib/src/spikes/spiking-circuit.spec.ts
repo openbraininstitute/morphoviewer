@@ -1,9 +1,9 @@
 import { SpikingCircuit } from "./spiking-circuit";
 
-import type { MorphoViewerSmallCircuitSpikes } from "../types";
+import type { MorphoViewerSpikes } from "./types";
 
 /** Three cells; cell 0 fires at 100 ms, cell 1 at 200 ms, cell 2 twice. */
-const SPIKES: MorphoViewerSmallCircuitSpikes = {
+const SPIKES: MorphoViewerSpikes = {
   cellIndices: Uint32Array.from([0, 1, 2, 2]),
   times: Float32Array.from([100, 200, 300, 340]),
   timeMinInMs: 0,

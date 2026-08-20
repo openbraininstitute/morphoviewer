@@ -1,3 +1,4 @@
+import type { MorphoViewerSpikes } from "@openbraininstitute/morphoviewer";
 import { assertType$ } from "@tolokoban/type-guards";
 import React from "react";
 
@@ -39,4 +40,35 @@ async function loadNodes(dataId: string): Promise<CellInfo[]> {
     });
   }
   return data;
+}
+
+/**
+ * One second of Poisson firing across the circuit, for tuning the glow by eye.
+ *
+ * Unlike the small-circuit demo's version this never sorts: the biggest preset
+ * here is four million somas, and sorting a spike per cell would mean an index
+ * array bigger than the spikes. Times are drawn as ascending gaps instead, so
+ * the train comes out ordered by construction.
+ */
+export function useRandomSpikes(cellCount: number): MorphoViewerSpikes | undefined {
+  return React.useMemo(() => {
+    if (cellCount === 0) return undefined;
+
+    const timeMaxInMs = 1000;
+    // Enough that something is always firing, few enough that four million
+    // cells stay inside a typed array the browser will actually allocate.
+    const count = Math.min(cellCount * 4, 8_000_000);
+    const cellIndices = new Uint32Array(count);
+    const times = new Float32Array(count);
+    const meanGapInMs = timeMaxInMs / count;
+    let timeInMs = 0;
+    for (let i = 0; i < count; i++) {
+      // Exponential gaps: what a Poisson process actually produces, and what
+      // makes the glow look like firing rather than like a metronome.
+      timeInMs += -Math.log(1 - Math.random()) * meanGapInMs;
+      cellIndices[i] = Math.floor(Math.random() * cellCount);
+      times[i] = timeInMs;
+    }
+    return { cellIndices, times, timeMinInMs: 0, timeMaxInMs: Math.max(timeInMs, timeMaxInMs) };
+  }, [cellCount]);
 }

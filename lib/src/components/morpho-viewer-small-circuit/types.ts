@@ -1,3 +1,4 @@
+import type { PropsForSpikeReplay } from "@/spikes";
 import type { ControlsLayoutProps } from "../controls-layout";
 import type { MorphoViewerTree, MorphoViewerTreeItemType } from "../morpho-viewer-simul";
 import type { MorphoViewerSignals } from "../signals";
@@ -144,22 +145,6 @@ export interface MorphoViewerMorphologyLocationSelection {
   pickableSectionTypes?: readonly MorphoViewerTreeItemType[];
 }
 
-/**
- * A spike train flattened against the `circuit` array.
- *
- * Parallel typed arrays rather than objects: a region-scale recording is
- * millions of spikes, and the viewer only ever reads them in index order.
- */
-export interface MorphoViewerSmallCircuitSpikes {
-  /** For each spike, the index in `circuit` of the cell that fired. */
-  cellIndices: Uint32Array;
-  /** For each spike, when it fired, in milliseconds. Must be ascending. */
-  times: Float32Array;
-  /** Start of the recording. Not necessarily `times[0]` — a cell may be silent. */
-  timeMinInMs: number;
-  timeMaxInMs: number;
-}
-
 export type MorphoViewerSmallCircuitCellData = {
   type: "tree";
   data: MorphoViewerTree;
@@ -167,7 +152,8 @@ export type MorphoViewerSmallCircuitCellData = {
 
 export type MorphoViewerSmallCircuitProps = PropsForGizmo &
   PropsForScalebar &
-  PropsForOverlayInteraction & {
+  PropsForOverlayInteraction &
+  PropsForSpikeReplay & {
     className?: string;
     backgroundColor?: string;
     circuit: MorphoViewerSmallCircuitCell[];
@@ -227,43 +213,6 @@ export type MorphoViewerSmallCircuitProps = PropsForGizmo &
      * Ids of the cells we want to highlight.
      */
     highlightedCellIds?: string[];
-    /**
-     * Spikes to replay over the circuit. Omit and the viewer behaves exactly as
-     * before: no clock runs and no cell ever glows on its own.
-     */
-    spikes?: MorphoViewerSmallCircuitSpikes;
-    /**
-     * Where the playhead is, in milliseconds. Setting it seeks.
-     *
-     * Only read when it changes, so a host is free to leave it alone during
-     * playback and pass it only when the user scrubs.
-     */
-    spikeTime?: number;
-    /**
-     * The playhead on every painted frame.
-     *
-     * Fires at frame rate on purpose — a linked view has to follow the replay,
-     * not a throttled copy of it. Hosts that put this into React state should
-     * throttle there.
-     */
-    onSpikeTimeChange?(timeInMs: number): void;
-    spikePlaying?: boolean;
-    /** Also fires with `false` when playback reaches the end of the recording. */
-    onSpikePlayingChange?(playing: boolean): void;
-    /**
-     * Playback rate as simulated milliseconds per wall-clock second.
-     * Default `100`, so a one-second simulation plays in ten seconds.
-     */
-    spikeSpeed?: number;
-    /**
-     * How long a spike stays visible, as the wall-clock time it takes to fade
-     * to `1/e` of full brightness. Default `0.35`.
-     *
-     * In wall-clock rather than simulated time so that a flash lasts the same
-     * on screen whatever {@link spikeSpeed} is — at 100× the speed a spike
-     * would otherwise be gone before a frame could show it.
-     */
-    spikeAfterglowInSeconds?: number;
     onCellHover?(cell: MorphoViewerSmallCircuitCell | undefined): void;
     onCellClick?(cell: MorphoViewerSmallCircuitCell | undefined): void;
     /**

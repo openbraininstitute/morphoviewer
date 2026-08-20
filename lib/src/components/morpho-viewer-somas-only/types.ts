@@ -1,4 +1,6 @@
 import type { ArrayNumber3 } from "@tolokoban/tgd";
+
+import type { PropsForSpikeReplay } from "@/spikes";
 import type { ControlsLayoutProps } from "../controls-layout";
 import type { MorphoViewerSignals } from "../signals";
 import type {
@@ -30,7 +32,8 @@ export interface MorphoViewerCellInfo {
 
 export type MorphoViewerSomasOnlyProps = PropsForGizmo &
   PropsForScalebar &
-  PropsForOverlayInteraction & {
+  PropsForOverlayInteraction &
+  PropsForSpikeReplay & {
     className?: string;
     somaRadius?: number;
     cellInfos: MorphoViewerCellInfo[];

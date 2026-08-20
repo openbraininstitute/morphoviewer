@@ -36,14 +36,16 @@ import { OffscreenPainter, SegmentOffscreenPainter } from "./offscreen-painter";
 import { PainterCell, PainterCellFlat } from "./painter-cell";
 import { PainterLocationMarkers } from "./painter-location-markers";
 import { PainterSynapses } from "./painter-synapses";
+import { isStillPointer } from "./still-pointer";
+
 import {
   DEFAULT_SPIKE_AFTERGLOW_IN_SECONDS,
   DEFAULT_SPIKE_SPEED,
   SpikingCircuit,
-} from "./spiking-circuit";
-import { isStillPointer } from "./still-pointer";
+} from "@/spikes";
 
 import type { PainterWorldOverlays } from "@/painters/world-overlays";
+import type { MorphoViewerSpikes } from "@/spikes";
 import type { MorphoViewerTreeItemType } from "../../morpho-viewer-simul";
 import type {
   MorphoViewerSignalCameraResetOptions,
@@ -58,7 +60,6 @@ import type {
   MorphoViewerSmallCircuitCell,
   MorphoViewerSmallCircuitCellData,
   MorphoViewerSmallCircuitProps,
-  MorphoViewerSmallCircuitSpikes,
 } from "..";
 import type { CellSegment } from "./painter-cell/factory/section-index";
 
@@ -1044,7 +1045,7 @@ export class PainterManager {
     }
   };
 
-  setSpikes(spikes: MorphoViewerSmallCircuitSpikes | undefined) {
+  setSpikes(spikes: MorphoViewerSpikes | undefined) {
     this.spiking.setSpikes(spikes ?? null, this.circuit.length);
     this.applySpikeFrame();
     this.context.value?.paint();

@@ -1,4 +1,4 @@
-import type { MorphoViewerSmallCircuitSpikes } from "../types";
+import type { MorphoViewerSpikes } from "./types";
 
 /** Simulated milliseconds per wall-clock second. */
 export const DEFAULT_SPIKE_SPEED = 100;
@@ -32,9 +32,12 @@ const MAX_FRAME_IN_MS = 250;
  * paused. It also has no notion of a recording that ends. Keeping the clock
  * here additionally keeps it testable without a WebGL context.
  *
- * The sibling `SpikingManager` in `morpho-viewer-simul` animates spikes too,
- * but over one morphology as a normalised 0–1 progress with a linear ramp;
- * there is no shared data model to hoist, only the idea.
+ * Shared by the morphology and soma viewers, and deliberately blind to which
+ * is asking: it says how brightly each cell should be glowing and leaves how
+ * to paint that to whoever owns the geometry. The sibling `SpikingManager` in
+ * `morpho-viewer-simul` animates spikes too, but over one morphology as a
+ * normalised 0–1 progress with a linear ramp; there is no shared data model to
+ * hoist from it, only the idea.
  *
  * Nothing here is cumulative. The set of glowing cells at time `t` is computed
  * from scratch each frame by a binary search plus a walk back over the decay
@@ -42,7 +45,7 @@ const MAX_FRAME_IN_MS = 250;
  * are all the same code path, and none of them can drift.
  */
 export class SpikingCircuit {
-  private spikes: MorphoViewerSmallCircuitSpikes | null = null;
+  private spikes: MorphoViewerSpikes | null = null;
   private _glow = new Float32Array(0);
   private _timeInMs = 0;
   private _playing = false;
@@ -50,7 +53,7 @@ export class SpikingCircuit {
   private _afterglowInSeconds = DEFAULT_SPIKE_AFTERGLOW_IN_SECONDS;
   private lastTickInMs = 0;
 
-  /** Brightness to add per cell, indexed like the `circuit` array. */
+  /** Brightness to add per cell, indexed like the cells the viewer draws. */
   get glow(): Readonly<Float32Array> {
     return this._glow;
   }
@@ -112,7 +115,7 @@ export class SpikingCircuit {
     this.computeGlow();
   }
 
-  setSpikes(spikes: MorphoViewerSmallCircuitSpikes | null, cellCount: number) {
+  setSpikes(spikes: MorphoViewerSpikes | null, cellCount: number) {
     this.spikes = spikes;
     if (this._glow.length !== cellCount) this._glow = new Float32Array(cellCount);
     this._timeInMs = this.timeMinInMs;

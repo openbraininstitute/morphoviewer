@@ -2,13 +2,14 @@ import {
   TgdBoundingBox,
   type TgdContext,
   TgdPainterGroup,
-  TgdPainterPointsCloud,
-  type TgdPainterPointsCloudOptions,
   TgdTexture2D,
   tgdCanvasCreatePalette,
 } from "@tolokoban/tgd";
 
 import { computeAmbientOcclusion } from "./ambient-occlusion";
+import { PainterSomaCloud } from "./painter-soma-cloud";
+
+import type { PainterSomaCloudOptions } from "./painter-soma-cloud";
 
 import type { MorphoViewerCellInfo } from "../types";
 
@@ -36,7 +37,7 @@ export class PainterCellInfos extends TgdPainterGroup {
   public readonly bbox: TgdBoundingBox;
 
   private readonly texturePalette: TgdTexture2D;
-  private readonly painterPointsCloud: TgdPainterPointsCloud;
+  private readonly painterPointsCloud: PainterSomaCloud;
   private readonly paletteColors: string[] | null;
   private _opacity: number;
 
@@ -59,14 +60,10 @@ export class PainterCellInfos extends TgdPainterGroup {
     const uvs =
       middleLuminance(painterPointsCloudOptions.dataUV) ??
       new Float32Array(2 * options.cellInfos.length);
-    const painterPointsCloud = new TgdPainterPointsCloud(context, {
-      ...painterPointsCloudOptions,
+    const painterPointsCloud = new PainterSomaCloud(context, {
+      dataPoint: painterPointsCloudOptions.dataPoint,
       dataUV: computeAmbientOcclusion(bbox, 10 * RADIUS, painterPointsCloudOptions.dataPoint, uvs),
       texture: texturePalette,
-      fragCode: TgdPainterPointsCloud.fragCodeSphere({
-        enableSpecular: true,
-        specularExponent: 50,
-      }),
       radiusMultiplier: options.somaRadius,
     });
     super({
@@ -88,6 +85,11 @@ export class PainterCellInfos extends TgdPainterGroup {
 
     this.painterPointsCloud.radiusMultiplier = somaRadius;
     this.context.paint();
+  }
+
+  /** This frame's brightness for every soma, indexed like `cellInfos`. */
+  setGlow(glow: Readonly<Float32Array>) {
+    this.painterPointsCloud.setGlow(glow);
   }
 
   get opacity(): number {
@@ -114,7 +116,7 @@ interface ParsedCellInfos {
    * `null` when no cell defines a color (default blue palette)
    */
   paletteColors: string[] | null;
-  painterPointsCloudOptions: TgdPainterPointsCloudOptions;
+  painterPointsCloudOptions: Pick<PainterSomaCloudOptions, "dataPoint" | "dataUV">;
 }
 
 /** fallback column for cells that have no explicit color while others do */
@@ -191,7 +193,7 @@ function parseCellInfos(cellInfos: MorphoViewerCellInfo[], bbox: TgdBoundingBox)
   const radiusZ = Math.max(Math.abs(maxZ - centerZ), Math.abs(centerZ - minZ));
   bbox.addSphere(centerX + radiusX, centerY + radiusY, centerZ + radiusZ, RADIUS);
   bbox.addSphere(centerX - radiusX, centerY - radiusY, centerZ - radiusZ, RADIUS);
-  const options: TgdPainterPointsCloudOptions = {
+  const options = {
     dataPoint: new Float32Array(dataPoint),
     dataUV: new Float32Array(dataUV),
   };
