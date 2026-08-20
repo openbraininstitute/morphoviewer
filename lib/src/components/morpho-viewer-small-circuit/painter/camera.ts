@@ -41,9 +41,6 @@ export class CameraManager {
   }
 
   /** Freeze rotation while keeping zoom and pan, for flat views like the dendrogram. */
-  get rotationLocked(): boolean {
-    return this.orbit !== null && this.orbit.speedOrbit === 0;
-  }
   set rotationLocked(locked: boolean) {
     const { orbit } = this;
     if (!orbit) return;

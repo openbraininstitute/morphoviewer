@@ -174,7 +174,7 @@ export type MorphoViewerSmallCircuitProps = PropsForGizmo &
       coordinates: Float32Array | number[];
     }>;
     /**
-     * Morph the cells into a dendrogram: branching across x, path distance down y.
+     * Morph the cells into a dendrogram: branching across x, path distance up y.
      *
      * The same segments in the same order as the morphology, so a branch stays traceable through
      * the transition and picking keeps working in either view.

@@ -38,6 +38,7 @@ import { PainterSynapses } from "./painter-synapses";
 import { isStillPointer } from "./still-pointer";
 
 import type { PainterWorldOverlays } from "@/painters/world-overlays";
+import type { CellSegment } from "./painter-cell/factory/section-index";
 import type { MorphoViewerTreeItemType } from "../../morpho-viewer-simul";
 import type {
   MorphoViewerSignalCameraResetOptions,
@@ -533,17 +534,7 @@ export class PainterManager {
     const matrix = makeCellMatrix(cell);
     const offset = computeSectionOffset(
       sections,
-      {
-        ...segment,
-        start: applyMatrixToPoint(
-          matrix,
-          blendPoint(segment.start, segment.chartStart, this.dendrogramMix)
-        ),
-        end: applyMatrixToPoint(
-          matrix,
-          blendPoint(segment.end, segment.chartEnd, this.dendrogramMix)
-        ),
-      },
+      this.blendedWorldSegment(segment, matrix),
       context.camera,
       xScreen,
       yScreen
@@ -570,7 +561,6 @@ export class PainterManager {
     });
   }
 
-  /** Publish label positions on every repaint. Gated: the work is per-frame. */
   /**
    * Morph the cells between their morphology and a dendrogram of the same segments.
    *
@@ -630,6 +620,21 @@ export class PainterManager {
     this.context.value?.paint();
   }
 
+  /**
+   * A segment as currently displayed, in world space: endpoints blended between their 3D and
+   * dendrogram placements by the live mix, then placed by the cell's matrix. Offsets are
+   * projections onto what the user sees, so they must use this — projecting the 3D endpoints
+   * under a dendrogram reads clicks against a shape that is not on screen.
+   */
+  private blendedWorldSegment(segment: CellSegment, matrix: TgdMat4): CellSegment {
+    return {
+      ...segment,
+      start: applyMatrixToPoint(matrix, blendPoint(segment.start, segment.chartStart, this.dendrogramMix)),
+      end: applyMatrixToPoint(matrix, blendPoint(segment.end, segment.chartEnd, this.dendrogramMix)),
+    };
+  }
+
+  /** Publish label positions on every repaint. Gated: the work is per-frame. */
   get locationLabelsEnabled(): boolean {
     return this._locationLabelsEnabled;
   }
@@ -811,7 +816,7 @@ export class PainterManager {
         });
         highlightingCells.set(cell.id, highlightedCell);
       }
-      this.updateHightedCells();
+      this.updateHighlightedCells();
       if (this.fitCameraOnUpdate) {
         this.adaptCameraFromBBox();
       }
@@ -887,10 +892,10 @@ export class PainterManager {
     if (value === this._highlightedCellIds) return;
 
     this._highlightedCellIds = value ?? [];
-    this.updateHightedCells();
+    this.updateHighlightedCells();
   }
 
-  private updateHightedCells() {
+  private updateHighlightedCells() {
     const { cellsForHighlights, groupHighlightedCells, circuit, highlightedCellIds } = this;
     groupHighlightedCells.removeAll(false);
     for (const cell of circuit) {
@@ -962,6 +967,9 @@ export class PainterManager {
     context.inputs.pointer.eventTap.addListener(this.handlePointerTap);
     context.inputs.pointer.eventTapMultiple.addListener(this.debug);
     this.cameraManager = new CameraManager(context, this.eventRestingPosition);
+    // A canvas re-attach recreates the manager while the mode may still be on, and the
+    // `dendrogramMode` setter early-returns on an equal value — so seed the lock here too.
+    this.cameraManager.rotationLocked = this._dendrogramMode;
     this.overlayInteraction = new OverlayInteractionController({
       context,
       getOverlays: () => this._overlays,
@@ -1332,17 +1340,7 @@ export class PainterManager {
     const matrix = makeCellMatrix(cell);
     const offset = computeSectionOffset(
       sections,
-      {
-        ...segment,
-        start: applyMatrixToPoint(
-          matrix,
-          blendPoint(segment.start, segment.chartStart, this.dendrogramMix)
-        ),
-        end: applyMatrixToPoint(
-          matrix,
-          blendPoint(segment.end, segment.chartEnd, this.dendrogramMix)
-        ),
-      },
+      this.blendedWorldSegment(segment, matrix),
       context.camera,
       xScreen,
       yScreen
@@ -1358,6 +1356,13 @@ export class PainterManager {
 
   private delete() {
     this.nudgeStart = null;
+    // The morph must not outlive the scene it animates: a surviving frame would write a
+    // mid-flight mix into whatever context attaches next.
+    if (this.dendrogramAnimation !== null) {
+      cancelAnimationFrame(this.dendrogramAnimation);
+      this.dendrogramAnimation = null;
+    }
+    this.cellPainters.splice(0);
     this.clearPinnedOverlay();
     this.textureFramebufferCircuit?.delete();
     this.textureFramebufferCircuit = null;
@@ -1620,12 +1625,7 @@ function makeCellMatrix(cell: MorphoViewerSmallCircuitCell): TgdMat4 {
   return new TgdMat4(transfo.matrix);
 }
 
-/**
- * A segment endpoint as currently displayed: its 3D position, its dendrogram position, or the
- * in-between while the morph is animating. Offsets are projections onto what the user sees, so
- * they must use these — projecting the 3D endpoints under a dendrogram reads clicks against a
- * shape that is not on screen.
- */
+/** Linear blend between a segment endpoint's 3D and dendrogram placements. */
 function blendPoint(a: ArrayNumber3, b: ArrayNumber3, mix: number): ArrayNumber3 {
   if (mix <= 0) return a;
   return [a[0] + (b[0] - a[0]) * mix, a[1] + (b[1] - a[1]) * mix, a[2] + (b[2] - a[2]) * mix];

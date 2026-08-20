@@ -78,7 +78,6 @@ export function createCellFromTree(
     if (segment.isSoma) somaDrawn = true;
 
     const own = placements.get(segment.item);
-    const parentPlacement = segment.parent ? placements.get(segment.parent) : undefined;
     let chart: { start: ArrayNumber3; end: ArrayNumber3 };
     if (segment.isSoma) {
       chart = { start: somaOrigin, end: somaOrigin };
@@ -112,13 +111,15 @@ export function createCellFromTree(
     // which is what forms the baseline.
     if (!segment.isSoma && segment.parent && own) {
       const parentIsSoma = segment.parent.type === MorphoViewerTreeItemType.Soma;
-      const parentX = parentIsSoma ? 0 : (parentPlacement?.x ?? own.x);
+      const parentX = parentIsSoma ? 0 : (placements.get(segment.parent)?.x ?? own.x);
       if (parentX !== own.x) {
         const liaison = dendrogramLiaison(parentX, own);
-        // Equal weights: the shader lerps radius with position.
+        // The 3D twin is a zero-radius point: a visible radius here would draw a ball at
+        // every branch point of the plain 3D view. The shader lerps radius with position,
+        // so the connector grows in as the chart morphs in.
         target.add(
-          [...segment.start, weights.liaison] as ArrayNumber4,
-          [...segment.start, weights.liaison] as ArrayNumber4,
+          [...segment.start, 0] as ArrayNumber4,
+          [...segment.start, 0] as ArrayNumber4,
           uv0,
           uv1
         );
@@ -141,11 +142,6 @@ export function createCellFromTree(
         uv1
       );
     } else {
-      // A branch's first segment inherits its start radius and colour from its parent —
-      // which, at the soma, is a contour point as wide as the cell body. Drawn literally
-      // that is a fat cone in the branch's colour erupting from the soma, burying it. The
-      // stub keeps its own calibre and colour; it moves to the sphere's centre only when
-      // the sphere replaces the contour, so it still emerges from the drawn body.
       target.add(
         [
           ...(stubOffSoma && somaAsSphere ? somaSphere.center : segment.start),
@@ -465,9 +461,10 @@ function measure(roots: MorphoViewerTreeItem[]): Map<MorphoViewerTreeItem, Metri
 function assignRanks(roots: MorphoViewerTreeItem[], metrics: Map<MorphoViewerTreeItem, Metrics>) {
   const fringe = roots.map((item) => ({ item, rankMin: -1, rankMax: 1 }));
 
-  while (fringe.length) {
-    const task = fringe.shift();
-    if (!task) continue;
+  // Index cursor rather than `shift()`: a reconstruction's fringe carries thousands of
+  // entries, and `shift()` moves every remaining one on each dequeue.
+  for (let cursor = 0; cursor < fringe.length; cursor++) {
+    const task = fringe[cursor];
     const own = metrics.get(task.item);
     if (!own) continue;
 

@@ -99,9 +99,6 @@ export class CellSectionIndex implements SectionSegmentIndex {
    * The point `offset` of the way along a section, in the morphology's own coordinates.
    *
    * Inverse of a pick, so a stored `(section, offset)` can be drawn back as a marker.
-   */
-  /**
-   * Point at a normalised offset along a section.
    *
    * @param mix - Dendrogram morph: 0 reads the morphology, 1 the chart.
    */
