@@ -6,7 +6,6 @@ import {
   TgdLight,
   type TgdMaterial,
   TgdMaterialFlat,
-  TgdMaterialFlatTexture,
   TgdPainterAxes,
   TgdPainterBBox,
   TgdPainterGroup,
@@ -24,6 +23,7 @@ import { int16ToVec3 } from "@/utils";
 
 import { createCellFromTree } from "./factory/tree";
 import { MaterialDiffuseAlpha } from "./material-diffuse-alpha";
+import { MaterialFlatTextureIntensity } from "./material-flat-texture-intensity";
 
 import type {
   MorphoViewerSmallCircuitCell,
@@ -69,9 +69,7 @@ export class PainterCell extends TgdPainterGroup {
   private static ID = 1;
 
   private readonly material: TgdMaterial;
-  private _black = false;
   private readonly texturePalette: TgdTexture2D;
-  private readonly textureBlack: TgdTexture2D;
   private _isDeleted = false;
   private _bbox = new TgdBoundingBox();
   private _sections: CellSectionIndex | null = null;
@@ -92,7 +90,6 @@ export class PainterCell extends TgdPainterGroup {
     this.bbox.addSphere(x, y, z, cell.somaRadius * 5);
     const texture = createPaletteTexture(context, cell.color);
     this.texturePalette = texture;
-    this.textureBlack = new TgdTexture2D(context).fill("#000");
     const materialType = options.material ?? "full";
     switch (materialType) {
       // What the user will actually see.
@@ -106,9 +103,9 @@ export class PainterCell extends TgdPainterGroup {
           }),
         });
         break;
-      // The highlights for hovering.
+      // The highlight pass: hover, and the glow a spike leaves behind.
       case "flat":
-        this.material = new TgdMaterialFlatTexture({ texture });
+        this.material = new MaterialFlatTextureIntensity({ texture });
         break;
       // Offscreen selection IDs, one per segment rather than one per cell.
       case "segment":
@@ -168,17 +165,21 @@ export class PainterCell extends TgdPainterGroup {
     this._isDeleted = isDeleted;
   }
 
-  // Material color is black?
-  get black() {
-    return this._black;
-  }
-  set black(value: boolean) {
-    if (this._black === value) return;
-
-    this._black = value;
+  /**
+   * How much brightness this painter adds, in `[0..1]`.
+   *
+   * Only meaningful on the `"flat"` variant, which is the one drawn additively
+   * over the finished image; on every other variant this is `0` and setting it
+   * does nothing.
+   */
+  get intensity(): number {
     const { material } = this;
-    if (material instanceof TgdMaterialFlatTexture) {
-      material.texture = value ? this.textureBlack : this.texturePalette;
+    return material instanceof MaterialFlatTextureIntensity ? material.intensity : 0;
+  }
+  set intensity(intensity: number) {
+    const { material } = this;
+    if (material instanceof MaterialFlatTextureIntensity) {
+      material.intensity = intensity;
     }
   }
 
@@ -256,7 +257,6 @@ export class PainterCell extends TgdPainterGroup {
 
   delete(): void {
     this.texturePalette.delete();
-    this.textureBlack.delete();
     this.isDeleted = true;
   }
 }

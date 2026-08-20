@@ -1,12 +1,23 @@
 import {
+  DEFAULT_SPIKE_AFTERGLOW_IN_SECONDS,
+  DEFAULT_SPIKE_SPEED,
   MorphoViewerSmallCircuit,
   type MorphoViewerSmallCircuitCell,
   type MorphoViewerSmallCircuitCellData,
   type MorphoViewerSmallCircuitProps,
+  type MorphoViewerSmallCircuitSpikes,
   type MorphoViewerSomasOnlyProps,
   morphoViewerConvertMorphologyIntoTree,
 } from "@openbraininstitute/morphoviewer";
-import { ViewLabel, ViewOptions, ViewPanel, ViewSpinner, ViewSwitch } from "@tolokoban/ui";
+import {
+  ViewButton,
+  ViewLabel,
+  ViewOptions,
+  ViewPanel,
+  ViewSlider,
+  ViewSpinner,
+  ViewSwitch,
+} from "@tolokoban/ui";
 import React from "react";
 
 import { GizmoSettings } from "@/components/gizmo-settings";
@@ -41,6 +52,26 @@ export default function Page() {
       setSelectedCells([...selectedCells, cell.id]);
     }
   };
+  const spikes = useRandomSpikes(circuit.length);
+  const [spikePlaying, setSpikePlaying] = React.useState(false);
+  const [spikeSpeed, setSpikeSpeed] = React.useState(DEFAULT_SPIKE_SPEED);
+  const [spikeAfterglowInSeconds, setSpikeAfterglowInSeconds] = React.useState(
+    DEFAULT_SPIKE_AFTERGLOW_IN_SECONDS
+  );
+  // A ref, not state: the viewer reports the playhead on every painted frame,
+  // and re-rendering the page at frame rate would tell us nothing about how the
+  // effect looks. The readout catches up on the next render.
+  const spikeTimeRef = React.useRef(0);
+  const [, setSpikeTick] = React.useState(0);
+  const handleSpikeTimeChange = React.useCallback((timeInMs: number) => {
+    spikeTimeRef.current = timeInMs;
+  }, []);
+  React.useEffect(() => {
+    if (!spikePlaying) return;
+
+    const interval = globalThis.setInterval(() => setSpikeTick((tick) => tick + 1), 100);
+    return () => globalThis.clearInterval(interval);
+  }, [spikePlaying]);
 
   return (
     <div className={styles.page}>
@@ -73,6 +104,12 @@ export default function Page() {
             onCellHover={handleCellHover}
             onCellClick={handleCellClick}
             highlightedCellIds={highlightedCellIds}
+            spikes={spikes}
+            spikePlaying={spikePlaying}
+            onSpikePlayingChange={setSpikePlaying}
+            onSpikeTimeChange={handleSpikeTimeChange}
+            spikeSpeed={spikeSpeed}
+            spikeAfterglowInSeconds={spikeAfterglowInSeconds}
             onLoadProgress={setProgress}
             onMinimize={() => alert("onMinimize()")}
             onClose={() => alert("onClose()")}
@@ -93,12 +130,57 @@ export default function Page() {
         <GizmoSettings value={gizmo} onChange={setGizmo} />
       </div>
       <ScalebarSettings value={scalebar} onChange={setScalebar} />
+      <ViewPanel display="flex" justifyContent="flex-start" alignItems="center" gap="M">
+        <ViewButton onClick={() => setSpikePlaying(!spikePlaying)}>
+          {spikePlaying ? "Pause" : "Play"} spikes
+        </ViewButton>
+        <ViewLabel value={`${spikeTimeRef.current.toFixed(0)} ms`} />
+        <ViewOptions value={`${spikeSpeed}`} onChange={(v) => setSpikeSpeed(Number(v))}>
+          <div key="1000">1×</div>
+          <div key="100">0.1×</div>
+          <div key="10">0.01×</div>
+        </ViewOptions>
+        <ViewLabel value={`Afterglow ${spikeAfterglowInSeconds.toFixed(2)} s`} />
+        <ViewSlider
+          min={0.05}
+          max={2}
+          step={0.05}
+          value={spikeAfterglowInSeconds}
+          onChange={setSpikeAfterglowInSeconds}
+        />
+      </ViewPanel>
       <hr />
       <a href="docs/interfaces/MorphoViewerSmallCircuitProps.html" target="docs">
         Detailed documentation of the properties
       </a>
     </div>
   );
+}
+
+/** One second of Poisson firing across the circuit, for tuning the glow by eye. */
+function useRandomSpikes(cellCount: number): MorphoViewerSmallCircuitSpikes | undefined {
+  return React.useMemo(() => {
+    if (cellCount === 0) return undefined;
+
+    const timeMaxInMs = 1000;
+    const spikesPerCell = 12;
+    const count = cellCount * spikesPerCell;
+    const cellIndices = new Uint32Array(count);
+    const times = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      cellIndices[i] = Math.floor(Math.random() * cellCount);
+      times[i] = Math.random() * timeMaxInMs;
+    }
+    // The viewer binary-searches this, so it has to be sorted — and the two
+    // arrays have to stay lined up, which a sort of one of them alone would not.
+    const order = Array.from({ length: count }, (_, i) => i).sort((a, b) => times[a] - times[b]);
+    return {
+      cellIndices: Uint32Array.from(order, (i) => cellIndices[i]),
+      times: Float32Array.from(order, (i) => times[i]),
+      timeMinInMs: 0,
+      timeMaxInMs,
+    };
+  }, [cellCount]);
 }
 
 async function loadCell(id: string): Promise<MorphoViewerSmallCircuitCellData | null> {

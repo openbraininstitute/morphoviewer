@@ -36,6 +36,11 @@ import { OffscreenPainter, SegmentOffscreenPainter } from "./offscreen-painter";
 import { PainterCell, PainterCellFlat } from "./painter-cell";
 import { PainterLocationMarkers } from "./painter-location-markers";
 import { PainterSynapses } from "./painter-synapses";
+import {
+  DEFAULT_SPIKE_AFTERGLOW_IN_SECONDS,
+  DEFAULT_SPIKE_SPEED,
+  SpikingCircuit,
+} from "./spiking-circuit";
 import { isStillPointer } from "./still-pointer";
 
 import type { PainterWorldOverlays } from "@/painters/world-overlays";
@@ -53,6 +58,7 @@ import type {
   MorphoViewerSmallCircuitCell,
   MorphoViewerSmallCircuitCellData,
   MorphoViewerSmallCircuitProps,
+  MorphoViewerSmallCircuitSpikes,
 } from "..";
 import type { CellSegment } from "./painter-cell/factory/section-index";
 
@@ -106,6 +112,10 @@ export class PainterManager {
 
   /** Dispatch the camera zoom when it changes. */
   public readonly eventZoom = new TgdEvent<number>();
+  /** The spike replay playhead, in milliseconds, on every painted frame. */
+  public readonly eventSpikeTime = new TgdEvent<number>();
+  /** Also fires with `false` when the replay runs off the end of the recording. */
+  public readonly eventSpikePlaying = new TgdEvent<boolean>();
   /**
    * This callback is called when the loading starts (with a value of __0__),
    * then every time a cell is loaded.
@@ -136,7 +146,12 @@ export class PainterManager {
 
   private readonly groupCells = new TgdPainterGroup({ name: "GroupCell" });
   private circuit: MorphoViewerSmallCircuitCell[] = [];
-  private readonly cellsForHighlights = new Map<string, PainterCell>();
+  /**
+   * The additive highlight pass, in `circuit` order rather than keyed by cell
+   * id: the spike replay writes every one of them on every frame and indexes
+   * them by node, so a map lookup per cell per frame would be pure overhead.
+   */
+  private readonly cellsForHighlights: PainterCell[] = [];
   private readonly groupHighlightedCells = new TgdPainterGroup({
     name: "groupHighlightedCells",
   });
@@ -223,6 +238,8 @@ export class PainterManager {
   private _somaAsSphere = false;
   /** Negative until a frame is painted. */
   private spacePerPixel = -1;
+  private readonly spiking = new SpikingCircuit();
+  private lastDispatchedSpikeTimeInMs = Number.NaN;
 
   /** The space one CSS pixel covers, or `null` if it has not been measured yet. */
   private get measuredSpacePerPixel(): number | null {
@@ -654,7 +671,7 @@ export class PainterManager {
     for (const painter of this.cellPainters) painter.dendrogramMix = mix;
     // Hover and selection draw the same geometry through their own painters, additively.
     // Left behind they would paint the 3D morphology over the chart.
-    for (const painter of this.cellsForHighlights.values()) painter.dendrogramMix = mix;
+    for (const painter of this.cellsForHighlights) painter.dendrogramMix = mix;
     // The pick buffers hold their own geometry, so they morph too or clicks miss.
     if (this.offscreen) this.offscreen.dendrogramMix = mix;
     if (this.segmentOffscreen) this.segmentOffscreen.dendrogramMix = mix;
@@ -850,7 +867,7 @@ export class PainterManager {
       });
       this.rebuildSegmentOffscreen();
       const { cellsForHighlights: highlightingCells } = this;
-      highlightingCells.clear();
+      highlightingCells.splice(0);
       this.groupHighlightedCells.removeAll(false);
       this.bbox = new TgdBoundingBox();
       this.cellPainters.splice(0);
@@ -884,8 +901,9 @@ export class PainterManager {
           loadCell,
         });
         highlightedCell.dendrogramMix = this.dendrogramMix;
-        highlightingCells.set(cell.id, highlightedCell);
+        highlightingCells.push(highlightedCell);
       }
+      this.spiking.setCellCount(this.circuit.length);
       this.updateHighlightedCells();
       if (this.fitCameraOnUpdate) {
         this.adaptCameraFromBBox();
@@ -952,7 +970,7 @@ export class PainterManager {
     return bbox;
   }
 
-  public get highlightedCellIds() {
+  public get highlightedCellIds(): string[] {
     return this._highlightedCellIds;
   }
   public set highlightedCellIds(value: string[] | undefined) {
@@ -963,15 +981,108 @@ export class PainterManager {
   }
 
   private updateHighlightedCells() {
-    const { cellsForHighlights, groupHighlightedCells, circuit, highlightedCellIds } = this;
+    const { cellsForHighlights, groupHighlightedCells } = this;
     groupHighlightedCells.removeAll(false);
-    for (const cell of circuit) {
-      const painter = cellsForHighlights.get(cell.id);
-      if (painter) {
-        painter.black = !(highlightedCellIds ?? []).includes(cell.id);
-        groupHighlightedCells.add(painter);
-      }
+    for (const painter of cellsForHighlights) {
+      groupHighlightedCells.add(painter);
     }
+    this.applyCellBrightness();
+    this.context.value?.paint();
+  }
+
+  /**
+   * Push what each cell adds in the additive pass — hover and spike glow
+   * together — into the painter that draws it.
+   *
+   * `max` rather than a sum: hovering a cell mid-replay should not take it past
+   * the brightness a hover normally gives, and a spiking cell the pointer
+   * happens to sit on should not stop glowing.
+   */
+  private applyCellBrightness() {
+    const { cellsForHighlights, circuit, highlightedCellIds, spiking } = this;
+    const { glow } = spiking;
+    for (let i = 0; i < cellsForHighlights.length; i++) {
+      const highlighted = highlightedCellIds.includes(circuit[i].id) ? 1 : 0;
+      cellsForHighlights[i].intensity = Math.max(highlighted, glow[i] ?? 0);
+    }
+    const { timeInMs } = spiking;
+    if (timeInMs !== this.lastDispatchedSpikeTimeInMs) {
+      this.lastDispatchedSpikeTimeInMs = timeInMs;
+      this.eventSpikeTime.dispatch(timeInMs);
+    }
+  }
+
+  /**
+   * Advance the replay by one frame.
+   *
+   * Bound to `eventPaintEnter` rather than to a timer of its own, so the clock
+   * only moves when a frame is about to be drawn, and the intensities it writes
+   * land in that same frame.
+   */
+  private readonly handleSpikeFrame = () => {
+    const { spiking } = this;
+    if (!spiking.playing) return;
+
+    const reachedEnd = spiking.advance();
+    this.applyCellBrightness();
+    if (reachedEnd) {
+      this.context.value?.pause();
+      this.eventSpikePlaying.dispatch(false);
+    }
+  };
+
+  setSpikes(spikes: MorphoViewerSmallCircuitSpikes | undefined) {
+    this.spiking.setSpikes(spikes ?? null, this.circuit.length);
+    this.applyCellBrightness();
+    this.context.value?.paint();
+  }
+
+  get spikeTime(): number {
+    return this.spiking.timeInMs;
+  }
+  set spikeTime(timeInMs: number) {
+    if (this.spiking.timeInMs === timeInMs) return;
+
+    this.spiking.timeInMs = timeInMs;
+    this.applyCellBrightness();
+    this.context.value?.paint();
+  }
+
+  get spikePlaying(): boolean {
+    return this.spiking.playing;
+  }
+  set spikePlaying(playing: boolean) {
+    if (this.spiking.playing === playing) return;
+
+    // Pressing play at the end restarts from the beginning, so the glow has to
+    // be rebuilt before the first frame of the new run.
+    this.spiking.playing = playing;
+    this.applyCellBrightness();
+    const context = this.context.value;
+    if (playing) context?.play();
+    else context?.pause();
+    this.eventSpikePlaying.dispatch(playing);
+  }
+
+  get spikeSpeed(): number {
+    return this.spiking.speed;
+  }
+  set spikeSpeed(speed: number) {
+    if (this.spiking.speed === speed) return;
+
+    this.spiking.speed = speed;
+    this.applyCellBrightness();
+    this.context.value?.paint();
+  }
+
+  get spikeAfterglowInSeconds(): number {
+    return this.spiking.afterglowInSeconds;
+  }
+  set spikeAfterglowInSeconds(afterglowInSeconds: number) {
+    if (this.spiking.afterglowInSeconds === afterglowInSeconds) return;
+
+    this.spiking.afterglowInSeconds = afterglowInSeconds;
+    this.applyCellBrightness();
     this.context.value?.paint();
   }
 
@@ -1034,6 +1145,8 @@ export class PainterManager {
     watchSpacePerPixel(context, this.eventScalebar);
     watchZoom(context, this.eventZoom);
     this.eventScalebar.addListener(this.handleSpacePerPixel);
+    context.eventPaintEnter.addListener(this.handleSpikeFrame);
+    if (this.spiking.playing) context.play();
     context.inputs.pointer.eventHover.addListener(this.handlePointerHover);
     context.inputs.pointer.eventTap.addListener(this.handlePointerTap);
     context.inputs.pointer.eventTapMultiple.addListener(this.debug);
@@ -1472,6 +1585,7 @@ export class PainterManager {
     this.painterSynapses = null;
     this.eventScalebar.removeListener(this.handleSpacePerPixel);
     if (this.context.value) {
+      this.context.value.eventPaintEnter.removeListener(this.handleSpikeFrame);
       this.context.value.inputs.pointer.eventHover.removeListener(this.handlePointerHover);
       this.context.value.delete();
       this.context.value = undefined;
@@ -1503,6 +1617,13 @@ export function usePainterManager({
   locationSelection,
   dendrogram = false,
   onZoomChange,
+  spikes,
+  spikeTime,
+  onSpikeTimeChange,
+  spikePlaying = false,
+  onSpikePlayingChange,
+  spikeSpeed = DEFAULT_SPIKE_SPEED,
+  spikeAfterglowInSeconds = DEFAULT_SPIKE_AFTERGLOW_IN_SECONDS,
 }: MorphoViewerSmallCircuitProps) {
   const [, setSpacePerPixel] = React.useState(-1);
   const ref = React.useRef<PainterManager | null>(null);
@@ -1648,6 +1769,37 @@ export function usePainterManager({
       manager.eventCellClick.removeListener(onCellClick);
     };
   }, [onCellClick, manager]);
+
+  React.useEffect(() => {
+    manager.setSpikes(spikes);
+  }, [spikes, manager]);
+  React.useEffect(() => {
+    manager.spikeSpeed = spikeSpeed;
+  }, [spikeSpeed, manager]);
+  React.useEffect(() => {
+    manager.spikeAfterglowInSeconds = spikeAfterglowInSeconds;
+  }, [spikeAfterglowInSeconds, manager]);
+  // A seek, not a mirror of the playhead: the viewer moves the clock itself
+  // every frame, and a host that fed the reported time straight back would
+  // fight it. Hosts pass this only when the user scrubs.
+  React.useEffect(() => {
+    if (typeof spikeTime === "number") manager.spikeTime = spikeTime;
+  }, [spikeTime, manager]);
+  React.useEffect(() => {
+    manager.spikePlaying = spikePlaying;
+  }, [spikePlaying, manager]);
+  React.useEffect(() => {
+    if (!onSpikeTimeChange) return;
+
+    manager.eventSpikeTime.addListener(onSpikeTimeChange);
+    return () => manager.eventSpikeTime.removeListener(onSpikeTimeChange);
+  }, [onSpikeTimeChange, manager]);
+  React.useEffect(() => {
+    if (!onSpikePlayingChange) return;
+
+    manager.eventSpikePlaying.addListener(onSpikePlayingChange);
+    return () => manager.eventSpikePlaying.removeListener(onSpikePlayingChange);
+  }, [onSpikePlayingChange, manager]);
 
   return ref.current;
 }
