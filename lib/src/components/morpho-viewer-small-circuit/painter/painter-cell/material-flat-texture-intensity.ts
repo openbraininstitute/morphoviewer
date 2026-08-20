@@ -2,8 +2,6 @@ import { TgdMaterial, type TgdTexture2D } from "@tolokoban/tgd";
 
 export interface MaterialFlatTextureIntensityOptions {
   texture: TgdTexture2D;
-  /** Starting intensity in `[0..1]`. Default `0` — nothing added. */
-  intensity?: number;
 }
 
 /**
@@ -19,7 +17,7 @@ export interface MaterialFlatTextureIntensityOptions {
  * meant swapping in a black texture — and a fade needs every value between.
  */
 export class MaterialFlatTextureIntensity extends TgdMaterial {
-  private _intensity: number;
+  private _intensity = 0;
 
   constructor(options: MaterialFlatTextureIntensityOptions) {
     super({
@@ -41,7 +39,6 @@ export class MaterialFlatTextureIntensity extends TgdMaterial {
         program.uniform1f("uniIntensity", this._intensity);
       },
     });
-    this._intensity = options.intensity ?? 0;
   }
 
   get intensity(): number {

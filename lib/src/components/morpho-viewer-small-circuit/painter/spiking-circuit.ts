@@ -26,9 +26,15 @@ const MAX_FRAME_IN_MS = 250;
 /**
  * The clock and the per-cell glow of a spike replay.
  *
- * Deliberately not `TgdTime`: this one counts in *simulated* milliseconds
- * rather than seconds of wall clock, clamps itself at the end of the recording,
- * and has to survive a seek to an exact time — none of which `TgdTime` offers.
+ * Deliberately not `TgdTime`, which does offer milliseconds and a seek: it
+ * advances whenever the *context* is playing, and this context also plays for
+ * camera moves and morphology nudges, so the replay would creep forward while
+ * paused. It also has no notion of a recording that ends. Keeping the clock
+ * here additionally keeps it testable without a WebGL context.
+ *
+ * The sibling `SpikingManager` in `morpho-viewer-simul` animates spikes too,
+ * but over one morphology as a normalised 0–1 progress with a linear ramp;
+ * there is no shared data model to hoist, only the idea.
  *
  * Nothing here is cumulative. The set of glowing cells at time `t` is computed
  * from scratch each frame by a binary search plus a walk back over the decay
@@ -43,10 +49,6 @@ export class SpikingCircuit {
   private _speed = DEFAULT_SPIKE_SPEED;
   private _afterglowInSeconds = DEFAULT_SPIKE_AFTERGLOW_IN_SECONDS;
   private lastTickInMs = 0;
-
-  get hasSpikes(): boolean {
-    return this.spikes !== null;
-  }
 
   /** Brightness to add per cell, indexed like the `circuit` array. */
   get glow(): Readonly<Float32Array> {
@@ -112,7 +114,7 @@ export class SpikingCircuit {
 
   setSpikes(spikes: MorphoViewerSmallCircuitSpikes | null, cellCount: number) {
     this.spikes = spikes;
-    this.setCellCount(cellCount);
+    if (this._glow.length !== cellCount) this._glow = new Float32Array(cellCount);
     this._timeInMs = this.timeMinInMs;
     this._playing = false;
     this.computeGlow();
@@ -178,11 +180,6 @@ export class SpikingCircuit {
   }
 }
 
-function clamp(value: number, min: number, max: number): number {
-  if (Number.isNaN(value)) return min;
-  return Math.min(max, Math.max(min, value));
-}
-
 /** Index of the first entry strictly greater than `value`, in an ascending array. */
 function upperBound(values: Float32Array, value: number): number {
   let low = 0;
@@ -193,6 +190,16 @@ function upperBound(values: Float32Array, value: number): number {
     else high = mid;
   }
   return low;
+}
+
+/**
+ * Not `tgdCalcClamp`: importing a value from `@tolokoban/tgd` would pull the
+ * whole ESM bundle into this module and take the unit tests down with it.
+ * Also snaps NaN to `min`, which `tgdCalcClamp` passes straight through.
+ */
+function clamp(value: number, min: number, max: number): number {
+  if (Number.isNaN(value)) return min;
+  return Math.min(max, Math.max(min, value));
 }
 
 function now(): number {

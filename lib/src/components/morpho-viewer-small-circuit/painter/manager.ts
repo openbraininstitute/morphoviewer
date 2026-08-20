@@ -239,7 +239,6 @@ export class PainterManager {
   /** Negative until a frame is painted. */
   private spacePerPixel = -1;
   private readonly spiking = new SpikingCircuit();
-  private lastDispatchedSpikeTimeInMs = Number.NaN;
 
   /** The space one CSS pixel covers, or `null` if it has not been measured yet. */
   private get measuredSpacePerPixel(): number | null {
@@ -997,34 +996,48 @@ export class PainterManager {
    * `max` rather than a sum: hovering a cell mid-replay should not take it past
    * the brightness a hover normally gives, and a spiking cell the pointer
    * happens to sit on should not stop glowing.
+   *
+   * A cell contributing nothing is switched off rather than left to draw black.
+   * The pass is additive, so drawing it changes no pixel — but it still costs a
+   * whole morphology of geometry, and during a replay that is every frame.
    */
   private applyCellBrightness() {
     const { cellsForHighlights, circuit, highlightedCellIds, spiking } = this;
     const { glow } = spiking;
     for (let i = 0; i < cellsForHighlights.length; i++) {
       const highlighted = highlightedCellIds.includes(circuit[i].id) ? 1 : 0;
-      cellsForHighlights[i].intensity = Math.max(highlighted, glow[i] ?? 0);
+      const intensity = Math.max(highlighted, glow[i] ?? 0);
+      const painter = cellsForHighlights[i];
+      painter.active = intensity > 0;
+      painter.intensity = intensity;
     }
-    const { timeInMs } = spiking;
-    if (timeInMs !== this.lastDispatchedSpikeTimeInMs) {
-      this.lastDispatchedSpikeTimeInMs = timeInMs;
-      this.eventSpikeTime.dispatch(timeInMs);
-    }
+  }
+
+  /**
+   * The same, for the paths that also moved the clock.
+   *
+   * Split from {@link applyCellBrightness} so that hovering a cell — or nudging
+   * the glow's shape — does not announce a playhead that has not moved.
+   */
+  private applySpikeFrame() {
+    this.applyCellBrightness();
+    this.eventSpikeTime.dispatch(this.spiking.timeInMs);
   }
 
   /**
    * Advance the replay by one frame.
    *
-   * Bound to `eventPaintEnter` rather than to a timer of its own, so the clock
-   * only moves when a frame is about to be drawn, and the intensities it writes
-   * land in that same frame.
+   * Bound to a paint event rather than to a timer of its own, so the clock only
+   * moves when a frame is actually drawn — a viewer nobody is looking at costs
+   * nothing. `eventPaint` and not `eventPaintEnter` because tgd dispatches the
+   * latter twice per frame, which would run the whole glow computation twice.
    */
   private readonly handleSpikeFrame = () => {
     const { spiking } = this;
     if (!spiking.playing) return;
 
     const reachedEnd = spiking.advance();
-    this.applyCellBrightness();
+    this.applySpikeFrame();
     if (reachedEnd) {
       this.context.value?.pause();
       this.eventSpikePlaying.dispatch(false);
@@ -1033,7 +1046,7 @@ export class PainterManager {
 
   setSpikes(spikes: MorphoViewerSmallCircuitSpikes | undefined) {
     this.spiking.setSpikes(spikes ?? null, this.circuit.length);
-    this.applyCellBrightness();
+    this.applySpikeFrame();
     this.context.value?.paint();
   }
 
@@ -1044,7 +1057,7 @@ export class PainterManager {
     if (this.spiking.timeInMs === timeInMs) return;
 
     this.spiking.timeInMs = timeInMs;
-    this.applyCellBrightness();
+    this.applySpikeFrame();
     this.context.value?.paint();
   }
 
@@ -1057,7 +1070,7 @@ export class PainterManager {
     // Pressing play at the end restarts from the beginning, so the glow has to
     // be rebuilt before the first frame of the new run.
     this.spiking.playing = playing;
-    this.applyCellBrightness();
+    this.applySpikeFrame();
     const context = this.context.value;
     if (playing) context?.play();
     else context?.pause();
@@ -1145,7 +1158,7 @@ export class PainterManager {
     watchSpacePerPixel(context, this.eventScalebar);
     watchZoom(context, this.eventZoom);
     this.eventScalebar.addListener(this.handleSpacePerPixel);
-    context.eventPaintEnter.addListener(this.handleSpikeFrame);
+    context.eventPaint.addListener(this.handleSpikeFrame);
     if (this.spiking.playing) context.play();
     context.inputs.pointer.eventHover.addListener(this.handlePointerHover);
     context.inputs.pointer.eventTap.addListener(this.handlePointerTap);
@@ -1585,7 +1598,7 @@ export class PainterManager {
     this.painterSynapses = null;
     this.eventScalebar.removeListener(this.handleSpacePerPixel);
     if (this.context.value) {
-      this.context.value.eventPaintEnter.removeListener(this.handleSpikeFrame);
+      this.context.value.eventPaint.removeListener(this.handleSpikeFrame);
       this.context.value.inputs.pointer.eventHover.removeListener(this.handlePointerHover);
       this.context.value.delete();
       this.context.value = undefined;
