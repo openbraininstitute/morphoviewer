@@ -9,7 +9,7 @@ import {
   tgdEasingFunctionInOutCubic,
 } from "@tolokoban/tgd";
 
-import { MorphoViewerSignalCameraResetOptions } from "@/components/signals";
+import type { MorphoViewerSignalCameraResetOptions } from "@/components/signals";
 
 const ZOOM_MIN = 0.25;
 const ZOOM_MAX = 100;
@@ -19,6 +19,7 @@ export class CameraManager {
 
   private animations: TgdAnimation[] = [];
   private orbit: TgdControllerCameraOrbit | null = null;
+  private savedSpeedOrbit: number | null = null;
 
   constructor(
     private readonly context: TgdContext,
@@ -38,18 +39,46 @@ export class CameraManager {
   get enabled(): boolean {
     return this.orbit?.enabled ?? false;
   }
+
+  /** Freeze rotation while keeping zoom and pan, for flat views like the dendrogram. */
+  set rotationLocked(locked: boolean) {
+    const { orbit } = this;
+    if (!orbit) return;
+    if (locked) {
+      if (this.savedSpeedOrbit === null) this.savedSpeedOrbit = orbit.speedOrbit;
+      orbit.speedOrbit = 0;
+    } else if (this.savedSpeedOrbit !== null) {
+      orbit.speedOrbit = this.savedSpeedOrbit;
+      this.savedSpeedOrbit = null;
+    }
+  }
   set enabled(enabled: boolean) {
     if (this.orbit) this.orbit.enabled = enabled;
   }
 
   resetCamera(options: MorphoViewerSignalCameraResetOptions = {}) {
-    const { context } = this;
     this.target.zoom = options.zoom ?? this.target.zoom;
+    this.animateTo(this.target);
+  }
+
+  /**
+   * Move to the stored target with a one-off zoom, leaving that target untouched.
+   *
+   * A view mode frames the camera for as long as it lasts, so its zoom must not become the
+   * new resting state: `resetCamera()` afterwards still restores the captured framing.
+   * Passing `undefined` goes back to that framing.
+   */
+  applyZoom(zoom: number | undefined) {
+    this.animateTo({ ...this.target, zoom: zoom ?? this.target.zoom });
+  }
+
+  private animateTo(state: Partial<TgdCameraState>) {
+    const { context } = this;
     context.animCancelArray(this.animations);
     this.animations = context.animSchedule({
       duration: 0.5,
       easingFunction: tgdEasingFunctionInOutCubic,
-      action: tgdActionCreateCameraInterpolation(context.camera, this.target),
+      action: tgdActionCreateCameraInterpolation(context.camera, state),
       onEnd: () => this.eventRestingPosition.dispatch(true),
     });
   }

@@ -34,6 +34,8 @@ export interface SegmentOffscreenPainterOptions {
    * nothing and stays invisible until an unrelated redraw comes along.
    */
   onCellLoaded?: () => void;
+  /** Current dendrogram morph, so a rebuilt buffer matches what is on screen. */
+  dendrogramMix?: number;
 }
 
 export class SegmentOffscreenPainter {
@@ -73,13 +75,25 @@ export class SegmentOffscreenPainter {
       const painter = new PainterCell(context, {
         cell,
         loadCell: options.loadCell,
-        matrerial: "segment",
+        material: "segment",
         onCellLoaded: () => options.onCellLoaded?.(),
       });
+      // Seeded, not pushed: enabling location picking rebuilds this buffer.
+      painter.dendrogramMix = options.dendrogramMix ?? 0;
       this.cellPainters.set(cell.id, painter);
       this.group.add(painter);
     }
     this.paint();
+  }
+
+  /**
+   * Keep the pick geometry on the same morph as what is drawn.
+   *
+   * Otherwise a click resolves against a shape the user cannot see. No repaint here: this
+   * buffer redraws on the main context's `eventPaint`, which the caller triggers once.
+   */
+  set dendrogramMix(mix: number) {
+    for (const painter of this.cellPainters.values()) painter.dendrogramMix = mix;
   }
 
   /** This cell's section index, once its morphology has loaded. */

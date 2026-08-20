@@ -13,7 +13,7 @@ export class PainterCellId extends PainterCell {
   constructor(context: TgdContext, options: PainterCellIdOptions) {
     super(context, {
       ...options,
-      matrerial: options.id,
+      material: options.id,
     });
   }
 }

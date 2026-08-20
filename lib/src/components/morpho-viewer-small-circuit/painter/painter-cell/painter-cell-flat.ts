@@ -12,7 +12,7 @@ export class PainterCellFlat extends PainterCell {
   constructor(context: TgdContext, options: PainterCellFlatOptions) {
     super(context, {
       ...options,
-      matrerial: "flat",
+      material: "flat",
     });
   }
 }

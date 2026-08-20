@@ -12,13 +12,13 @@ import { vec3ToInt16 } from "@/utils";
 
 import { PainterCellId } from "../painter-cell";
 
-import type { CacheLRU } from "@/tools/cache-lru";
 import type { MorphoViewerSmallCircuitCell, MorphoViewerSmallCircuitCellData } from "../../types";
 
 export interface OffscreenPainterOptions {
   circuit: MorphoViewerSmallCircuitCell[];
   loadCell: (id: string) => Promise<MorphoViewerSmallCircuitCellData | null>;
-  loadedCells: CacheLRU<Promise<MorphoViewerSmallCircuitCellData | null>>;
+  /** Current dendrogram morph, so a rebuilt buffer matches what is on screen. */
+  dendrogramMix?: number;
 }
 
 const FIRST_INDEX = 1;
@@ -30,7 +30,6 @@ const FIRST_INDEX = 1;
 const DEFAULT_RESOLUTION_DIVIDER = 4;
 
 export class OffscreenPainter {
-  public mix = 0;
   public readonly context: TgdContext;
   /**
    * How much smaller than the canvas this buffer is drawn.
@@ -45,6 +44,7 @@ export class OffscreenPainter {
   private readonly offscreenCanvas = new OffscreenCanvas(1, 1);
   private readonly offscreenContext: TgdContext;
   private readonly group = new TgdPainterGroup();
+  private readonly meshes: PainterCellId[] = [];
   private readonly circuit: MorphoViewerSmallCircuitCell[];
   private isDeleted = false;
 
@@ -78,10 +78,23 @@ export class OffscreenPainter {
         loadCell: options.loadCell,
         id: index,
       });
+      // Seeded, not pushed: this buffer is rebuilt on every circuit update.
+      mesh.dendrogramMix = options.dendrogramMix ?? 0;
       this.group.add(mesh);
+      this.meshes.push(mesh);
       index++;
     }
     this.paint();
+  }
+
+  /**
+   * Keep the pick geometry on the same morph as what is drawn.
+   *
+   * No repaint here: this buffer redraws on the main context's `eventPaint`, and the caller
+   * paints once it has moved everything else the morph touches.
+   */
+  set dendrogramMix(mix: number) {
+    for (const mesh of this.meshes) mesh.dendrogramMix = mix;
   }
 
   getItemAt(xScreen: number, yScreen: number): MorphoViewerSmallCircuitCell | undefined {

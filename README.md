@@ -32,6 +32,18 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.33.0
+
+- Add a **dendrogram** to `MorphoViewerSmallCircuit` via `dendrogram`: the same segments in the same order, laid out with branching across x and path distance up y
+  - Morphed on the GPU rather than switched, so a branch stays traceable from one view to the other
+  - **Meant for a single cell.** Each cell charts itself in its own frame and then keeps its orientation and soma position, so a circuit turns into a set of flat charts, each tilted differently and spread over the tissue
+  - **Synapses and overlays do not follow.** They are given in the file's own coordinates, so they stay where the 3D geometry was. Location markers do follow the morph
+  - Both axes are scaled to the cell's own bounding box, so the chart takes about the room the morphology did and the camera keeps framing it. Path distance is uniform, so branches stay comparable to each other, but it is no longer read in microns
+  - **Picking follows the chart.** Both offscreen buffers are seeded with the current morph when they are built, since they are rebuilt on circuit updates and when location picking is enabled; offsets and markers blend with the live mix, so they stay correct mid-animation
+  - Stroke weights are scaled to the chart's own geometry, not taken from the morphology in microns: radius on a path-distance axis is styling, not measurement. Connectors are the lightest mark, the soma the heaviest, branches graded between by log-compressed calibre
+  - Rotation is locked while the chart is shown, since it is flat; zoom and pan stay live
+- Add `somaAsSphere`, drawing each soma as one fitted sphere rather than the contour chain the file records. **Off by default**, and it must stay off wherever `synapses` are drawn: those positions are recorded against the file's own geometry, so replacing the soma moves the surface out from under them. Meant for a lone neuron shown without a circuit around it
+
 ### v0.32.3
 
 - **Turning the view no longer adds a morphology location.** A short drag counted as a click, so points appeared while rotating. A point is now added only if the pointer stayed still. Clicking a cell after a drag still works

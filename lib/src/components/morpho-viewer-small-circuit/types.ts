@@ -173,8 +173,31 @@ export type MorphoViewerSmallCircuitProps = PropsForGizmo &
       color: string;
       coordinates: Float32Array | number[];
     }>;
+    /**
+     * Morph the cells into a dendrogram: branching across x, path distance up y.
+     *
+     * The same segments in the same order as the morphology, so a branch stays traceable through
+     * the transition and picking keeps working in either view.
+     *
+     * Meant for a single cell. Each cell charts itself in its own frame, then keeps its
+     * orientation and soma position, so a circuit becomes a set of flat charts, each tilted
+     * differently and spread over the tissue.
+     *
+     * Only {@link locationSelection} markers travel with the morph. {@link synapses} and
+     * {@link overlays} are given in the file's own coordinates, so they stay where the 3D
+     * geometry was while the neurites leave for the chart.
+     */
+    dendrogram?: boolean;
     synapsesRadius?: number;
     synapsesMinRadiusInPixels?: number;
+    /**
+     * Draw each soma as one fitted sphere rather than the contour chain the file records.
+     *
+     * Default `false`. Leave it off wherever {@link synapses} are drawn: those positions are
+     * recorded against the file's own geometry, so replacing the soma moves the surface out
+     * from under them. Meant for a lone neuron shown without a circuit around it.
+     */
+    somaAsSphere?: boolean;
     /**
      * Neuron mesh opacity in `[0..1]`. Default `1` (opaque).
      * Translucent neurons enable alpha blending without back-to-front sorting,
@@ -182,14 +205,6 @@ export type MorphoViewerSmallCircuitProps = PropsForGizmo &
      * (`blend: "off"`) and do not inherit this alpha.
      */
     neuronOpacity?: number;
-    /**
-     * Draw the soma as one fitted sphere instead of the contour chain the file records.
-     * Default `false`.
-     *
-     * Only safe where no synapses are drawn: their positions are recorded against the file's
-     * geometry, so replacing the soma moves the surface out from under them.
-     */
-    somaAsSphere?: boolean;
     /**
      * Ids of the cells we want to highlight.
      */

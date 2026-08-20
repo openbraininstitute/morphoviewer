@@ -95,6 +95,23 @@ describe("CellSectionIndex", () => {
     expect(index.getPointAtOffset("dend[0]", 0.5)).toEqual([33, 0, 0]);
   });
 
+  it("blends an offset point toward the chart placement by the dendrogram mix", () => {
+    const index = new CellSectionIndex();
+    // Same segment in both worlds: 3D along x, charted along y.
+    index.add(item("dend[0]", "0"), ORIGIN, [10, 0, 0], false, [0, 0, 0], [0, 10, 0]);
+
+    expect(index.getPointAtOffset("dend[0]", 0.5, 0)).toEqual([5, 0, 0]);
+    expect(index.getPointAtOffset("dend[0]", 0.5, 1)).toEqual([0, 5, 0]);
+    expect(index.getPointAtOffset("dend[0]", 0.5, 0.5)).toEqual([2.5, 2.5, 0]);
+  });
+
+  it("charts a segment at its 3D placement when no chart placement was given", () => {
+    const index = new CellSectionIndex();
+    index.add(item("dend[0]", "0"), ORIGIN, [10, 0, 0]);
+
+    expect(index.getPointAtOffset("dend[0]", 0.5, 1)).toEqual([5, 0, 0]);
+  });
+
   it("carries the SONATA section id through when the tree has one", () => {
     const index = new CellSectionIndex();
 
