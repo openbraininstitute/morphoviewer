@@ -228,9 +228,22 @@ class PainterManager {
     }
   };
 
+  /**
+   * Swap the recording being replayed.
+   *
+   * The clock restarts at the beginning of the new one, so playback stops —
+   * and the host has to hear about it. Its own `spikePlaying` prop is what the
+   * play button reads, and it did not change just because the spikes did, so
+   * without this the button says "pause" over a replay that is not running.
+   */
   setSpikes(spikes: MorphoViewerSpikes | undefined) {
+    const wasPlaying = this.spiking.playing;
     this.spiking.setSpikes(spikes ?? null, this._cellInfos.length);
     this.applySpikeFrame();
+    if (wasPlaying) {
+      this.context?.pause();
+      this.eventSpikePlaying.dispatch(false);
+    }
     this.context?.paint();
   }
 
@@ -851,7 +864,9 @@ export function useManager({
   }, [spikeAfterglowInSeconds, manager]);
   // A seek, not a mirror of the playhead: the viewer moves the clock itself
   // every frame, and a host that fed the reported time straight back would
-  // fight it. Hosts pass this only when the user scrubs.
+  // fight it. Hosts pass this only when the user scrubs — and, since two seeks
+  // to the same millisecond are one prop value and React would skip the
+  // second, as a one-shot they clear once it has been read.
   React.useEffect(() => {
     if (typeof spikeTime === "number") manager.spikeTime = spikeTime;
   }, [spikeTime, manager]);

@@ -10,12 +10,6 @@ import {
 
 import type { TgdContext, TgdTexture2D } from "@tolokoban/tgd";
 
-/**
- * Position of the glow dataset in the VAO, which is how {@link TgdVertexArray}
- * addresses its buffers.
- */
-const GLOW_BUFFER_INDEX = 1;
-
 /** Colour a fully-glowing soma adds on top of whatever it is painted. */
 const DEFAULT_GLOW_COLOR: [number, number, number] = [1, 0.85, 0.4];
 
@@ -65,6 +59,9 @@ export class PainterSomaCloud extends TgdPainter {
   private readonly glowSwell: number;
   private readonly program: TgdProgram;
   private readonly vao: TgdVertexArray;
+  /** Where the glow sits among the VAO's datasets, which is how it is addressed. */
+  private readonly glowBufferIndex: number;
+  private glowWarned = false;
 
   constructor(
     public readonly context: TgdContext,
@@ -96,8 +93,10 @@ export class PainterSomaCloud extends TgdPainter {
     const billboards = new TgdDataset({ attPointCoord: "vec2" });
     billboards.set("attPointCoord", new Float32Array([-1, -1, +1, -1, +1, +1, -1, +1]));
 
+    const datasets = [instances, glow, billboards];
+    this.glowBufferIndex = datasets.indexOf(glow);
     this.program = createProgram(context, this.glowColor, this.glowSwell);
-    this.vao = new TgdVertexArray(context.gl, this.program, [instances, glow, billboards]);
+    this.vao = new TgdVertexArray(context.gl, this.program, datasets);
   }
 
   /**
@@ -108,10 +107,21 @@ export class PainterSomaCloud extends TgdPainter {
    * straight copy to the GPU with no per-soma work on either side.
    */
   setGlow(glow: Readonly<Float32Array>) {
-    if (glow.length !== this.count) return;
-
-    const buffer = this.vao.getBuffer(GLOW_BUFFER_INDEX);
-    if (!buffer) return;
+    const buffer = this.vao.getBuffer(this.glowBufferIndex);
+    if (!buffer || glow.length !== this.count) {
+      // Said once, not sixty times a second. Saying nothing was worse: the
+      // replay simply never appears, with nothing anywhere to explain it.
+      if (!this.glowWarned) {
+        this.glowWarned = true;
+        console.warn(
+          "PainterSomaCloud: no spike will be visible.",
+          buffer
+            ? `Expected ${this.count} intensities, one per soma, but got ${glow.length}.`
+            : "The glow buffer is missing from the vertex array."
+        );
+      }
+      return;
+    }
 
     const { gl } = this.context;
     buffer.bind();

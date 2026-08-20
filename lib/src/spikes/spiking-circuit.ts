@@ -24,6 +24,17 @@ const GLOW_CUTOFF_IN_TAUS = 5;
 const MAX_FRAME_IN_MS = 250;
 
 /**
+ * The frame rate the glow window is allowed to slow the clock down to.
+ *
+ * A step longer than the glow window would leave spikes fired between two
+ * frames already past their cutoff by the next one, so they would never light
+ * a cell — but an afterglow short enough to make that window narrower than an
+ * ordinary frame describes a spike too brief to draw at any step size, and
+ * honouring it would stall the replay instead of fixing anything.
+ */
+const NOMINAL_FRAME_IN_MS = 1000 / 60;
+
+/**
  * The clock and the per-cell glow of a spike replay.
  *
  * Deliberately not `TgdTime`, which does offer milliseconds and a seek: it
@@ -115,7 +126,15 @@ export class SpikingCircuit {
     this.computeGlow();
   }
 
+  /**
+   * Hand over a new recording, restarting the clock at its beginning.
+   *
+   * Playback always stops: the new train is indexed against whatever cells the
+   * viewer draws now, and carrying a running clock into it would replay a
+   * stretch of data nobody asked for. Callers own telling their own host.
+   */
   setSpikes(spikes: MorphoViewerSpikes | null, cellCount: number) {
+    if (spikes) warnIfUnsorted(spikes.times);
     this.spikes = spikes;
     if (this._glow.length !== cellCount) this._glow = new Float32Array(cellCount);
     this._timeInMs = this.timeMinInMs;
@@ -143,7 +162,14 @@ export class SpikingCircuit {
     this.lastTickInMs = wallClock;
     if (!this._playing || deltaInMs <= 0) return false;
 
-    const timeInMs = this._timeInMs + (deltaInMs / 1000) * this._speed;
+    // Capped by the glow window as well as by the frame, so a slow frame plays
+    // back slowly rather than stepping straight over spikes it never drew. See
+    // NOMINAL_FRAME_IN_MS for why the cap has a floor of its own.
+    const stepInMs = Math.min(
+      (deltaInMs / 1000) * this._speed,
+      Math.max(this.glowWindowInMs, (NOMINAL_FRAME_IN_MS / 1000) * this._speed)
+    );
+    const timeInMs = this._timeInMs + stepInMs;
     if (timeInMs >= this.timeMaxInMs) {
       this._timeInMs = this.timeMaxInMs;
       this._playing = false;
@@ -160,6 +186,11 @@ export class SpikingCircuit {
     return Math.max(this._afterglowInSeconds * this._speed, Number.MIN_VALUE);
   }
 
+  /** How far back a spike is still worth drawing, in simulated milliseconds. */
+  private get glowWindowInMs(): number {
+    return GLOW_CUTOFF_IN_TAUS * this.tauInMs;
+  }
+
   private computeGlow() {
     const glow = this._glow;
     glow.fill(0);
@@ -169,7 +200,7 @@ export class SpikingCircuit {
     const { cellIndices, times } = spikes;
     const tauInMs = this.tauInMs;
     const t = this._timeInMs;
-    const oldest = t - GLOW_CUTOFF_IN_TAUS * tauInMs;
+    const oldest = t - this.glowWindowInMs;
     for (let i = upperBound(times, t) - 1; i >= 0; i--) {
       const spikeTime = times[i];
       if (spikeTime < oldest) break;
@@ -203,6 +234,25 @@ function upperBound(values: Float32Array, value: number): number {
 function clamp(value: number, min: number, max: number): number {
   if (Number.isNaN(value)) return min;
   return Math.min(max, Math.max(min, value));
+}
+
+/**
+ * Report a spike train that is not in the ascending order the search assumes.
+ *
+ * One pass over a typed array, once per recording rather than per frame, which
+ * is nothing next to reading the file it came from. Reported rather than
+ * thrown: the replay still runs, it just misses spikes, and a host given a
+ * console line can go and sort its own data.
+ */
+function warnIfUnsorted(times: Float32Array) {
+  for (let i = 1; i < times.length; i++) {
+    if (times[i] >= times[i - 1]) continue;
+
+    console.warn(
+      `Spike times must be ascending, but times[${i}] (${times[i]}) is before times[${i - 1}] (${times[i - 1]}). Cells will light up at the wrong moments.`
+    );
+    return;
+  }
 }
 
 function now(): number {

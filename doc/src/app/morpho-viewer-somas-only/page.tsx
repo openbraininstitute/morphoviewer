@@ -18,8 +18,9 @@ import {
 import React from "react";
 
 import { ScalebarSettings } from "@/components/scalebar-settings";
+import { useRandomSpikes } from "@/random-spikes";
 
-import { useCellInfos, useRandomSpikes } from "./hooks";
+import { useCellInfos } from "./hooks";
 
 import styles from "./page.module.css";
 
@@ -35,7 +36,7 @@ export default function Page() {
     "MorphoViewerSomasOnly/dataId"
   );
   const cellInfos = useCellInfos(dataId);
-  const spikes = useRandomSpikes(cellInfos?.length ?? 0);
+  const spikes = useRandomSpikes(cellInfos?.length ?? 0, 4);
   const [spikePlaying, setSpikePlaying] = React.useState(false);
   const [spikeSpeed, setSpikeSpeed] = React.useState(DEFAULT_SPIKE_SPEED);
   const [spikeAfterglowInSeconds, setSpikeAfterglowInSeconds] = React.useState(

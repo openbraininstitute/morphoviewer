@@ -5,7 +5,6 @@ import {
   type MorphoViewerSmallCircuitCell,
   type MorphoViewerSmallCircuitCellData,
   type MorphoViewerSmallCircuitProps,
-  type MorphoViewerSpikes,
   type MorphoViewerSomasOnlyProps,
   morphoViewerConvertMorphologyIntoTree,
 } from "@openbraininstitute/morphoviewer";
@@ -22,6 +21,7 @@ import React from "react";
 
 import { GizmoSettings } from "@/components/gizmo-settings";
 import { ScalebarSettings } from "@/components/scalebar-settings";
+import { useRandomSpikes } from "@/random-spikes";
 
 import { useCircuit } from "./data";
 
@@ -52,7 +52,7 @@ export default function Page() {
       setSelectedCells([...selectedCells, cell.id]);
     }
   };
-  const spikes = useRandomSpikes(circuit.length);
+  const spikes = useRandomSpikes(circuit.length, 12);
   const [spikePlaying, setSpikePlaying] = React.useState(false);
   const [spikeSpeed, setSpikeSpeed] = React.useState(DEFAULT_SPIKE_SPEED);
   const [spikeAfterglowInSeconds, setSpikeAfterglowInSeconds] = React.useState(
@@ -155,32 +155,6 @@ export default function Page() {
       </a>
     </div>
   );
-}
-
-/** One second of Poisson firing across the circuit, for tuning the glow by eye. */
-function useRandomSpikes(cellCount: number): MorphoViewerSpikes | undefined {
-  return React.useMemo(() => {
-    if (cellCount === 0) return undefined;
-
-    const timeMaxInMs = 1000;
-    const spikesPerCell = 12;
-    const count = cellCount * spikesPerCell;
-    const cellIndices = new Uint32Array(count);
-    const times = new Float32Array(count);
-    for (let i = 0; i < count; i++) {
-      cellIndices[i] = Math.floor(Math.random() * cellCount);
-      times[i] = Math.random() * timeMaxInMs;
-    }
-    // The viewer binary-searches this, so it has to be sorted — and the two
-    // arrays have to stay lined up, which a sort of one of them alone would not.
-    const order = Array.from({ length: count }, (_, i) => i).sort((a, b) => times[a] - times[b]);
-    return {
-      cellIndices: Uint32Array.from(order, (i) => cellIndices[i]),
-      times: Float32Array.from(order, (i) => times[i]),
-      timeMinInMs: 0,
-      timeMaxInMs,
-    };
-  }, [cellCount]);
 }
 
 async function loadCell(id: string): Promise<MorphoViewerSmallCircuitCellData | null> {

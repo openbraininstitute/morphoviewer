@@ -2,6 +2,10 @@ import { SpikingCircuit } from "./spiking-circuit";
 
 import type { MorphoViewerSpikes } from "./types";
 
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
 /** Three cells; cell 0 fires at 100 ms, cell 1 at 200 ms, cell 2 twice. */
 const SPIKES: MorphoViewerSpikes = {
   cellIndices: Uint32Array.from([0, 1, 2, 2]),
@@ -92,4 +96,76 @@ describe("SpikingCircuit clock", () => {
     expect(spiking.advance()).toBe(false);
     expect(spiking.timeInMs).toBe(500);
   });
+
+  it("advances by however long the frame took", () => {
+    const clock = fakeClock();
+    const spiking = circuitAt(0);
+    spiking.playing = true;
+    clock.advanceBy(100);
+    expect(spiking.advance()).toBe(false);
+    // 100 simulated ms per wall-clock second, so a tenth of a second of frame
+    // is ten simulated milliseconds.
+    expect(spiking.timeInMs).toBeCloseTo(10);
+  });
+
+  it("stops at the end of the recording and says so", () => {
+    const clock = fakeClock();
+    const spiking = circuitAt(990);
+    spiking.playing = true;
+    clock.advanceBy(1000);
+    expect(spiking.advance()).toBe(true);
+    expect(spiking.timeInMs).toBe(1000);
+    expect(spiking.playing).toBe(false);
+  });
+
+  it("never steps further in one frame than a spike stays visible", () => {
+    const clock = fakeClock();
+    const spiking = circuitAt(0);
+    spiking.speed = 1000;
+    // A 10 ms decay constant, so nothing is worth drawing more than 50 ms on.
+    spiking.afterglowInSeconds = 0.01;
+    spiking.playing = true;
+    // Four frames a second: unclamped this would be a 250 ms step, straight
+    // over every spike in the recording without drawing one of them.
+    clock.advanceBy(400);
+    spiking.advance();
+    expect(spiking.timeInMs).toBeCloseTo(50);
+  });
+
+  it("stops playback when a new recording arrives", () => {
+    const spiking = circuitAt(300);
+    spiking.playing = true;
+    spiking.setSpikes({ ...SPIKES, timeMinInMs: 40 }, 3);
+    expect(spiking.playing).toBe(false);
+    expect(spiking.timeInMs).toBe(40);
+  });
 });
+
+describe("SpikingCircuit input", () => {
+  it("reports a spike train that is out of order", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const spiking = new SpikingCircuit();
+    spiking.setSpikes({ ...SPIKES, times: Float32Array.from([100, 200, 150, 340]) }, 3);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("says nothing about a sorted one", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    new SpikingCircuit().setSpikes(SPIKES, 3);
+    expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Take over the wall clock the replay reads, so that a frame can be made to
+ * take as long as the test needs it to.
+ */
+function fakeClock() {
+  let nowInMs = 0;
+  jest.spyOn(performance, "now").mockImplementation(() => nowInMs);
+  return {
+    advanceBy(durationInMs: number) {
+      nowInMs += durationInMs;
+    },
+  };
+}

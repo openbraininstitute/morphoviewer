@@ -142,6 +142,8 @@ export class PainterManager {
   private _locationPickingEnabled = false;
   private _pickableSectionTypes: readonly MorphoViewerTreeItemType[] | null = null;
   private _highlightedCellIds: string[] = [];
+  /** The same ids, for the per-frame lookup in {@link applyCellBrightness}. */
+  private highlightedCellIdSet = new Set<string>();
   private hoveredCellId: string | undefined = "";
   private nudgeStart: number | null = null;
 
@@ -977,6 +979,7 @@ export class PainterManager {
     if (value === this._highlightedCellIds) return;
 
     this._highlightedCellIds = value ?? [];
+    this.highlightedCellIdSet = new Set(this._highlightedCellIds);
     this.updateHighlightedCells();
   }
 
@@ -1003,10 +1006,10 @@ export class PainterManager {
    * whole morphology of geometry, and during a replay that is every frame.
    */
   private applyCellBrightness() {
-    const { cellsForHighlights, circuit, highlightedCellIds, spiking } = this;
+    const { cellsForHighlights, circuit, highlightedCellIdSet, spiking } = this;
     const { glow } = spiking;
     for (let i = 0; i < cellsForHighlights.length; i++) {
-      const highlighted = highlightedCellIds.includes(circuit[i].id) ? 1 : 0;
+      const highlighted = highlightedCellIdSet.has(circuit[i].id) ? 1 : 0;
       const intensity = Math.max(highlighted, glow[i] ?? 0);
       const painter = cellsForHighlights[i];
       painter.active = intensity > 0;
@@ -1045,10 +1048,24 @@ export class PainterManager {
     }
   };
 
+  /**
+   * Swap the recording being replayed.
+   *
+   * The clock restarts at the beginning of the new one, so playback stops —
+   * and the host has to hear about it. Its own `spikePlaying` prop is what the
+   * play button reads, and it did not change just because the spikes did, so
+   * without this the button says "pause" over a replay that is not running.
+   */
   setSpikes(spikes: MorphoViewerSpikes | undefined) {
+    const wasPlaying = this.spiking.playing;
     this.spiking.setSpikes(spikes ?? null, this.circuit.length);
     this.applySpikeFrame();
-    this.context.value?.paint();
+    const context = this.context.value;
+    if (wasPlaying) {
+      context?.pause();
+      this.eventSpikePlaying.dispatch(false);
+    }
+    context?.paint();
   }
 
   get spikeTime(): number {
@@ -1795,7 +1812,9 @@ export function usePainterManager({
   }, [spikeAfterglowInSeconds, manager]);
   // A seek, not a mirror of the playhead: the viewer moves the clock itself
   // every frame, and a host that fed the reported time straight back would
-  // fight it. Hosts pass this only when the user scrubs.
+  // fight it. Hosts pass this only when the user scrubs — and, since two seeks
+  // to the same millisecond are one prop value and React would skip the
+  // second, as a one-shot they clear once it has been read.
   React.useEffect(() => {
     if (typeof spikeTime === "number") manager.spikeTime = spikeTime;
   }, [spikeTime, manager]);
