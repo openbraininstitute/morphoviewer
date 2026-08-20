@@ -11,8 +11,15 @@ import {
 
 import type { MorphoViewerSignalCameraResetOptions } from "@/components/signals";
 
-const ZOOM_MIN = 0.25;
-const ZOOM_MAX = 100;
+/** Zoom range the orbit controller enforces. Exported so a host control matches it. */
+export const ZOOM_MIN = 0.25;
+export const ZOOM_MAX = 100;
+
+/** Clamp a zoom to the allowed range. */
+export function clampZoom(zoom: number): number {
+  if (!Number.isFinite(zoom)) return ZOOM_MIN;
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom));
+}
 
 export class CameraManager {
   public target: Partial<TgdCameraState> = {};

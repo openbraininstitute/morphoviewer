@@ -63,4 +63,6 @@ export class MorphoViewerSignals {
   >();
   /** dispatch to make the cells grow once, then go back to normal size. */
   public readonly nudgeMorphology = new MorphoViewerSignal();
+  /** dispatch to set the camera zoom, clamped to `ZOOM_MIN`..`ZOOM_MAX`. */
+  public readonly setZoom = new MorphoViewerSignal<number>();
 }

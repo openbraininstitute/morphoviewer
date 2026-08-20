@@ -1,4 +1,5 @@
 import {
+  TgdCanvasGizmo,
   type ArrayNumber3,
   type TgdAnimation,
   TgdBoundingBox,
@@ -18,6 +19,7 @@ import {
   TgdTransfo,
   TgdValueWaitable,
   TgdVec4,
+  tgdActionCreateCameraInterpolation,
   tgdEasingFunctionInOutCubic,
   webglBlendGet,
   webglBlendSet,
@@ -25,14 +27,13 @@ import {
 } from "@tolokoban/tgd";
 import React from "react";
 
-import { watchSpacePerPixel } from "@/behaviors";
+import { watchSpacePerPixel, watchZoom } from "@/behaviors";
 import { computeSectionOffset } from "@/morphology-picking";
-import { PainterGizmo } from "@/painters/gizmo";
 import { OverlayInteractionController } from "@/painters/overlay-interaction";
 import { OverlaySurface } from "@/painters/overlay-surface";
 import { CacheLRU } from "@/tools/cache-lru";
 
-import { CameraManager } from "./camera";
+import { CameraManager, clampZoom } from "./camera";
 import { OffscreenPainter, SegmentOffscreenPainter } from "./offscreen-painter";
 import { PainterCell, PainterCellFlat } from "./painter-cell";
 import { PainterLocationMarkers } from "./painter-location-markers";
@@ -104,6 +105,9 @@ export class PainterManager {
    * Dispatch the `spacePerPixel`.
    */
   public readonly eventScalebar = new TgdEvent<number>();
+
+  /** Dispatch the camera zoom when it changes. */
+  public readonly eventZoom = new TgdEvent<number>();
   /**
    * This callback is called when the loading starts (with a value of __0__),
    * then every time a cell is loaded.
@@ -161,7 +165,27 @@ export class PainterManager {
   private placementSignature = "";
   private bbox = new TgdBoundingBox();
   private _verbose = false;
-  private readonly painterGizmo = new PainterGizmo();
+  /** Drawn on its own canvas, so it can paint at the screen's pixel ratio. */
+  private gizmoOverlay: TgdCanvasGizmo | null = null;
+  private gizmoAnimations: TgdAnimation[] = [];
+  /** Turn the view to the axis whose tip was clicked. */
+  private readonly handleGizmoTipClick = ({ to }: { to: Readonly<TgdQuat> }) => {
+    const context = this.context.value;
+    if (!context) return;
+
+    context.animCancelArray(this.gizmoAnimations);
+    this.gizmoAnimations = context.animSchedule({
+      duration: 0.3,
+      easingFunction: tgdEasingFunctionInOutCubic,
+      action: tgdActionCreateCameraInterpolation(context.camera, { orientation: to }),
+      onEnd: () => {
+        // A reset returns to `target`, so a deliberate turn has to move it.
+        if (this.cameraManager) this.cameraManager.target = context.camera.getCurrentState();
+      },
+    });
+  };
+  private _gizmoCanvas: HTMLCanvasElement | null = null;
+  private _gizmo: TgdPainterGizmoOptions | boolean = false;
   private painterOverlays: PainterWorldOverlays | null = null;
   private painterSynapses: PainterSynapses | null = null;
   private painterLocationMarkers: PainterLocationMarkers | null = null;
@@ -216,10 +240,41 @@ export class PainterManager {
   private spacePerPixel = 1;
 
   get gizmo() {
-    return this.painterGizmo.options;
+    return this._gizmo;
   }
   set gizmo(gizmo: TgdPainterGizmoOptions | boolean | null | undefined) {
-    this.painterGizmo.options = gizmo ?? false;
+    this._gizmo = gizmo ?? false;
+  }
+
+  /** The canvas the gizmo paints on; the host places and sizes it. */
+  get gizmoCanvas() {
+    return this._gizmoCanvas;
+  }
+  set gizmoCanvas(canvas: HTMLCanvasElement | null) {
+    if (canvas === this._gizmoCanvas) return;
+
+    this._gizmoCanvas = canvas;
+    this.applyGizmoCanvas();
+  }
+
+  private applyGizmoCanvas() {
+    const canvas = this._gizmoCanvas;
+    const context = this.context.value;
+    if (!this.gizmoOverlay) {
+      if (!canvas || !context) return;
+
+      // A handful of discs, so device resolution costs nothing here.
+      this.gizmoOverlay = new TgdCanvasGizmo({
+        alpha: true,
+        antialias: true,
+        resolution: devicePixelRatio(),
+        name: "Gizmo",
+      });
+      this.gizmoOverlay.attachContext(context);
+      // It reports the tip and stops there; turning the camera is ours to do.
+      this.gizmoOverlay.eventTipClick.addListener(this.handleGizmoTipClick);
+    }
+    this.gizmoOverlay.canvas = canvas;
   }
 
   /** Applied when cells are built, so a change rebuilds the circuit rather than mutating it. */
@@ -255,8 +310,8 @@ export class PainterManager {
    * capture the current view as an image, without the gizmo. The snapshot is
    * taken inside the render frame (via `context.takeSnapshot`), so it works
    * without `preserveDrawingBuffer`. The frame is rendered at device-pixel
-   * resolution so text and edges stay crisp on HiDPI screens; the gizmo is
-   * hidden for the capture frame and both are restored right after.
+   * resolution so text and edges stay crisp on HiDPI screens, then restored.
+   * The gizmo has its own canvas, so it is never in the capture.
    */
   readonly snapshot = async (
     options?: MorphoViewerSignalSnapshotOptions
@@ -264,21 +319,21 @@ export class PainterManager {
     const context = this.context.value;
     if (!context) return null;
 
-    const gizmoWas = this.painterGizmo.options;
     const resolutionWas = context.resolution;
-    this.painterGizmo.options = false;
-    context.resolution = Math.max(1, Math.min(globalThis.devicePixelRatio || 1, 3));
-    const snapshot = context.takeSnapshot({
-      type: "image/png",
-      quality: 0.8,
-      ...options,
-    });
-    context.paint();
-    const image = await snapshot;
-    this.painterGizmo.options = gizmoWas;
-    context.resolution = resolutionWas;
-    context.paint();
-    return image;
+    context.resolution = devicePixelRatio();
+    try {
+      const snapshot = context.takeSnapshot({
+        type: "image/png",
+        quality: 0.8,
+        ...options,
+      });
+      context.paint();
+      return await snapshot;
+    } finally {
+      // Restored even if the capture throws.
+      context.resolution = resolutionWas;
+      context.paint();
+    }
   };
 
   get verbose(): boolean {
@@ -644,6 +699,23 @@ export class PainterManager {
     };
   }
 
+  /** Camera zoom, clamped to the allowed range. */
+  get zoom(): number {
+    return this.context.value?.camera.zoom ?? 1;
+  }
+
+  set zoom(zoom: number) {
+    const context = this.context.value;
+    if (!context) return;
+
+    const clamped = clampZoom(zoom);
+    if (context.camera.zoom === clamped) return;
+
+    // Not written to `cameraManager.target`: that is where a reset returns to.
+    context.camera.zoom = clamped;
+    context.paint();
+  }
+
   /** Publish label positions on every repaint. Gated: the work is per-frame. */
   get locationLabelsEnabled(): boolean {
     return this._locationLabelsEnabled;
@@ -921,14 +993,17 @@ export class PainterManager {
   set background(color: string) {
     this._background = color;
     this.backgroundColor.parse(color);
-    this.context.waitUntiDefined().then(() => {
+    this.context.waitUntiDefined().then((context) => {
       const clear = this.painterClear;
-      if (clear) {
-        clear.red = this.backgroundColor.R;
-        clear.green = this.backgroundColor.G;
-        clear.blue = this.backgroundColor.B;
-        clear.alpha = this.backgroundColor.A;
-      }
+      if (!clear) return;
+
+      clear.red = this.backgroundColor.R;
+      clear.green = this.backgroundColor.G;
+      clear.blue = this.backgroundColor.B;
+      clear.alpha = this.backgroundColor.A;
+      // Nothing else asks for a frame, so the colour would wait for an unrelated repaint.
+      // Read the context again: a re-attach in between would leave the resolved one deleted.
+      this.context.value?.paint();
     });
   }
 
@@ -969,6 +1044,7 @@ export class PainterManager {
       zoom: 1,
     });
     watchSpacePerPixel(context, this.eventScalebar);
+    watchZoom(context, this.eventZoom);
     this.eventScalebar.addListener(this.handleSpacePerPixel);
     context.inputs.pointer.eventHover.addListener(this.handlePointerHover);
     context.inputs.pointer.eventTap.addListener(this.handlePointerTap);
@@ -1019,7 +1095,6 @@ export class PainterManager {
       depth: 1,
     });
     this.painterClear = clear;
-    this.painterGizmo.context = context;
     // Neurons + synapses on the circuit canvas. Electrodes live on OverlaySurface
     // so drag/rotate does not re-paint morphologies.
     // Alpha blend only while neurons are translucent — opaque path keeps the
@@ -1053,7 +1128,6 @@ export class PainterManager {
         cull: "back",
         children: [this.groupHighlightedCells],
       }),
-      this.painterGizmo
     );
     this.bindOverlaySurface();
   }
@@ -1073,6 +1147,11 @@ export class PainterManager {
     this.overlaySurface.setCanvas(this._overlayCanvas, main);
     this.painterOverlays = this.overlaySurface.overlaysPainter;
     if (this.painterOverlays) this.applyOverlays();
+  }
+
+  /** Say the current scale again, for a scalebar that has just mounted. */
+  refreshScalebar() {
+    if (this.spacePerPixel > 0) this.eventScalebar.dispatch(this.spacePerPixel);
   }
 
   private readonly handleSpacePerPixel = (spacePerPixel: number) => {
@@ -1371,6 +1450,14 @@ export class PainterManager {
     this.dendrogramAnimations = [];
     this.dendrogramMix = this._dendrogramMode ? 1 : 0;
     this.cellPainters.splice(0);
+    if (this.gizmoOverlay) {
+      this.gizmoOverlay.eventTipClick.removeListener(this.handleGizmoTipClick);
+      this.gizmoOverlay.detach();
+      this.gizmoOverlay.canvas = null;
+      this.gizmoOverlay = null;
+    }
+    this.context.value?.animCancelArray(this.gizmoAnimations);
+    this.gizmoAnimations = [];
     this.clearPinnedOverlay();
     this.textureFramebufferCircuit?.delete();
     this.textureFramebufferCircuit = null;
@@ -1392,7 +1479,6 @@ export class PainterManager {
     this.overlaySurface.delete();
     this.painterOverlays = null;
     this.painterSynapses = null;
-    this.painterGizmo.context = null;
     this.eventScalebar.removeListener(this.handleSpacePerPixel);
     if (this.context.value) {
       this.context.value.inputs.pointer.eventHover.removeListener(this.handlePointerHover);
@@ -1426,6 +1512,7 @@ export function usePainterManager({
   signals,
   locationSelection,
   dendrogram = false,
+  onZoomChange,
 }: MorphoViewerSmallCircuitProps) {
   const [, setSpacePerPixel] = React.useState(-1);
   const ref = React.useRef<PainterManager | null>(null);
@@ -1446,15 +1533,28 @@ export function usePainterManager({
   }, [manager, dendrogram]);
 
   React.useEffect(() => {
+    if (!onZoomChange) return;
+
+    manager.eventZoom.addListener(onZoomChange);
+    // The camera already holds a zoom by the time a host subscribes.
+    onZoomChange(manager.zoom);
+    return () => manager.eventZoom.removeListener(onZoomChange);
+  }, [manager, onZoomChange]);
+
+  React.useEffect(() => {
     if (!signals) return;
 
     const unregisterReset = signals.cameraReset.register((options) => manager.cameraReset(options));
     const unregisterSnapshot = signals.snapshot.register((options) => manager.snapshot(options));
     const unregisterNudge = signals.nudgeMorphology.register(() => manager.nudgeMorphology());
+    const unregisterZoom = signals.setZoom.register((zoom) => {
+      manager.zoom = zoom;
+    });
     return () => {
       unregisterReset();
       unregisterSnapshot();
       unregisterNudge();
+      unregisterZoom();
     };
   }, [signals, manager]);
 
@@ -1631,6 +1731,11 @@ function makeCellMatrix(cell: MorphoViewerSmallCircuitCell): TgdMat4 {
   transfo.setPosition(x, y, z);
   transfo.orientation = new TgdQuat(cell.orientation);
   return new TgdMat4(transfo.matrix);
+}
+
+/** The display's pixel ratio, capped at 3. */
+function devicePixelRatio(): number {
+  return Math.max(1, Math.min(globalThis.devicePixelRatio || 1, 3));
 }
 
 /** Linear blend between a segment endpoint's 3D and dendrogram placements. */

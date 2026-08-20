@@ -52,6 +52,10 @@ import styles from "./morpho-viewer-small-circuit.module.css";
 export function MorphoViewerSmallCircuit(props: MorphoViewerSmallCircuitProps) {
   const ref = React.useRef<HTMLDivElement | null>(null);
   const manager = usePainterManager(props);
+  // The watcher only fires on a change, so a scalebar shown again needs telling.
+  React.useEffect(() => {
+    if (props.scalebar) manager.refreshScalebar();
+  }, [props.scalebar, manager]);
   const handleToggleFullscreen = () => {
     const div = ref.current;
     if (!div) return;
@@ -85,6 +89,7 @@ export function MorphoViewerSmallCircuit(props: MorphoViewerSmallCircuitProps) {
       data-version={version}
     >
       <Canvas painterManager={manager} />
+      {props.gizmo ? <GizmoCanvas painterManager={manager} options={props.gizmo} /> : null}
       <ControlsLayout
         content={props.controls ?? getDefaultControls(props)}
         onClick={handleControls}
@@ -127,6 +132,42 @@ const Canvas = React.memo(({ painterManager }: { painterManager: PainterManager 
     </>
   );
 });
+
+/** The gizmo's own canvas, sized and placed in CSS. */
+const GizmoCanvas = React.memo(
+  ({
+    painterManager,
+    options,
+  }: {
+    painterManager: PainterManager;
+    options: NonNullable<MorphoViewerSmallCircuitProps["gizmo"]>;
+  }) => {
+    const { alignX, alignY, size, margin } = normalizeGizmo(options);
+    return (
+      <canvas
+        className={styles.gizmo}
+        style={{
+          width: size,
+          height: size,
+          ...(alignX < 0 ? { left: margin } : { right: margin }),
+          ...(alignY > 0 ? { top: margin } : { bottom: margin }),
+        }}
+        ref={(canvas: HTMLCanvasElement | null) => {
+          painterManager.gizmoCanvas = canvas;
+          return () => {
+            painterManager.gizmoCanvas = null;
+          };
+        }}
+      />
+    );
+  }
+);
+
+const DEFAULT_GIZMO = { alignX: +1, alignY: -1, size: 96, margin: 10 };
+
+function normalizeGizmo(options: NonNullable<MorphoViewerSmallCircuitProps["gizmo"]>) {
+  return typeof options === "boolean" ? DEFAULT_GIZMO : { ...DEFAULT_GIZMO, ...options };
+}
 
 function getDefaultControls(props: MorphoViewerSmallCircuitProps) {
   return ["reset-camera", ["fullscreen", props.onClose && "close", props.onMinimize && "minimize"]];

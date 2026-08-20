@@ -71,3 +71,11 @@
     }
   }
 }
+
+/* The gizmo's canvas. Its tips are clickable, so it takes the pointer. */
+.gizmo {
+  position: absolute;
+  z-index: 4;
+  cursor: pointer;
+  touch-action: none;
+}
