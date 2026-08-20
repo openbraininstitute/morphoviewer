@@ -1,5 +1,6 @@
 import {
   type ArrayNumber3,
+  type TgdAnimation,
   TgdBoundingBox,
   TgdCameraOrthographic,
   TgdColor,
@@ -17,6 +18,7 @@ import {
   TgdTransfo,
   TgdValueWaitable,
   TgdVec4,
+  tgdEasingFunctionInOutCubic,
   webglBlendGet,
   webglBlendSet,
   webglPresetBlend,
@@ -38,7 +40,6 @@ import { PainterSynapses } from "./painter-synapses";
 import { isStillPointer } from "./still-pointer";
 
 import type { PainterWorldOverlays } from "@/painters/world-overlays";
-import type { CellSegment } from "./painter-cell/factory/section-index";
 import type { MorphoViewerTreeItemType } from "../../morpho-viewer-simul";
 import type {
   MorphoViewerSignalCameraResetOptions,
@@ -54,6 +55,7 @@ import type {
   MorphoViewerSmallCircuitCellData,
   MorphoViewerSmallCircuitProps,
 } from "..";
+import type { CellSegment } from "./painter-cell/factory/section-index";
 
 interface Framebuffer {
   textureColor0?: TgdTexture2D;
@@ -79,6 +81,9 @@ const NUDGE_AMPLITUDE = 0.06;
 const LOCATION_HOVER_TOLERANCE_IN_PIXELS = 9;
 /** Tighter than the click search, so the preview does not latch onto neighbouring branches. */
 const LOCATION_HOVER_SEARCH_IN_PIXELS = 2;
+
+/** Full morph, from morphology to chart. A partial one is scaled down from it. */
+const DENDROGRAM_MORPH_DURATION_IN_SECONDS = 0.6;
 
 export class PainterManager {
   public readonly eventRestingPosition = new TgdEvent<boolean>();
@@ -181,7 +186,7 @@ export class PainterManager {
   private readonly cellPainters: PainterCell[] = [];
   private _dendrogramMode = false;
   private dendrogramMix = 0;
-  private dendrogramAnimation: number | null = null;
+  private dendrogramAnimations: TgdAnimation[] = [];
   /** Transparent electrode canvas — painted without re-drawing morphologies. */
   private readonly overlaySurface = new OverlaySurface();
   private _overlayCanvas: HTMLCanvasElement | null = null;
@@ -574,44 +579,43 @@ export class PainterManager {
     if (enabled === this._dendrogramMode) return;
     this._dendrogramMode = enabled;
     this.animateDendrogram(enabled ? 1 : 0);
-    // The chart is flat, so rotation is locked; zoom and pan stay live.
-    if (enabled) this.cameraReset({ zoom: 1 });
+    // The chart is flat, so rotation is locked; zoom and pan stay live. The framing belongs
+    // to the mode, not to the camera: `applyZoom` moves without rewriting the stored target,
+    // so leaving the chart returns to the framing `adaptCameraFromBBox` captured.
+    this.cameraManager?.applyZoom(enabled ? 1 : undefined);
     if (this.cameraManager) this.cameraManager.rotationLocked = enabled;
   }
 
   private animateDendrogram(target: number) {
-    if (this.dendrogramAnimation !== null) {
-      cancelAnimationFrame(this.dendrogramAnimation);
-      this.dendrogramAnimation = null;
+    const context = this.context.value;
+    if (!context) {
+      this.setDendrogramMix(target);
+      return;
     }
 
+    context.animCancelArray(this.dendrogramAnimations);
     const from = this.dendrogramMix;
     const span = target - from;
-    if (Math.abs(span) < 1e-3) return;
+    // Too short to be worth animating, but it still has to land: a residual mix keeps both
+    // `at()` and `blendPoint` on their blend path for a view that is meant to be off.
+    if (Math.abs(span) < 1e-3) {
+      this.setDendrogramMix(target);
+      return;
+    }
 
-    const DURATION = 600;
-    let elapsed = 0;
-    let last: number | null = null;
-
-    const step = (now: number) => {
-      elapsed += last === null ? 0 : now - last;
-      last = now;
-      const t = Math.min(1, elapsed / DURATION);
-      const eased = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2; // ease in-out
-      this.setDendrogramMix(from + span * eased);
-      if (t < 1) {
-        this.dendrogramAnimation = requestAnimationFrame(step);
-      } else {
-        this.dendrogramAnimation = null;
-      }
-    };
-
-    this.dendrogramAnimation = requestAnimationFrame(step);
+    this.dendrogramAnimations = context.animSchedule({
+      duration: DENDROGRAM_MORPH_DURATION_IN_SECONDS * Math.abs(span),
+      easingFunction: tgdEasingFunctionInOutCubic,
+      action: (alpha) => this.setDendrogramMix(from + span * alpha),
+    });
   }
 
   private setDendrogramMix(mix: number) {
     this.dendrogramMix = mix;
     for (const painter of this.cellPainters) painter.dendrogramMix = mix;
+    // Hover and selection draw the same geometry through their own painters, additively.
+    // Left behind they would paint the 3D morphology over the chart.
+    for (const painter of this.cellsForHighlights.values()) painter.dendrogramMix = mix;
     // The pick buffers hold their own geometry, so they morph too or clicks miss.
     if (this.offscreen) this.offscreen.dendrogramMix = mix;
     if (this.segmentOffscreen) this.segmentOffscreen.dendrogramMix = mix;
@@ -629,8 +633,14 @@ export class PainterManager {
   private blendedWorldSegment(segment: CellSegment, matrix: TgdMat4): CellSegment {
     return {
       ...segment,
-      start: applyMatrixToPoint(matrix, blendPoint(segment.start, segment.chartStart, this.dendrogramMix)),
-      end: applyMatrixToPoint(matrix, blendPoint(segment.end, segment.chartEnd, this.dendrogramMix)),
+      start: applyMatrixToPoint(
+        matrix,
+        blendPoint(segment.start, segment.chartStart, this.dendrogramMix)
+      ),
+      end: applyMatrixToPoint(
+        matrix,
+        blendPoint(segment.end, segment.chartEnd, this.dendrogramMix)
+      ),
     };
   }
 
@@ -767,7 +777,6 @@ export class PainterManager {
       return;
     }
 
-    console.log(">>> updateCircuit");
     try {
       this.groupCells.removeAll();
       this.onLoadProgress?.(0);
@@ -814,6 +823,7 @@ export class PainterManager {
           cell,
           loadCell,
         });
+        highlightedCell.dendrogramMix = this.dendrogramMix;
         highlightingCells.set(cell.id, highlightedCell);
       }
       this.updateHighlightedCells();
@@ -823,9 +833,6 @@ export class PainterManager {
       context.paint();
     } catch (ex) {
       console.error("Unable ton update circuit:", ex);
-    } finally {
-      console.log("🐞 [manager@258] this.cellPainters.length =", this.cellPainters.length); // @FIXME: Remove this line written on 2026-07-10 at 11:10
-      console.log("<<< updateCircuit");
     }
   };
 
@@ -1357,11 +1364,12 @@ export class PainterManager {
   private delete() {
     this.nudgeStart = null;
     // The morph must not outlive the scene it animates: a surviving frame would write a
-    // mid-flight mix into whatever context attaches next.
-    if (this.dendrogramAnimation !== null) {
-      cancelAnimationFrame(this.dendrogramAnimation);
-      this.dendrogramAnimation = null;
-    }
+    // mid-flight mix into whatever context attaches next. The value settles on the mode it
+    // was heading for — re-attaching seeds every painter from it, and the `dendrogramMode`
+    // setter early-returns, so a half-morphed mix would stick until the prop is toggled.
+    this.context.value?.animCancelArray(this.dendrogramAnimations);
+    this.dendrogramAnimations = [];
+    this.dendrogramMix = this._dendrogramMode ? 1 : 0;
     this.cellPainters.splice(0);
     this.clearPinnedOverlay();
     this.textureFramebufferCircuit?.delete();

@@ -89,11 +89,11 @@ export class SegmentOffscreenPainter {
   /**
    * Keep the pick geometry on the same morph as what is drawn.
    *
-   * Otherwise a click resolves against a shape the user cannot see.
+   * Otherwise a click resolves against a shape the user cannot see. No repaint here: this
+   * buffer redraws on the main context's `eventPaint`, which the caller triggers once.
    */
   set dendrogramMix(mix: number) {
     for (const painter of this.cellPainters.values()) painter.dendrogramMix = mix;
-    this.paint();
   }
 
   /** This cell's section index, once its morphology has loaded. */

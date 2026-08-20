@@ -57,13 +57,28 @@ export class CameraManager {
   }
 
   resetCamera(options: MorphoViewerSignalCameraResetOptions = {}) {
-    const { context } = this;
     this.target.zoom = options.zoom ?? this.target.zoom;
+    this.animateTo(this.target);
+  }
+
+  /**
+   * Move to the stored target with a one-off zoom, leaving that target untouched.
+   *
+   * A view mode frames the camera for as long as it lasts, so its zoom must not become the
+   * new resting state: `resetCamera()` afterwards still restores the captured framing.
+   * Passing `undefined` goes back to that framing.
+   */
+  applyZoom(zoom: number | undefined) {
+    this.animateTo({ ...this.target, zoom: zoom ?? this.target.zoom });
+  }
+
+  private animateTo(state: Partial<TgdCameraState>) {
+    const { context } = this;
     context.animCancelArray(this.animations);
     this.animations = context.animSchedule({
       duration: 0.5,
       easingFunction: tgdEasingFunctionInOutCubic,
-      action: tgdActionCreateCameraInterpolation(context.camera, this.target),
+      action: tgdActionCreateCameraInterpolation(context.camera, state),
       onEnd: () => this.eventRestingPosition.dispatch(true),
     });
   }

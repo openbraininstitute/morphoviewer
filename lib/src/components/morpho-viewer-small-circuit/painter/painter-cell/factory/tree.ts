@@ -19,7 +19,11 @@ import { encodeSegmentIndex } from "@/morphology-picking";
 
 import { CellSectionIndex } from "./section-index";
 
-/** Pixel floor on stroke radius: wider in 3D, finer in the chart so its weight band survives. */
+/**
+ * Pixel floor on neurite stroke radius: wider in 3D, finer in the chart so its weight band
+ * survives. The soma is left on tgd's own default — it is the heaviest mark either way, and
+ * raising its floor would thicken every 3D view, not just the chart.
+ */
 const SOLID_MIN_RADIUS_IN_PIXELS = 2;
 const CHART_MIN_RADIUS_IN_PIXELS = 1;
 
@@ -178,7 +182,6 @@ export function createCellFromTree(
   }
   const painterSoma = new TgdPainterSegmentsMorphing(context, {
     roundness: forSelection ? 5 : 12,
-    minRadius: SOLID_MIN_RADIUS_IN_PIXELS,
     radiusMultiplier: forSelection ? 1.1 : 1,
     material,
     datasetsPairs: [[segmentsSoma.makeDataset(), dendroSoma.makeDataset()]],
@@ -202,11 +205,9 @@ export function createCellFromTree(
       // flatten it to a uniform hairline. Ease the floor down with the morph — but only for
       // what is seen: on a pick buffer a generous target beats fidelity.
       if (forSelection) return;
-      const floor =
+      painterNeurites.minRadius =
         SOLID_MIN_RADIUS_IN_PIXELS -
         (SOLID_MIN_RADIUS_IN_PIXELS - CHART_MIN_RADIUS_IN_PIXELS) * mix;
-      painterSoma.minRadius = floor;
-      painterNeurites.minRadius = floor;
     },
     node: new TgdPainterNode({
       children: [painterSoma, painterNeurites],
@@ -306,20 +307,33 @@ function neuriteRadiusRange(pending: PendingSegment[]): [number, number] {
   return [lo, Math.max(lo * 1.0001, at(0.95))];
 }
 
-/** Extent of the cell in 3D, used to size the chart so the morph stays roughly in frame. */
+/**
+ * Extent of the cell in 3D, used to size the chart so the morph stays roughly in frame.
+ *
+ * Width is the wider of the x and z extents, not x alone: a reconstruction spread mostly
+ * along z — or simply rotated before export — has almost no x extent, and the chart would
+ * then fold every column into a band a micron wide.
+ */
 function spanOf(pending: PendingSegment[]): { width: number; height: number } {
   let minX = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let maxY = Number.NEGATIVE_INFINITY;
+  let minZ = Number.POSITIVE_INFINITY;
+  let maxZ = Number.NEGATIVE_INFINITY;
   for (const { end } of pending) {
     minX = Math.min(minX, end[0]);
     maxX = Math.max(maxX, end[0]);
     minY = Math.min(minY, end[1]);
     maxY = Math.max(maxY, end[1]);
+    minZ = Math.min(minZ, end[2]);
+    maxZ = Math.max(maxZ, end[2]);
   }
   if (!Number.isFinite(minX)) return { width: 1, height: 1 };
-  return { width: Math.max(1, maxX - minX), height: Math.max(1, maxY - minY) };
+  return {
+    width: Math.max(1, maxX - minX, maxZ - minZ),
+    height: Math.max(1, maxY - minY),
+  };
 }
 
 function collectSegments(
@@ -485,6 +499,12 @@ function assignRanks(roots: MorphoViewerTreeItem[], metrics: Map<MorphoViewerTre
 /**
  * Lay the tree out as a dendrogram, one placement per node.
  *
+ * Both axes are normalized to the cell's own bounding box, so the chart occupies about the
+ * space the morphology did and the camera keeps framing it. Path distance runs far longer
+ * than the box that holds it — an axon of 20mm folded into 900µm is ordinary — so left in
+ * microns the chart would tower over the object the camera was fitted on. The scaling is
+ * uniform, so branches stay comparable to each other; only the unit is gone.
+ *
  * @param width - Cell bounding-box width; the chart spans it so the morph stays in frame.
  * @param height - Cell bounding-box height, used for the same reason.
  * @returns Placements by node, plus the root leaf count that sets the chart's column pitch.
@@ -499,13 +519,16 @@ function computeDendrogramPlacements(
 
   const placements = new Map<MorphoViewerTreeItem, DendrogramPlacement>();
   const offsetY = height * CENTER_Y;
+  let deepest = 0;
+  for (const own of metrics.values()) deepest = Math.max(deepest, own.distanceFromSoma);
+  const scaleY = deepest > 0 ? height / deepest : 1;
 
   for (const [item, own] of metrics) {
     placements.set(item, {
       x: own.rank * width * 0.5,
       // Path distance grows upward from a baseline below centre, as the legacy chart reads.
-      top: own.distanceFromSoma - own.segmentLength - offsetY,
-      bottom: own.distanceFromSoma - offsetY,
+      top: (own.distanceFromSoma - own.segmentLength) * scaleY - offsetY,
+      bottom: own.distanceFromSoma * scaleY - offsetY,
     });
   }
 

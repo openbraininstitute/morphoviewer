@@ -36,6 +36,9 @@ Copyright (c) 2025 Open Brain Institute
 
 - Add a **dendrogram** to `MorphoViewerSmallCircuit` via `dendrogram`: the same segments in the same order, laid out with branching across x and path distance up y
   - Morphed on the GPU rather than switched, so a branch stays traceable from one view to the other
+  - **Meant for a single cell.** Each cell charts itself in its own frame and then keeps its orientation and soma position, so a circuit turns into a set of flat charts, each tilted differently and spread over the tissue
+  - **Synapses and overlays do not follow.** They are given in the file's own coordinates, so they stay where the 3D geometry was. Location markers do follow the morph
+  - Both axes are scaled to the cell's own bounding box, so the chart takes about the room the morphology did and the camera keeps framing it. Path distance is uniform, so branches stay comparable to each other, but it is no longer read in microns
   - **Picking follows the chart.** Both offscreen buffers are seeded with the current morph when they are built, since they are rebuilt on circuit updates and when location picking is enabled; offsets and markers blend with the live mix, so they stay correct mid-animation
   - Stroke weights are scaled to the chart's own geometry, not taken from the morphology in microns: radius on a path-distance axis is styling, not measurement. Connectors are the lightest mark, the soma the heaviest, branches graded between by log-compressed calibre
   - Rotation is locked while the chart is shown, since it is flat; zoom and pan stay live

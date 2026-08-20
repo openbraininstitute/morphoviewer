@@ -87,10 +87,14 @@ export class OffscreenPainter {
     this.paint();
   }
 
-  /** Keep the pick geometry on the same morph as what is drawn. */
+  /**
+   * Keep the pick geometry on the same morph as what is drawn.
+   *
+   * No repaint here: this buffer redraws on the main context's `eventPaint`, and the caller
+   * paints once it has moved everything else the morph touches.
+   */
   set dendrogramMix(mix: number) {
     for (const mesh of this.meshes) mesh.dendrogramMix = mix;
-    this.paint();
   }
 
   getItemAt(xScreen: number, yScreen: number): MorphoViewerSmallCircuitCell | undefined {

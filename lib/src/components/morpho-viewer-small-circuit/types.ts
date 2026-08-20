@@ -178,6 +178,14 @@ export type MorphoViewerSmallCircuitProps = PropsForGizmo &
      *
      * The same segments in the same order as the morphology, so a branch stays traceable through
      * the transition and picking keeps working in either view.
+     *
+     * Meant for a single cell. Each cell charts itself in its own frame, then keeps its
+     * orientation and soma position, so a circuit becomes a set of flat charts, each tilted
+     * differently and spread over the tissue.
+     *
+     * Only {@link locationSelection} markers travel with the morph. {@link synapses} and
+     * {@link overlays} are given in the file's own coordinates, so they stay where the 3D
+     * geometry was while the neurites leave for the chart.
      */
     dendrogram?: boolean;
     synapsesRadius?: number;
