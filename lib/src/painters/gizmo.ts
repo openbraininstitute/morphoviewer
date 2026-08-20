@@ -8,7 +8,7 @@ import {
 } from "@tolokoban/tgd";
 
 export class PainterGizmo extends TgdPainterGroup {
-  /** Size and margin in CSS pixels. The package's overlay scales them itself. */
+  /** Size and margin in the pixels the context paints at, so `resolution` scales them. */
   private _options: TgdPainterGizmoOptions = DEFAULT_GIZMO_PROPS;
   private _context: TgdContext | null = null;
   private _painter: TgdPainterGizmo | null = null;
@@ -37,23 +37,6 @@ export class PainterGizmo extends TgdPainterGroup {
     }
   }
 
-  /**
-   * Whether a canvas point, in CSS pixels from the top left, is over the gizmo.
-   *
-   * `alignX` runs -1 (left) to +1 (right), `alignY` +1 (top) to -1 (bottom).
-   */
-  containsPoint(x: number, y: number, width: number, height: number): boolean {
-    if (!this._painter) return false;
-
-    const { alignX, alignY, size, margin } = this._options;
-    const box = size - 2 * margin;
-    if (box <= 0) return false;
-
-    const left = ((alignX + 1) / 2) * (width - box - 2 * margin) + margin;
-    const top = ((1 - alignY) / 2) * (height - box - 2 * margin) + margin;
-    return x >= left && x <= left + box && y >= top && y <= top + box;
-  }
-
   get context() {
     return this._context;
   }
@@ -69,13 +52,17 @@ export class PainterGizmo extends TgdPainterGroup {
   /**
    * Inset the gizmo from its corner.
    *
-   * The package builds its overlay asynchronously with a margin of zero, and only the
-   * setter reaches it — so this waits, and sets zero first so the setter sees a change.
+   * The package builds its overlay later, with a margin of zero, and only its `margin`
+   * setter reaches it. So the margin has to wait for that overlay to exist.
    */
   private applyMargin(painter: TgdPainterGizmo, margin: number): void {
-    painter.margin = 0;
-    this._context?.execBeforeNextPaint(() => {
+    if (hasOverlay(painter)) {
       painter.margin = margin;
+      return;
+    }
+
+    this._context?.execBeforeNextPaint(() => {
+      if (this._painter === painter) this.applyMargin(painter, margin);
     });
   }
 
@@ -97,11 +84,16 @@ export class PainterGizmo extends TgdPainterGroup {
   }
 }
 
+/** The overlay the package's `margin` setter writes to. Private there, so read by shape. */
+function hasOverlay(painter: TgdPainterGizmo): boolean {
+  return Boolean((painter as unknown as { overlay?: unknown }).overlay);
+}
+
 /**
  * Sample the gizmo's framebuffer LINEAR rather than NEAREST.
  *
- * It is blitted back as a quad that rarely lands on a whole pixel, and NEAREST turns that
- * half pixel into stair-stepping. Cast because the texture is private; `setParams` is not.
+ * It is drawn back as a quad that rarely lands on a whole pixel, and NEAREST makes that
+ * look like stairs. Cast because the texture is private; `setParams` is not.
  */
 function smoothGizmoTexture(painter: TgdPainterGizmo): void {
   const { textureFramebuffer } = painter as unknown as {
@@ -110,9 +102,9 @@ function smoothGizmoTexture(painter: TgdPainterGizmo): void {
   textureFramebuffer?.setParams({ minFilter: "LINEAR", magFilter: "LINEAR" });
 }
 
-/** Gizmo box in CSS pixels. The balls and their letters are a fraction of it. */
-const DEFAULT_GIZMO_SIZE = 56;
-const DEFAULT_GIZMO_MARGIN = 10;
+/** Gizmo box in the context's pixels. The balls and letters are a fraction of it. */
+const DEFAULT_GIZMO_SIZE = 128;
+const DEFAULT_GIZMO_MARGIN = 8;
 
 const DEFAULT_GIZMO_PROPS: TgdPainterGizmoOptions = {
   alignX: +1,

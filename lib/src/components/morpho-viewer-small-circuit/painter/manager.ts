@@ -11,7 +11,6 @@ import {
   type TgdInputPointerEventTap,
   TgdMat4,
   TgdPainterClear,
-  type TgdPainterGizmoOptions,
   TgdPainterGroup,
   TgdPainterState,
   TgdQuat,
@@ -19,7 +18,6 @@ import {
   TgdTransfo,
   TgdValueWaitable,
   TgdVec4,
-  tgdActionCreateCameraInterpolation,
   tgdEasingFunctionInOutCubic,
   webglBlendGet,
   webglBlendSet,
@@ -167,25 +165,11 @@ export class PainterManager {
   private _verbose = false;
   /** Drawn on its own canvas, so it can paint at the screen's pixel ratio. */
   private gizmoOverlay: TgdCanvasGizmo | null = null;
-  private gizmoAnimations: TgdAnimation[] = [];
-  /** Turn the view to the axis whose tip was clicked. */
+  /** Turn the view to the axis whose tip was clicked. The camera manager does the move. */
   private readonly handleGizmoTipClick = ({ to }: { to: Readonly<TgdQuat> }) => {
-    const context = this.context.value;
-    if (!context) return;
-
-    context.animCancelArray(this.gizmoAnimations);
-    this.gizmoAnimations = context.animSchedule({
-      duration: 0.3,
-      easingFunction: tgdEasingFunctionInOutCubic,
-      action: tgdActionCreateCameraInterpolation(context.camera, { orientation: to }),
-      onEnd: () => {
-        // A reset returns to `target`, so a deliberate turn has to move it.
-        if (this.cameraManager) this.cameraManager.target = context.camera.getCurrentState();
-      },
-    });
+    this.cameraManager?.turnTo(to);
   };
   private _gizmoCanvas: HTMLCanvasElement | null = null;
-  private _gizmo: TgdPainterGizmoOptions | boolean = false;
   private painterOverlays: PainterWorldOverlays | null = null;
   private painterSynapses: PainterSynapses | null = null;
   private painterLocationMarkers: PainterLocationMarkers | null = null;
@@ -237,13 +221,12 @@ export class PainterManager {
   private _synapsesMinRadiusInPixels = 4;
   private _neuronOpacity = 1;
   private _somaAsSphere = false;
-  private spacePerPixel = 1;
+  /** Negative until a frame is painted. */
+  private spacePerPixel = -1;
 
-  get gizmo() {
-    return this._gizmo;
-  }
-  set gizmo(gizmo: TgdPainterGizmoOptions | boolean | null | undefined) {
-    this._gizmo = gizmo ?? false;
+  /** The space one CSS pixel covers, or `null` if it has not been measured yet. */
+  private get measuredSpacePerPixel(): number | null {
+    return this.spacePerPixel > 0 ? this.spacePerPixel : null;
   }
 
   /** The canvas the gizmo paints on; the host places and sizes it. */
@@ -257,6 +240,7 @@ export class PainterManager {
     this.applyGizmoCanvas();
   }
 
+  /** Build the gizmo once both the canvas and the context are there. */
   private applyGizmoCanvas() {
     const canvas = this._gizmoCanvas;
     const context = this.context.value;
@@ -709,7 +693,11 @@ export class PainterManager {
     if (!context) return;
 
     const clamped = clampZoom(zoom);
-    if (context.camera.zoom === clamped) return;
+    if (context.camera.zoom === clamped) {
+      // Sent anyway, so a host slider gets the clamped value back.
+      this.eventZoom.dispatch(clamped);
+      return;
+    }
 
     // Not written to `cameraManager.target`: that is where a reset returns to.
     context.camera.zoom = clamped;
@@ -993,7 +981,7 @@ export class PainterManager {
   set background(color: string) {
     this._background = color;
     this.backgroundColor.parse(color);
-    this.context.waitUntiDefined().then((context) => {
+    this.context.waitUntiDefined().then(() => {
       const clear = this.painterClear;
       if (!clear) return;
 
@@ -1053,6 +1041,8 @@ export class PainterManager {
     // A canvas re-attach recreates the manager while the mode may still be on, and the
     // `dendrogramMode` setter early-returns on an equal value — so seed the lock here too.
     this.cameraManager.rotationLocked = this._dendrogramMode;
+    // `delete()` dropped the gizmo with the old context, so build it again here.
+    this.applyGizmoCanvas();
     this.overlayInteraction = new OverlayInteractionController({
       context,
       getOverlays: () => this._overlays,
@@ -1067,7 +1057,7 @@ export class PainterManager {
       getHitRadiusPixels: () =>
         Math.max(
           this._overlaysMinRadiusInPixels * 1.8,
-          this._overlaysRadius / Math.max(this.spacePerPixel, 1e-6)
+          this._overlaysRadius / (this.measuredSpacePerPixel ?? 1)
         ),
       getOrbit: () => this.cameraManager,
       setHighlightedId: (id) => {
@@ -1151,7 +1141,8 @@ export class PainterManager {
 
   /** Say the current scale again, for a scalebar that has just mounted. */
   refreshScalebar() {
-    if (this.spacePerPixel > 0) this.eventScalebar.dispatch(this.spacePerPixel);
+    const spacePerPixel = this.measuredSpacePerPixel;
+    if (spacePerPixel !== null) this.eventScalebar.dispatch(spacePerPixel);
   }
 
   private readonly handleSpacePerPixel = (spacePerPixel: number) => {
@@ -1442,6 +1433,8 @@ export class PainterManager {
 
   private delete() {
     this.nudgeStart = null;
+    // The next scene has its own scale, measured on its first paint.
+    this.spacePerPixel = -1;
     // The morph must not outlive the scene it animates: a surviving frame would write a
     // mid-flight mix into whatever context attaches next. The value settles on the mode it
     // was heading for — re-attaching seeds every painter from it, and the `dendrogramMode`
@@ -1456,8 +1449,6 @@ export class PainterManager {
       this.gizmoOverlay.canvas = null;
       this.gizmoOverlay = null;
     }
-    this.context.value?.animCancelArray(this.gizmoAnimations);
-    this.gizmoAnimations = [];
     this.clearPinnedOverlay();
     this.textureFramebufferCircuit?.delete();
     this.textureFramebufferCircuit = null;
@@ -1496,7 +1487,6 @@ export function usePainterManager({
   onCellClick,
   highlightedCellIds,
   onLoadProgress,
-  gizmo,
   verbose,
   overlays,
   overlaysRadius = 5,
@@ -1658,9 +1648,6 @@ export function usePainterManager({
       manager.eventCellClick.removeListener(onCellClick);
     };
   }, [onCellClick, manager]);
-  React.useEffect(() => {
-    manager.gizmo = gizmo ?? false;
-  }, [gizmo, manager]);
 
   return ref.current;
 }

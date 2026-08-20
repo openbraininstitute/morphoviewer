@@ -18,8 +18,13 @@ describe("clampZoom", () => {
   });
 
   it("falls back to the minimum for a value that is not a number", () => {
-    // Zooming to NaN blanks the canvas.
+    // Zooming to NaN blanks the canvas, and NaN has no side to fall to.
     expect(clampZoom(Number.NaN)).toBe(ZOOM_MIN);
-    expect(clampZoom(Number.POSITIVE_INFINITY)).toBe(ZOOM_MIN);
+  });
+
+  it("keeps the sign of an infinite zoom", () => {
+    // Infinite zoom means as far in as possible, so the maximum.
+    expect(clampZoom(Number.POSITIVE_INFINITY)).toBe(ZOOM_MAX);
+    expect(clampZoom(Number.NEGATIVE_INFINITY)).toBe(ZOOM_MIN);
   });
 });
