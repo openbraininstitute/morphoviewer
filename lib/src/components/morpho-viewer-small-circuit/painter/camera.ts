@@ -5,14 +5,26 @@ import {
   type TgdContext,
   TgdControllerCameraOrbit,
   type TgdEvent,
+  type TgdQuat,
   tgdActionCreateCameraInterpolation,
   tgdEasingFunctionInOutCubic,
 } from "@tolokoban/tgd";
 
 import type { MorphoViewerSignalCameraResetOptions } from "@/components/signals";
 
-const ZOOM_MIN = 0.25;
-const ZOOM_MAX = 100;
+/** Zoom range the orbit controller enforces. Exported so a host control matches it. */
+export const ZOOM_MIN = 0.25;
+export const ZOOM_MAX = 100;
+
+const MOVE_DURATION_IN_SECONDS = 0.5;
+/** A turn is a small move, so it is quicker. */
+const TURN_DURATION_IN_SECONDS = 0.3;
+
+/** Clamp a zoom to the allowed range. `NaN` has no side, so it takes the minimum. */
+export function clampZoom(zoom: number): number {
+  if (Number.isNaN(zoom)) return ZOOM_MIN;
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom));
+}
 
 export class CameraManager {
   public target: Partial<TgdCameraState> = {};
@@ -20,6 +32,7 @@ export class CameraManager {
   private animations: TgdAnimation[] = [];
   private orbit: TgdControllerCameraOrbit | null = null;
   private savedSpeedOrbit: number | null = null;
+  private _rotationLocked = false;
 
   constructor(
     private readonly context: TgdContext,
@@ -42,6 +55,7 @@ export class CameraManager {
 
   /** Freeze rotation while keeping zoom and pan, for flat views like the dendrogram. */
   set rotationLocked(locked: boolean) {
+    this._rotationLocked = locked;
     const { orbit } = this;
     if (!orbit) return;
     if (locked) {
@@ -72,11 +86,24 @@ export class CameraManager {
     this.animateTo({ ...this.target, zoom: zoom ?? this.target.zoom });
   }
 
-  private animateTo(state: Partial<TgdCameraState>) {
+  /**
+   * Turn to an orientation, keeping the framing.
+   *
+   * Uses the same animation list as the other moves, so a reset cancels a turn.
+   * Only the orientation goes into `target`, so a reset keeps the captured framing.
+   */
+  turnTo(orientation: Readonly<TgdQuat>) {
+    if (this._rotationLocked) return;
+
+    this.target.orientation = orientation;
+    this.animateTo({ orientation }, TURN_DURATION_IN_SECONDS);
+  }
+
+  private animateTo(state: Partial<TgdCameraState>, duration = MOVE_DURATION_IN_SECONDS) {
     const { context } = this;
     context.animCancelArray(this.animations);
     this.animations = context.animSchedule({
-      duration: 0.5,
+      duration,
       easingFunction: tgdEasingFunctionInOutCubic,
       action: tgdActionCreateCameraInterpolation(context.camera, state),
       onEnd: () => this.eventRestingPosition.dispatch(true),

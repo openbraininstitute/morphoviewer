@@ -32,6 +32,13 @@ Copyright (c) 2025 Open Brain Institute
 
 ## Release notes
 
+### v0.34.0
+
+- **The gizmo is drawn on a canvas of its own, at the screen's pixel ratio.** It used to render into a texture that was blitted back into the scene, so it could never be sharper than the canvas it landed on and its discs and letters broke up on a Retina screen. On its own canvas it paints at device resolution — clean edges — and its size and inset become plain CSS. The pointer is a hand over it, since its tips are clickable
+- **`gizmo` now sizes in CSS pixels**, default 96. The old `size` was handed to a package overlay that scaled it by the pixel ratio itself, so it drew at twice the number asked for on a 2x screen
+- **A background change shows straight away.** Setting it updated the clear colour but asked for no frame, so the canvas kept the old colour until something else happened to repaint it
+- **Zoom can now be read and set from outside.** `onZoomChange` reports the camera zoom whenever it changes, including when the user scrolls, and the `setZoom` signal sets it. `ZOOM_MIN` and `ZOOM_MAX` are exported so a slider can span the same range the viewer allows
+
 ### v0.33.0
 
 - Add a **dendrogram** to `MorphoViewerSmallCircuit` via `dendrogram`: the same segments in the same order, laid out with branching across x and path distance up y

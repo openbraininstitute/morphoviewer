@@ -190,6 +190,8 @@ export type MorphoViewerSmallCircuitProps = PropsForGizmo &
     dendrogram?: boolean;
     synapsesRadius?: number;
     synapsesMinRadiusInPixels?: number;
+    /** Called with the camera zoom when it changes, the user's own scrolling included. */
+    onZoomChange?: (zoom: number) => void;
     /**
      * Draw each soma as one fitted sphere rather than the contour chain the file records.
      *
