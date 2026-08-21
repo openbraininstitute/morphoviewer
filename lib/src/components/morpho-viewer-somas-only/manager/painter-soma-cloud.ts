@@ -10,17 +10,34 @@ import {
 
 import type { TgdContext, TgdTexture2D } from "@tolokoban/tgd";
 
-/** Colour a fully-glowing soma adds on top of whatever it is painted. */
-const DEFAULT_GLOW_COLOR: [number, number, number] = [1, 0.85, 0.4];
-
+/**
+ * A spiking soma is drawn brighter, a little larger, and ringed.
+ *
+ * Cells are coloured from a palette chosen by whatever property is being
+ * looked at - layer, m-type, region - so no fixed hue is safe: whatever is
+ * picked here, the palette may be using it two cells away. Brightness, size
+ * and an outline are the cues no palette can take, and the outline is also
+ * what stops a bright soma reading as a hole in a light background.
+ */
+const DEFAULT_GLOW_COLOR: [number, number, number] = [1, 0.97, 0.88];
+/** Multiple of its own colour a fully-glowing soma is brightened to. */
+const GLOW_BOOST = 2.2;
+/** How far the brightened colour then travels towards `DEFAULT_GLOW_COLOR`. */
+const GLOW_WHITEN = 0.35;
+/** Light added on top of the shaded sphere, in the soma's own brightened colour. */
+const GLOW_EMISSION = 0.2;
+/** Where the ring starts, as a fraction of the sprite's radius. */
+const GLOW_RIM_START = 0.9;
+/** Colour of that ring. */
+const GLOW_RIM_COLOR: [number, number, number] = [0.3, 0.26, 0.2];
+/** Exponent on the decay, below 1 so a spike holds its colour and then goes. */
+const GLOW_BIAS = 0.4;
 /**
  * How much wider a fully-glowing soma is drawn, as a fraction of its radius.
- *
- * Brightness alone carries a spike on a handful of cells and loses it on a
- * million: past a few hundred thousand somas each one covers about a pixel, and
- * a pixel that changes colour is far harder to catch than one that appears.
+ * Past a few hundred thousand somas each covers about a pixel, and a pixel that
+ * appears is far easier to catch than one that changes colour.
  */
-const DEFAULT_GLOW_SWELL = 0.6;
+const DEFAULT_GLOW_SWELL = 0.7;
 
 export interface PainterSomaCloudOptions {
   /** `[x, y, z, radius]` per soma; radius is scaled by `radiusMultiplier`. */
@@ -179,10 +196,13 @@ function createProgram(
     },
     mainCode: [
       "varColor = texture(uniTexture, attUV);",
-      "varGlow = attGlow;",
+      // Shaped once here: a sprite is one vertex and many fragments, and the
+      // swell below wants the same value the colour fades on.
+      `float glow = pow(attGlow, ${GLOW_BIAS.toFixed(6)});`,
+      "varGlow = glow;",
       // The swell is inside the radius rather than applied to the sprite
       // afterwards, so the lit sphere and the depth it writes grow together.
-      `float radius = attPoint.w * uniRadiusMultiplier * (1.0 + attGlow * ${glowSwell.toFixed(6)});`,
+      `float radius = attPoint.w * uniRadiusMultiplier * (1.0 + glow * ${glowSwell.toFixed(6)});`,
       "vec4 point = uniModelViewMatrix * vec4(attPoint.xyz, 1.0);",
       "gl_Position = uniProjectionMatrix * point;",
       "vec4 depth = point + vec4(0, 0, radius, 0);",
@@ -222,14 +242,20 @@ function createProgram(
       ],
     },
     mainCode: [
-      "vec4 lit = render(varColor);",
-      // Added after the shading, so a spike reads as the cell emitting light
-      // rather than as one lit more brightly from the same direction.
-      `vec3 glow = varGlow * vec3(${red.toFixed(6)}, ${green.toFixed(6)}, ${blue.toFixed(6)});`,
+      `vec3 glowColor = vec3(${red.toFixed(6)}, ${green.toFixed(6)}, ${blue.toFixed(6)});`,
+      `float rim = varGlow * smoothstep(${GLOW_RIM_START.toFixed(6)}, 1.0, length(varPointCoord));`,
+      // Built into the colour the sphere is shaded from, not added to the
+      // shaded result: adding clips every channel at full brightness and takes
+      // the specular, the shadow and the sphere's own falloff with it.
+      `vec3 hotAlbedo = mix(min(varColor.rgb * ${GLOW_BOOST.toFixed(6)}, vec3(1.0)), glowColor, ${GLOW_WHITEN.toFixed(6)});`,
+      "vec3 albedo = mix(varColor.rgb, hotAlbedo, varGlow);",
+      "vec4 lit = render(vec4(albedo, varColor.a));",
+      `vec3 hot = lit.rgb + varGlow * ${GLOW_EMISSION.toFixed(6)} * albedo;`,
+      `vec3 rimColor = vec3(${GLOW_RIM_COLOR.map((c) => c.toFixed(6)).join(", ")});`,
       // Translucent circuits fade the alpha of every soma, which would fade the
       // spike with it. A cell at full brightness is opaque whatever the rest
       // of the circuit is set to, so a replay stays legible through it.
-      "FragColor = vec4(lit.rgb + glow, mix(lit.a, 1.0, varGlow));",
+      "FragColor = vec4(mix(hot, rimColor, rim), mix(lit.a, 1.0, varGlow));",
     ],
   }).code;
 
