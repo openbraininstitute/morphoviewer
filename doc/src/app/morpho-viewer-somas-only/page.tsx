@@ -35,6 +35,12 @@ export default function Page() {
     "c9e10151-8f07-4158-a3b3-205210ceb075",
     "MorphoViewerSomasOnly/dataId"
   );
+  // The viewer defaults to black, but the app renders circuits on white, which
+  // is the background a spike has to stay legible against.
+  const [backgroundColor, setBackgroundColor] = useLocalStorageState(
+    "#ffffff",
+    "MorphoViewerSomasOnly/backgroundColor"
+  );
   const cellInfos = useCellInfos(dataId);
   const spikes = useRandomSpikes(cellInfos?.length ?? 0, 4);
   const [spikePlaying, setSpikePlaying] = React.useState(false);
@@ -77,6 +83,7 @@ export default function Page() {
             scalebar={scalebar}
             gizmo
             cameraType={cameraType}
+            backgroundColor={backgroundColor}
             spikes={spikes}
             spikePlaying={spikePlaying}
             onSpikePlayingChange={setSpikePlaying}
@@ -115,6 +122,11 @@ export default function Page() {
           <div key="1000">1×</div>
           <div key="100">0.1×</div>
           <div key="10">0.01×</div>
+        </ViewOptions>
+        <ViewOptions value={backgroundColor} onChange={setBackgroundColor}>
+          <div key="#ffffff">White</div>
+          <div key="#808080">Grey</div>
+          <div key="#000000">Black</div>
         </ViewOptions>
         <ViewLabel value={`Afterglow ${spikeAfterglowInSeconds.toFixed(2)} s`} />
         <ViewSlider

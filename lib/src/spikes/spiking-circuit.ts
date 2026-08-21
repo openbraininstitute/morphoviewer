@@ -4,7 +4,7 @@ import type { MorphoViewerSpikes } from "./types";
 export const DEFAULT_SPIKE_SPEED = 100;
 
 /** Wall-clock seconds for a spike to fade to `1/e` of its brightness. */
-export const DEFAULT_SPIKE_AFTERGLOW_IN_SECONDS = 0.35;
+export const DEFAULT_SPIKE_AFTERGLOW_IN_SECONDS = 0.25;
 
 /**
  * Past this many decay constants a spike contributes under 1% of full
