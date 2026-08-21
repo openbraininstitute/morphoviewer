@@ -1,3 +1,4 @@
+import type { PropsForSpikeReplay } from "@/spikes";
 import type { ControlsLayoutProps } from "../controls-layout";
 import type { MorphoViewerTree, MorphoViewerTreeItemType } from "../morpho-viewer-simul";
 import type { MorphoViewerSignals } from "../signals";
@@ -151,7 +152,8 @@ export type MorphoViewerSmallCircuitCellData = {
 
 export type MorphoViewerSmallCircuitProps = PropsForGizmo &
   PropsForScalebar &
-  PropsForOverlayInteraction & {
+  PropsForOverlayInteraction &
+  PropsForSpikeReplay & {
     className?: string;
     backgroundColor?: string;
     circuit: MorphoViewerSmallCircuitCell[];

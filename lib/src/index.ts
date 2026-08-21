@@ -16,6 +16,7 @@ export * from "./components/morpho-viewer-small-circuit";
 export * from "./components/morpho-viewer-somas-only";
 export * from "./components/morpho-viewer-spinner";
 export { MorphoViewerSignals } from "./components/signals";
+export { DEFAULT_SPIKE_AFTERGLOW_IN_SECONDS, DEFAULT_SPIKE_SPEED } from "./spikes";
 export * from "./gizmo";
 export { MorphologyCanvas } from "./morphology/morphology-canvas";
 export { version } from "./package.json";
@@ -25,6 +26,7 @@ export { CellNodeType } from "./types";
 export { useEventState, useEventValue } from "./utils";
 
 export type { CanvasOptions } from "./abstract-canvas";
+export type { MorphoViewerSpikes, PropsForSpikeReplay } from "./spikes";
 export type { ColorsInterface } from "./colors";
 export type { MorphoViewerSignalSnapshotOptions as MorphoViewerSnapshotOptions } from "./components/signals";
 export type {
