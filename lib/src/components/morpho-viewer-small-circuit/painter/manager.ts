@@ -36,7 +36,7 @@ import { OffscreenPainter, SegmentOffscreenPainter } from "./offscreen-painter";
 import { PainterCell, PainterCellFlat } from "./painter-cell";
 import { PainterLocationMarkers } from "./painter-location-markers";
 import { PainterSynapses } from "./painter-synapses";
-import { isStillPointer } from "./still-pointer";
+import { isStillPointer } from "@/behaviors";
 
 import {
   DEFAULT_SPIKE_AFTERGLOW_IN_SECONDS,

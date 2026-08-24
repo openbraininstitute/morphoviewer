@@ -16,7 +16,7 @@ import {
 } from "@tolokoban/tgd";
 import React from "react";
 
-import { watchSpacePerPixel } from "@/behaviors";
+import { isStillPointer, watchSpacePerPixel } from "@/behaviors";
 import { PainterGizmo } from "@/painters/gizmo";
 import { OverlayInteractionController } from "@/painters/overlay-interaction";
 import { OverlaySurface } from "@/painters/overlay-surface";
@@ -29,6 +29,7 @@ import {
 
 import { AdpatativeResolution } from "./adaptative-resolution";
 import { PainterCellInfos } from "./painter-cell-infos";
+import { SomaPicker } from "./soma-picker";
 
 import type {
   MorphoViewerSignalCameraResetOptions,
@@ -38,6 +39,8 @@ import type {
   MorphoViewerOverlayTransformEvent,
   MorphoViewerWorldOverlay,
 } from "../../types";
+import type { TgdInputPointerEventTap } from "@tolokoban/tgd";
+
 import type { MorphoViewerSpikes } from "@/spikes";
 import type { MorphoViewerCellInfo, MorphoViewerSomasOnlyProps } from "../types";
 
@@ -49,6 +52,15 @@ class PainterManager {
 
   /** The spike replay playhead, in milliseconds, on every painted frame. */
   public readonly eventSpikeTime = new TgdEvent<number>();
+  /** A click resolved to the index of the soma under it, in `cellInfos` order. */
+  public readonly eventCellClick = new TgdEvent<number>();
+  /**
+   * Set while the host listens for cell clicks. A flag rather than counting
+   * `eventCellClick`'s listeners, because it is what gates building the pick
+   * buffer — a second copy of every position — and that should never happen
+   * for a host that never asked to click anything.
+   */
+  public cellPickingEnabled = false;
   /** Playback stopping, whether the host asked for it or the recording ran out. */
   public readonly eventSpikePlaying = new TgdEvent<boolean>();
 
@@ -59,6 +71,8 @@ class PainterManager {
   private readonly parsedBackgroundColor = new TgdColor(0, 0, 0, 1);
   private painterCellInfos: PainterCellInfos | null = null;
   private readonly spiking = new SpikingCircuit();
+  /** Built on the first click, so a viewer nobody clicks never pays for it. */
+  private somaPicker: SomaPicker | null = null;
   private painterOverlays: PainterWorldOverlays | null = null;
   private readonly overlaySurface = new OverlaySurface();
   private overlayInteraction: OverlayInteractionController | null = null;
@@ -554,6 +568,7 @@ class PainterManager {
     this.painterCellInfos = painterCellInfos;
     this.applyCellGlow();
     context.eventPaint.addListener(this.handleSpikeFrame);
+    context.inputs.pointer.eventTap.addListener(this.handlePointerTap);
     // A context is created paused. One that reopens mid-replay has to be told
     // to run, or the clock would sit still until something else asked to paint.
     if (this.spiking.playing) context.play();
@@ -675,6 +690,28 @@ class PainterManager {
 
   private _cameraChangeTimeout = -1;
 
+  private readonly handlePointerTap = (evt: TgdInputPointerEventTap) => {
+    if (!this.cellPickingEnabled) return;
+
+    const { context } = this;
+    if (!context) return;
+    // An electrode drag that ends quickly is emitted as a tap too.
+    if (this.overlayInteraction?.isDragging) return;
+    // So is a short orbit, and turning the camera must not select a cell.
+    if (!isStillPointer(evt, context.canvas.width, context.canvas.height)) return;
+
+    const picker = (this.somaPicker ??= new SomaPicker(context, this._cellInfos));
+    void picker
+      .pick(evt.x, evt.y, this._somaRadius, SOMA_PICK_SEARCH_IN_PIXELS)
+      .then((index) => {
+        // Bounds-checked against the cells of *now*: the pick is asynchronous,
+        // and the circuit may have been swapped under it.
+        if (index !== null && index < this._cellInfos.length) {
+          this.eventCellClick.dispatch(index);
+        }
+      });
+  };
+
   private handleCameraChange = () => {
     const { context } = this;
     if (!context) return;
@@ -698,6 +735,9 @@ class PainterManager {
     this.scalebarCleanup?.();
     this.context.eventPaint.removeListener(this.handleSpikeFrame);
     this.context.eventResize.removeListener(this.handleResize);
+    this.context.inputs.pointer.eventTap.removeListener(this.handlePointerTap);
+    this.somaPicker?.delete();
+    this.somaPicker = null;
     this.eventScalebar.removeListener(this.handleSpacePerPixel);
     this.overlayInteraction?.detach();
     this.overlayInteraction = null;
@@ -742,6 +782,12 @@ function clamp01(value: number): number {
 
 /** Drop the post-drag pin if the host never echoes matching geometry. */
 const OVERLAY_PIN_TIMEOUT_MS = 2000;
+
+/**
+ * How far a click may miss a soma and still pick it. At region scale a soma
+ * covers about a pixel, so the exact pixel would make clicking one a lottery.
+ */
+const SOMA_PICK_SEARCH_IN_PIXELS = 4;
 
 /** Shallow-clone overlay groups so interaction never mutates host React props. */
 function cloneOverlays(
@@ -806,6 +852,7 @@ export function useManager({
   overlaysInteractive = false,
   onOverlayTransform,
   highlightedOverlayId,
+  onCellClick,
   neuronOpacity = 1,
   signals,
   spikes,
@@ -856,6 +903,13 @@ export function useManager({
   React.useEffect(() => {
     manager.gizmo = gizmo;
   }, [gizmo, manager]);
+  React.useEffect(() => {
+    manager.cellPickingEnabled = Boolean(onCellClick);
+    if (!onCellClick) return;
+
+    manager.eventCellClick.addListener(onCellClick);
+    return () => manager.eventCellClick.removeListener(onCellClick);
+  }, [onCellClick, manager]);
 
   React.useEffect(() => {
     manager.setSpikes(spikes);

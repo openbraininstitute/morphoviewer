@@ -67,6 +67,16 @@ export type MorphoViewerSomasOnlyProps = PropsForGizmo &
      * out).
      */
     signals?: MorphoViewerSignals;
+    /**
+     * A click that landed on a soma, reported as that soma's index in
+     * {@link MorphoViewerSomasOnlyProps.cellInfos}. A tap that orbited, dragged
+     * an overlay, or hit empty background reports nothing.
+     *
+     * Picking draws the cloud once more into a hidden ID buffer — built on the
+     * first click and only while this callback is set, since it carries its own
+     * copy of every position — so a viewer without it pays nothing.
+     */
+    onCellClick?(cellIndex: number): void;
     onClose?(): void;
     onMinimize?(): void;
     controls?: ControlsLayoutProps["content"];
