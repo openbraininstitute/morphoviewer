@@ -1156,6 +1156,13 @@ export class PainterManager {
       alpha: false,
       verbose: this.verbose,
       name: "RenderingContext",
+      // Deliberately empty. Left to tgd, a resize sets the canvas size inside the
+      // ResizeObserver callback - which wipes the drawing buffer - and only queues the
+      // repaint, so the browser composites the wiped buffer once first: opaque black
+      // here, `alpha` being off. Every window or pane resize then flashes black and
+      // white. The paint frame already sizes the canvas right before drawing, so with
+      // the observer stood down nothing is lost and the wipe never reaches the screen.
+      onResize: () => {},
     });
     const painterSynapses = new PainterSynapses(context);
     this.painterSynapses = painterSynapses;
