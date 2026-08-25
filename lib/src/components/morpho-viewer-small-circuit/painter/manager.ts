@@ -1156,6 +1156,12 @@ export class PainterManager {
       alpha: false,
       verbose: this.verbose,
       name: "RenderingContext",
+      // Keeps tgd from setting the canvas size in its ResizeObserver callback. That
+      // write resets the drawing buffer and tgd only queues the repaint, so the browser
+      // composites the empty buffer first: with `alpha` off, one black frame per resize
+      // step. actualPaint sets the size before it draws, in the same task, so the empty
+      // buffer stays off screen.
+      onResize: () => {},
     });
     const painterSynapses = new PainterSynapses(context);
     this.painterSynapses = painterSynapses;

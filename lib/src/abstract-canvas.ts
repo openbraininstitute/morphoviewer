@@ -137,17 +137,11 @@ export abstract class AbstractCanvas {
                 depth: true,
                 preserveDrawingBuffer: true,
                 premultipliedAlpha: true,
+                // Sizing the canvas here would reset the drawing buffer a frame
+                // before the repaint. The paint frame sets the size and the
+                // viewport anyway. See the small-circuit manager.
                 onResize: () => {
                     this.eventPixelScaleChange.dispatch(this.pixelScale)
-                    const { context } = this
-                    if (!context) return
-
-                    const { gl } = context
-                    const width = canvas.clientWidth
-                    const height = canvas.clientHeight
-                    gl.canvas.width = width
-                    gl.canvas.height = height
-                    gl.viewport(0, 0, width, height)
                 },
             })
             const camera = this._camera

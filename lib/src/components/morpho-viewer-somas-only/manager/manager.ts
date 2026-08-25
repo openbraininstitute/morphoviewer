@@ -530,6 +530,10 @@ class PainterManager {
       antialias: true,
       depth: true,
       resolution: 1,
+      // Keeps tgd from setting the canvas size in its ResizeObserver callback,
+      // which resets the drawing buffer a frame before the repaint. The paint
+      // frame sets the size anyway. See the small-circuit manager.
+      onResize: () => {},
     });
     this.context = context;
     this.adaptativeResolution.context = context;
