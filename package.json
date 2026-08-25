@@ -1,6 +1,6 @@
 {
     "name": "@openbraininstitute/morphoviewer",
-    "version": "0.35.1",
+    "version": "0.35.2",
     "description": "Class to display SWC morphology files in 3D",
     "main": "./lib/dist/index.js",
     "module": "./lib/dist/index.js",
