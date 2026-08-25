@@ -137,9 +137,9 @@ export abstract class AbstractCanvas {
                 depth: true,
                 preserveDrawingBuffer: true,
                 premultipliedAlpha: true,
-                // Only the notification. Sizing the canvas here would wipe the drawing
-                // buffer a frame before the repaint; the paint frame sizes it and sets
-                // the viewport itself. See the small-circuit manager for the full story.
+                // Sizing the canvas here would reset the drawing buffer a frame
+                // before the repaint. The paint frame sets the size and the
+                // viewport anyway. See the small-circuit manager.
                 onResize: () => {
                     this.eventPixelScaleChange.dispatch(this.pixelScale)
                 },

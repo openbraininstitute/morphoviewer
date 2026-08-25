@@ -414,9 +414,9 @@ export class PainterManager extends Initializer implements MorphoViewerSimulCont
       antialias: true,
       preserveDrawingBuffer: false,
       verbose: this.verbose,
-      // Empty on purpose: tgd would size the canvas inside its ResizeObserver
-      // callback, wiping the drawing buffer a frame before the repaint. The paint
-      // frame sizes it itself. See the small-circuit manager for the full story.
+      // Keeps tgd from setting the canvas size in its ResizeObserver callback,
+      // which resets the drawing buffer a frame before the repaint. The paint
+      // frame sets the size anyway. See the small-circuit manager.
       onResize: () => {},
     });
     this.context = context;

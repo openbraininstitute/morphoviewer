@@ -139,9 +139,9 @@ export class OctreeManager {
       antialias: true,
       alpha: false,
       depth: true,
-      // Empty on purpose: tgd would size the canvas inside its ResizeObserver
-      // callback, wiping the drawing buffer a frame before the repaint. The paint
-      // frame sizes it itself. See the small-circuit manager for the full story.
+      // Keeps tgd from setting the canvas size in its ResizeObserver callback,
+      // which resets the drawing buffer a frame before the repaint. The paint
+      // frame sets the size anyway. See the small-circuit manager.
       onResize: () => {},
     });
     watchSpacePerPixel(context, this.eventScalebar);
