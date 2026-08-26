@@ -1,6 +1,6 @@
 import { TgdBoundingBox, type TgdContext, TgdPainterGroup, TgdTexture2D } from "@tolokoban/tgd";
 
-import { computeAmbientOcclusion } from "./ambient-occlusion";
+import { AmbientOcclusionComputation } from "./ambient-occlusion";
 import { PainterSomaCloud } from "./painter-soma-cloud";
 
 import type { MorphoViewerCellColors, MorphoViewerCellInfo } from "../types";
@@ -10,6 +10,13 @@ const RADIUS = 15;
 /** number of vertical steps used to bake ambient-occlusion shading into each
  * palette column. */
 const PALETTE_AO_ROWS = 32;
+
+/** Somas advanced between two looks at what is left of an idle slice. */
+const AO_CHUNK_SIZE = 10_000;
+/** Idle milliseconds below which a slice hands the thread back. */
+const AO_MIN_BUDGET_MS = 3;
+/** Slice length where `requestIdleCallback` does not exist (Safari, jsdom). */
+const AO_FALLBACK_SLICE_MS = 8;
 
 /** The ramp occlusion runs along for a soma nobody has given a colour. */
 const DEFAULT_PALETTE_COLORS = [
@@ -38,12 +45,15 @@ export class PainterCellInfos extends TgdPainterGroup {
   private readonly painterPointsCloud: PainterSomaCloud;
   /**
    * `[u, v]` per soma, kept rather than handed over: `v` is the ambient
-   * occlusion, which costs about a second at region scale and depends on the
-   * positions alone, so {@link recolor} rewrites `u` around it.
+   * occlusion, which depends on the positions alone and arrives behind the
+   * first paint (see {@link scheduleAmbientOcclusion}), so {@link recolor}
+   * rewrites `u` around it.
    */
   private readonly dataUV: Float32Array<ArrayBuffer>;
   private paletteColors: (string | null)[] | null;
   private _opacity: number;
+  /** Stops the pending occlusion slice; null once it has run or been cut. */
+  private cancelAmbientOcclusion: (() => void) | null = null;
 
   constructor(
     public readonly context: TgdContext,
@@ -63,7 +73,6 @@ export class PainterCellInfos extends TgdPainterGroup {
         wrapT: "CLAMP_TO_EDGE",
       },
     }).loadBitmap(createPaletteBitmap(paletteColors, opacity));
-    computeAmbientOcclusion(bbox, 10 * RADIUS, dataPoint, dataUV);
     const painterPointsCloud = new PainterSomaCloud(context, {
       dataPoint,
       dataUV,
@@ -81,6 +90,9 @@ export class PainterCellInfos extends TgdPainterGroup {
     this.paletteColors = paletteColors;
     this._opacity = opacity;
     this.bbox = bbox;
+    // The cloud goes up with the flat shading `dataUV` was filled with; the
+    // occlusion is computed behind it and applied when it is ready.
+    this.scheduleAmbientOcclusion(new AmbientOcclusionComputation(bbox, 10 * RADIUS, dataPoint));
   }
 
   /**
@@ -132,7 +144,59 @@ export class PainterCellInfos extends TgdPainterGroup {
     this.context.paint();
   }
 
+  /**
+   * Fill the occlusion in behind the first paint.
+   *
+   * Computing it inline is about a second at region scale, and it was the
+   * last thing standing between geometry arriving and somas on screen. So the
+   * cloud goes up flat-shaded, the arithmetic runs in idle slices — handing
+   * the thread back whenever the browser wants it — and the result lands
+   * through the same {@link PainterSomaCloud.setUV} write a recolour uses,
+   * plus one repaint.
+   *
+   * A recolour mid-computation is safe on both sides: it writes `u` where
+   * this writes `v`, and the running totals live in the computation rather
+   * than in {@link dataUV}, so an interim upload carries flat shading, not
+   * half of an unnormalized result. Deleting the painter cancels the pending
+   * slice, which is the only handle there is.
+   */
+  private scheduleAmbientOcclusion(computation: AmbientOcclusionComputation) {
+    if (computation.done) return;
+
+    const runSlice = (timeRemaining: () => number) => {
+      this.cancelAmbientOcclusion = null;
+      let done = computation.advance(AO_CHUNK_SIZE);
+      while (!done && timeRemaining() > AO_MIN_BUDGET_MS) {
+        done = computation.advance(AO_CHUNK_SIZE);
+      }
+      if (!done) {
+        schedule();
+        return;
+      }
+      computation.writeInto(this.dataUV);
+      this.painterPointsCloud.setUV(this.dataUV);
+      this.context.paint();
+    };
+    const schedule = () => {
+      if (typeof requestIdleCallback === "function") {
+        const handle = requestIdleCallback((deadline) => runSlice(() => deadline.timeRemaining()));
+        this.cancelAmbientOcclusion = () => cancelIdleCallback(handle);
+      } else {
+        // Safari and jsdom. A macrotask with a fixed budget slices the same
+        // way, minus knowing whether the frame is actually idle.
+        const handle = setTimeout(() => {
+          const start = performance.now();
+          runSlice(() => AO_FALLBACK_SLICE_MS - (performance.now() - start));
+        }, 0);
+        this.cancelAmbientOcclusion = () => clearTimeout(handle);
+      }
+    };
+    schedule();
+  }
+
   delete(): void {
+    this.cancelAmbientOcclusion?.();
+    this.cancelAmbientOcclusion = null;
     this.texturePalette.delete();
     super.delete();
   }
