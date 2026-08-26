@@ -225,7 +225,6 @@ function createProgram(
     varying: {
       varColor: "vec4",
       varPointCoord: "vec2",
-      varDepth: "float",
       varGlow: "float",
     },
     mainCode: [
@@ -235,13 +234,11 @@ function createProgram(
       `float glow = pow(attGlow, ${GLOW_BIAS.toFixed(6)});`,
       "varGlow = glow;",
       // The swell is inside the radius rather than applied to the sprite
-      // afterwards, so the lit sphere and the depth it writes grow together.
+      // afterwards, so the lit sphere grows with it rather than being scaled
+      // up around a sphere of the old size.
       `float radius = attPoint.w * uniRadiusMultiplier * (1.0 + glow * ${glowSwell.toFixed(6)});`,
       "vec4 point = uniModelViewMatrix * vec4(attPoint.xyz, 1.0);",
       "gl_Position = uniProjectionMatrix * point;",
-      "vec4 depth = point + vec4(0, 0, radius, 0);",
-      "vec4 screenDepth = uniProjectionMatrix * depth;",
-      "varDepth = (gl_Position.z - screenDepth.z) * .5;",
       "vec4 shift = point + vec4(radius, radius, 0, 0);",
       "vec4 screenShift = uniProjectionMatrix * shift;",
       // tgd floors this at `uniMinSizeInPixels`, which the soma cloud has never
@@ -257,23 +254,11 @@ function createProgram(
     varying: {
       varColor: "vec4",
       varPointCoord: "vec2",
-      varDepth: "float",
       varGlow: "float",
     },
     outputs: { FragColor: "vec4" },
     functions: {
-      render: [
-        "vec4 render(vec4 color) {",
-        TgdPainterPointsCloud.fragCodeSphere({
-          enableSpecular: true,
-          specularExponent: 50,
-          specularIntensity: 0.33,
-          shadowIntensity: 0.5,
-          shadowThickness: 1,
-          light: 1,
-        }),
-        "}",
-      ],
+      render: ["vec4 render(vec4 color) {", sphereShadingWithoutDepthWrite(), "}"],
     },
     mainCode: [
       `vec3 glowColor = vec3(${red.toFixed(6)}, ${green.toFixed(6)}, ${blue.toFixed(6)});`,
@@ -294,4 +279,43 @@ function createProgram(
   }).code;
 
   return new TgdProgram(context.gl, { vert, frag });
+}
+
+/**
+ * tgd's sphere shading, with the one statement a soma cloud cannot afford.
+ *
+ * A fragment shader that writes `gl_FragDepth` cannot be early-Z rejected, so
+ * every sprite behind another still runs in full — and at region scale the
+ * somas overdraw each other many times over, leaving the frame entirely
+ * fill-rate bound: measured at 4.7M somas, 177ms a frame with the write
+ * against 25ms without it. What it buys is that two overlapping somas sort by
+ * sphere surface rather than by sprite centre, which is not discernible where
+ * a soma covers about a pixel.
+ *
+ * `depthPrecision` will not separate the two: `"none"` and `"low"` drop the
+ * write but also the `sqrt` that turns the squared height into the height, and
+ * the lighting reads that same value. Squared, it peaks at 0.93 rather than
+ * 1.0 where the light meets the sphere — which through `pow(len, 50)` is a
+ * highlight at a twentieth of its intensity, so the somas come out flat. So
+ * ask for `"high"` and drop the statement. Matching on `gl_FragDepth` is
+ * stable: it is the GLSL builtin, the only way a shader can write its own
+ * depth, and if tgd ever stops writing it this filter simply finds nothing.
+ */
+function sphereShadingWithoutDepthWrite(): string[] {
+  const shading = TgdPainterPointsCloud.fragCodeSphere({
+    enableSpecular: true,
+    specularExponent: 50,
+    specularIntensity: 0.33,
+    shadowIntensity: 0.5,
+    shadowThickness: 1,
+    light: 1,
+    depthPrecision: "high",
+  });
+  // tgd types shader code as a bloc that may nest; this one is a flat list of
+  // statements, some of them empty where an option turned a line off.
+  const statements = Array.isArray(shading) ? shading : [shading];
+  return statements.filter(
+    (statement): statement is string =>
+      typeof statement === "string" && !statement.includes("gl_FragDepth")
+  );
 }
