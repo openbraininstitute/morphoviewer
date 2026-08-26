@@ -56,7 +56,7 @@ class PainterManager {
 
   /** The spike replay playhead, in milliseconds, on every painted frame. */
   public readonly eventSpikeTime = new TgdEvent<number>();
-  /** A click resolved to the index of the soma under it, in `cellInfos` order. */
+  /** A click resolved to the index of the soma under it, in scene order. */
   public readonly eventCellClick = new TgdEvent<number>();
   /**
    * Set while the host listens for cell clicks. A flag rather than counting
@@ -71,6 +71,7 @@ class PainterManager {
   private _canvas: HTMLCanvasElement | null = null;
   private _overlayCanvas: HTMLCanvasElement | null = null;
   private _cellInfos: MorphoViewerCellInfo[] = [];
+  private _positions: Float32Array | null = null;
   private _cellColors: MorphoViewerCellColors | undefined;
   private _backgroundColor = "black";
   private readonly parsedBackgroundColor = new TgdColor(0, 0, 0, 1);
@@ -257,7 +258,7 @@ class PainterManager {
    */
   setSpikes(spikes: MorphoViewerSpikes | undefined) {
     const wasPlaying = this.spiking.playing;
-    this.spiking.setSpikes(spikes ?? null, this._cellInfos.length);
+    this.spiking.setSpikes(spikes ?? null, this.cellCount);
     this.applySpikeFrame();
     if (wasPlaying) {
       this.context?.pause();
@@ -330,7 +331,32 @@ class PainterManager {
    * cell, and is why {@link MorphoViewerCellColors} exists.
    */
   private get cellPalette(): MorphoViewerCellColors | null {
+    // On the flat path `cellColors` is the only colour source: whatever
+    // colours `cellInfos` carries describe somas that are not in the scene.
+    if (this._positions) return this._cellColors ?? null;
     return this._cellColors ?? cellPaletteFromCellInfos(this._cellInfos);
+  }
+
+  /** Somas in the scene, whichever way the host described them. */
+  private get cellCount(): number {
+    return this._positions ? Math.floor(this._positions.length / 3) : this._cellInfos.length;
+  }
+
+  get positions(): Float32Array | null {
+    return this._positions;
+  }
+  set positions(positions: Float32Array | null) {
+    if (this._positions === positions) return;
+
+    // Identity is the whole comparison: at the scale flat positions exist
+    // for, a `sameGeometry` walk is millions of floats to learn what the host
+    // already said by handing back the same array. A new array is a new scene.
+    this._positions = positions;
+    this.spiking.setCellCount(this.cellCount);
+    if (this.context) {
+      this.delete();
+    }
+    this.initialize();
   }
 
   get cellInfos(): MorphoViewerCellInfo[] {
@@ -341,6 +367,10 @@ class PainterManager {
 
     const previous = this._cellInfos;
     this._cellInfos = cellInfos;
+    // Flat positions own the scene — they win over `cellInfos`, whose colours
+    // are not read on that path either — so there is nothing to rebuild.
+    if (this._positions) return;
+
     this.spiking.setCellCount(cellInfos.length);
     // a recolor keeps the same somas (ids + positions) and only swaps colors:
     // swap the point cloud in place, keep the context/camera/orbit untouched so
@@ -574,6 +604,7 @@ class PainterManager {
     });
     this.painterClear = clear;
     const painterCellInfos = new PainterCellInfos(context, {
+      positions: this._positions ?? undefined,
       cellInfos,
       colors: this.cellPalette,
       somaRadius: this.somaRadius,
@@ -714,13 +745,16 @@ class PainterManager {
     // So is a short orbit, and turning the camera must not select a cell.
     if (!isStillPointer(evt, context.canvas.width, context.canvas.height)) return;
 
-    const picker = (this.somaPicker ??= new SomaPicker(context, this._cellInfos));
+    const picker = (this.somaPicker ??= new SomaPicker(
+      context,
+      this._positions ?? flattenPositions(this._cellInfos)
+    ));
     void picker
       .pick(evt.x, evt.y, this._somaRadius, SOMA_PICK_SEARCH_IN_PIXELS)
       .then((index) => {
         // Bounds-checked against the cells of *now*: the pick is asynchronous,
         // and the circuit may have been swapped under it.
-        if (index !== null && index < this._cellInfos.length) {
+        if (index !== null && index < this.cellCount) {
           this.eventCellClick.dispatch(index);
         }
       });
@@ -794,6 +828,18 @@ function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
+/** `[x, y, z]` per soma — what `SomaPicker` reads — for the `cellInfos` path. */
+function flattenPositions(cellInfos: MorphoViewerCellInfo[]): Float32Array {
+  const positions = new Float32Array(cellInfos.length * 3);
+  for (let i = 0; i < cellInfos.length; i++) {
+    const [x, y, z] = cellInfos[i].position;
+    positions[i * 3] = x;
+    positions[i * 3 + 1] = y;
+    positions[i * 3 + 2] = z;
+  }
+  return positions;
+}
+
 /** Drop the post-drag pin if the host never echoes matching geometry. */
 const OVERLAY_PIN_TIMEOUT_MS = 2000;
 
@@ -855,6 +901,7 @@ function readOverlayTip(
 }
 
 export function useManager({
+  positions,
   cellInfos,
   cellColors,
   somaRadius,
@@ -886,8 +933,14 @@ export function useManager({
   React.useEffect(() => {
     manager.cellColors = cellColors;
   }, [cellColors, manager]);
+  // And flat positions ahead of `cellInfos` too: on a host that hands both,
+  // the scene must go up from the flat path, not from `cellInfos` first only
+  // to be torn down a tick later.
   React.useEffect(() => {
-    manager.cellInfos = cellInfos;
+    manager.positions = positions ?? null;
+  }, [positions, manager]);
+  React.useEffect(() => {
+    manager.cellInfos = cellInfos ?? NO_CELL_INFOS;
   }, [cellInfos, manager]);
   React.useEffect(() => {
     manager.backgroundColor = backgroundColor ?? "black";
@@ -967,3 +1020,6 @@ export function useManager({
 }
 
 const DEFAULT_SOMA_RADIUS = 12;
+
+/** What a host on the flat path leaves `cellInfos` at, without a new `[]` per render. */
+const NO_CELL_INFOS: MorphoViewerCellInfo[] = [];

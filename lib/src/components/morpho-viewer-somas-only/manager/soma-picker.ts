@@ -15,8 +15,6 @@ import { spiralPixelOffsets } from "@/morphology-picking";
 
 import { decodeSomaPickColor } from "./soma-pick-codec";
 
-import type { MorphoViewerCellInfo } from "../types";
-
 /**
  * Resolve a click on the soma cloud to the index of the soma under it.
  *
@@ -41,15 +39,9 @@ export class SomaPicker {
 
   constructor(
     private readonly onscreenContext: TgdContext,
-    cellInfos: MorphoViewerCellInfo[]
+    /** `[x, y, z]` per soma, in scene order. */
+    positions: Float32Array
   ) {
-    const positions = new Float32Array(cellInfos.length * 3);
-    for (let i = 0; i < cellInfos.length; i++) {
-      const [x, y, z] = cellInfos[i].position;
-      positions[i * 3] = x;
-      positions[i * 3 + 1] = y;
-      positions[i * 3 + 2] = z;
-    }
     // `preserveDrawingBuffer` because the pixel is read via `execAfterNextPaint`,
     // and nothing promises that runs before the browser composites the frame.
     const context = new TgdContext(this.offscreenCanvas, {
@@ -132,7 +124,7 @@ export class SomaPicker {
 }
 
 interface PainterSomaCloudIdOptions {
-  /** `[x, y, z]` per soma, in `cellInfos` order. */
+  /** `[x, y, z]` per soma, in scene order. */
   positions: Float32Array;
 }
 

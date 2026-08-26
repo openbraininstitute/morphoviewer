@@ -26,8 +26,13 @@ const DEFAULT_PALETTE_COLORS = [
 ];
 
 export interface PainterCellInfosOptions {
+  /**
+   * Flat `[x, y, z, ...]` soma positions, read as they are — no object per
+   * soma. Wins over {@link cellInfos} when both are given.
+   */
+  positions?: Float32Array;
   /** Read for the positions alone; the colours it carries are the caller's job. */
-  cellInfos: MorphoViewerCellInfo[];
+  cellInfos?: MorphoViewerCellInfo[];
   /** The colour each soma takes, or `null` for the default blue palette. */
   colors: MorphoViewerCellColors | null;
   somaRadius: number;
@@ -60,8 +65,11 @@ export class PainterCellInfos extends TgdPainterGroup {
     options: PainterCellInfosOptions
   ) {
     const bbox = new TgdBoundingBox();
-    const dataPoint = parsePositions(options.cellInfos, bbox);
-    const dataUV = new Float32Array(2 * options.cellInfos.length).fill(0.5);
+    const dataPoint = options.positions
+      ? packPositions(options.positions, bbox)
+      : parsePositions(options.cellInfos ?? [], bbox);
+    const count = dataPoint.length >> 2;
+    const dataUV = new Float32Array(2 * count).fill(0.5);
     const paletteColors = writeColumns(dataUV, options.colors);
     const opacity = clamp01(options.opacity ?? 1);
     const texturePalette = new TgdTexture2D(context, {
@@ -85,7 +93,7 @@ export class PainterCellInfos extends TgdPainterGroup {
     });
     this.painterPointsCloud = painterPointsCloud;
     this.texturePalette = texturePalette;
-    this.count = options.cellInfos.length;
+    this.count = count;
     this.dataUV = dataUV;
     this.paletteColors = paletteColors;
     this._opacity = opacity;
@@ -200,6 +208,58 @@ export class PainterCellInfos extends TgdPainterGroup {
     this.texturePalette.delete();
     super.delete();
   }
+}
+
+/**
+ * The same somas from positions already flat: `[x, y, z]` triples into
+ * `[x, y, z, radius]`, and the bounding box around them.
+ *
+ * Its own loop rather than `parsePositions` over a wrapper: this is the path
+ * that exists so a region-scale host never builds an object per soma, and it
+ * reads the floats where they already are.
+ */
+function packPositions(positions: Float32Array, bbox: TgdBoundingBox): Float32Array<ArrayBuffer> {
+  const count = Math.floor(positions.length / 3);
+  const dataPoint = new Float32Array(4 * count);
+  let centerX = 0;
+  let centerY = 0;
+  let centerZ = 0;
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let minZ = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  let maxZ = Number.NEGATIVE_INFINITY;
+  let index = 0;
+  for (let soma = 0; soma < count; soma++) {
+    const x = positions[soma * 3];
+    const y = positions[soma * 3 + 1];
+    const z = positions[soma * 3 + 2];
+    centerX += x;
+    centerY += y;
+    centerZ += z;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    minZ = Math.min(minZ, z);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+    maxZ = Math.max(maxZ, z);
+    dataPoint[index++] = x;
+    dataPoint[index++] = y;
+    dataPoint[index++] = z;
+    // set the radius to 1, and will use radiusMultiplier to change it.
+    dataPoint[index++] = 1;
+  }
+  const invCount = 1 / count;
+  centerX *= invCount;
+  centerY *= invCount;
+  centerZ *= invCount;
+  const radiusX = Math.max(Math.abs(maxX - centerX), Math.abs(centerX - minX));
+  const radiusY = Math.max(Math.abs(maxY - centerY), Math.abs(centerY - minY));
+  const radiusZ = Math.max(Math.abs(maxZ - centerZ), Math.abs(centerZ - minZ));
+  bbox.addSphere(centerX + radiusX, centerY + radiusY, centerZ + radiusZ, RADIUS);
+  bbox.addSphere(centerX - radiusX, centerY - radiusY, centerZ - radiusZ, RADIUS);
+  return dataPoint;
 }
 
 /**

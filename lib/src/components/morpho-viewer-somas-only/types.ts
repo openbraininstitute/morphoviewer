@@ -56,8 +56,9 @@ export interface MorphoViewerCellColors {
    */
   palette: (string | null)[];
   /**
-   * The palette column each soma takes, indexed like
-   * {@link MorphoViewerSomasOnlyProps.cellInfos}, which it must be as long as.
+   * The palette column each soma takes, one entry per soma in the order the
+   * geometry was given ({@link MorphoViewerSomasOnlyProps.positions} or
+   * {@link MorphoViewerSomasOnlyProps.cellInfos}).
    * Out-of-range entries sample the nearest column.
    */
   columnByCell: Uint16Array;
@@ -69,15 +70,29 @@ export type MorphoViewerSomasOnlyProps = PropsForGizmo &
   PropsForSpikeReplay & {
     className?: string;
     somaRadius?: number;
-    cellInfos: MorphoViewerCellInfo[];
+    /**
+     * Soma positions as one flat `[x, y, z, ...]` array, a triple per soma.
+     *
+     * The typed-array way to say what {@link cellInfos} says with an object
+     * per soma: a host that already holds flat arrays hands them over as they
+     * are, instead of building millions of objects for the viewer to walk
+     * once. Wins over `cellInfos` wherever both are given, and
+     * {@link cellColors} is the only colour source on this path.
+     *
+     * A new array is a new scene, camera reset included. Identity is the
+     * whole comparison — no walk over the floats — so a host that recolours
+     * hands back the same array and moves `cellColors` alone.
+     */
+    positions?: Float32Array;
+    cellInfos?: MorphoViewerCellInfo[];
     /**
      * Per-soma colour, overriding {@link MorphoViewerCellInfo.color}.
      *
      * Changing this alone repaints the cloud in place: the positions, the
      * bounding box, the camera and the ambient occlusion all stand. Changing
-     * `cellInfos` does not — that is a new scene — so a host that recolours
-     * often wants to hand the same `cellInfos` array back every time and move
-     * only this.
+     * `cellInfos` or `positions` does not — that is a new scene — so a host
+     * that recolours often wants to hand the same geometry array back every
+     * time and move only this.
      */
     cellColors?: MorphoViewerCellColors;
     cameraType?: "orthographic" | "perspective";
@@ -112,6 +127,7 @@ export type MorphoViewerSomasOnlyProps = PropsForGizmo &
     signals?: MorphoViewerSignals;
     /**
      * A click that landed on a soma, reported as that soma's index in
+     * {@link MorphoViewerSomasOnlyProps.positions} /
      * {@link MorphoViewerSomasOnlyProps.cellInfos}. A tap that orbited, dragged
      * an overlay, or hit empty background reports nothing.
      *

@@ -39,15 +39,17 @@ jest.mock("@tolokoban/tgd", () => ({
 }));
 
 // The cloud painter owns the GPU side; here it only has to remember the
-// `[u, v]` array it was built around and record what `setUV` pushes.
-const mockCloud: { uv: Float32Array | null; setUV: jest.Mock } = {
+// arrays it was built around and record what `setUV` pushes.
+const mockCloud: { point: Float32Array | null; uv: Float32Array | null; setUV: jest.Mock } = {
+  point: null,
   uv: null,
   setUV: jest.fn(),
 };
 jest.mock("./painter-soma-cloud", () => ({
   PainterSomaCloud: class {
     radiusMultiplier = 1;
-    constructor(_context: unknown, options: { dataUV: Float32Array }) {
+    constructor(_context: unknown, options: { dataPoint: Float32Array; dataUV: Float32Array }) {
+      mockCloud.point = options.dataPoint;
       mockCloud.uv = options.dataUV;
     }
     setUV(dataUV: Float32Array) {
@@ -79,6 +81,14 @@ function makePainter(context: TgdContext): PainterCellInfos {
   });
 }
 
+/** The same somas as {@link CELL_INFOS}, the way a flat-array host holds them. */
+const POSITIONS = new Float32Array(CELL_INFOS.flatMap(({ position }) => position));
+
+function mustPoint(): Float32Array {
+  if (!mockCloud.point) throw new Error("the cloud painter was never built");
+  return mockCloud.point;
+}
+
 function vValues(uv: Float32Array | null): number[] {
   if (!uv) throw new Error("the cloud painter was never built");
   const values: number[] = [];
@@ -94,6 +104,7 @@ describe("PainterCellInfos ambient occlusion", () => {
 
   beforeEach(() => {
     jest.useFakeTimers();
+    mockCloud.point = null;
     mockCloud.uv = null;
     mockCloud.setUV.mockClear();
     paint = jest.fn();
@@ -188,6 +199,41 @@ describe("PainterCellInfos ambient occlusion", () => {
       jest.runAllTimers();
       expect(mockCloud.setUV).not.toHaveBeenCalled();
       void painter;
+    });
+  });
+
+  describe("given flat positions", () => {
+    it("builds the identical cloud, occlusion included", () => {
+      const fromInfos = makePainter(context);
+      const infosPoint = mustPoint().slice();
+      jest.runAllTimers();
+      const infosUV = mockCloud.setUV.mock.calls[0][0] as Float32Array;
+
+      mockCloud.point = null;
+      mockCloud.setUV.mockClear();
+      const fromFlat = new PainterCellInfos(context, {
+        positions: POSITIONS,
+        colors: null,
+        somaRadius: 1,
+      });
+      jest.runAllTimers();
+      const flatUV = mockCloud.setUV.mock.calls[0][0] as Float32Array;
+
+      expect(mustPoint()).toEqual(infosPoint);
+      expect(flatUV).toEqual(infosUV);
+      expect(fromFlat.bbox.min).toEqual(fromInfos.bbox.min);
+      expect(fromFlat.bbox.max).toEqual(fromInfos.bbox.max);
+    });
+
+    it("takes them over cellInfos wherever both are given", () => {
+      new PainterCellInfos(context, {
+        positions: new Float32Array([1, 2, 3]),
+        cellInfos: CELL_INFOS,
+        colors: null,
+        somaRadius: 1,
+      });
+
+      expect(mustPoint()).toEqual(new Float32Array([1, 2, 3, 1]));
     });
   });
 });
