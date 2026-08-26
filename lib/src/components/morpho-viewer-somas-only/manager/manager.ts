@@ -28,7 +28,7 @@ import {
 } from "@/spikes";
 
 import { AdpatativeResolution } from "./adaptative-resolution";
-import { PainterCellInfos } from "./painter-cell-infos";
+import { cellPaletteFromCellInfos, PainterCellInfos } from "./painter-cell-infos";
 import { SomaPicker } from "./soma-picker";
 
 import type {
@@ -42,7 +42,11 @@ import type {
 import type { TgdInputPointerEventTap } from "@tolokoban/tgd";
 
 import type { MorphoViewerSpikes } from "@/spikes";
-import type { MorphoViewerCellInfo, MorphoViewerSomasOnlyProps } from "../types";
+import type {
+  MorphoViewerCellColors,
+  MorphoViewerCellInfo,
+  MorphoViewerSomasOnlyProps,
+} from "../types";
 
 class PainterManager {
   /**
@@ -67,6 +71,7 @@ class PainterManager {
   private _canvas: HTMLCanvasElement | null = null;
   private _overlayCanvas: HTMLCanvasElement | null = null;
   private _cellInfos: MorphoViewerCellInfo[] = [];
+  private _cellColors: MorphoViewerCellColors | undefined;
   private _backgroundColor = "black";
   private readonly parsedBackgroundColor = new TgdColor(0, 0, 0, 1);
   private painterCellInfos: PainterCellInfos | null = null;
@@ -309,6 +314,25 @@ class PainterManager {
     this.context?.paint();
   }
 
+  get cellColors(): MorphoViewerCellColors | undefined {
+    return this._cellColors;
+  }
+  set cellColors(cellColors: MorphoViewerCellColors | undefined) {
+    if (this._cellColors === cellColors) return;
+
+    this._cellColors = cellColors;
+    this.recolorInPlace();
+  }
+
+  /**
+   * What the cloud is painted from: the colours the host gave directly, or
+   * failing that the ones its `cellInfos` carry — which costs a walk over every
+   * cell, and is why {@link MorphoViewerCellColors} exists.
+   */
+  private get cellPalette(): MorphoViewerCellColors | null {
+    return this._cellColors ?? cellPaletteFromCellInfos(this._cellInfos);
+  }
+
   get cellInfos(): MorphoViewerCellInfo[] {
     return this._cellInfos;
   }
@@ -322,7 +346,7 @@ class PainterManager {
     // swap the point cloud in place, keep the context/camera/orbit untouched so
     // the user's zoom/angle is preserved (and no flicker). Any geometry change
     // (different count, ids, or positions) → full rebuild + camera refit.
-    const colorOnly = !!this.context && !!this.state && sameGeometry(previous, cellInfos);
+    const colorOnly = !!this.context && !!this.painterCellInfos && sameGeometry(previous, cellInfos);
     if (colorOnly) {
       this.recolorInPlace();
       return;
@@ -421,26 +445,15 @@ class PainterManager {
     painterOverlays.minRadiusInPixels = this._overlaysMinRadiusInPixels;
   }
 
-  /** rebuild only the point cloud inside the existing scene/context. */
+  /** repaint the existing point cloud: same somas, new colours. */
   private recolorInPlace() {
-    const { context, state, cellInfos } = this;
-    if (!context || !state) return;
+    const { context, painterCellInfos } = this;
+    if (!context || !painterCellInfos) return;
 
-    // rebuilding the cloud (parsing + ambient occlusion + buffer upload) blocks
-    // the main thread for as long as it takes; that is not render cost.
+    // Rewriting the palette column blocks the main thread for as long as it
+    // takes; that is not render cost.
     this.adaptativeResolution.invalidate();
-    state.removeAll(true);
-    const painterCellInfos = new PainterCellInfos(context, {
-      cellInfos,
-      somaRadius: this.somaRadius,
-      opacity: this._neuronOpacity,
-    });
-    this.painterCellInfos = painterCellInfos;
-    this.bbox = painterCellInfos.bbox;
-    state.add(painterCellInfos);
-    // The replacement cloud's glow buffer is zeroed, so a recolour mid-replay
-    // would blank every lit soma until the next frame moved the clock.
-    this.applyCellGlow();
+    painterCellInfos.recolor(this.cellPalette);
     context.paint();
   }
 
@@ -562,6 +575,7 @@ class PainterManager {
     this.painterClear = clear;
     const painterCellInfos = new PainterCellInfos(context, {
       cellInfos,
+      colors: this.cellPalette,
       somaRadius: this.somaRadius,
       opacity: this._neuronOpacity,
     });
@@ -842,6 +856,7 @@ function readOverlayTip(
 
 export function useManager({
   cellInfos,
+  cellColors,
   somaRadius,
   gizmo,
   cameraType,
@@ -866,6 +881,11 @@ export function useManager({
   const refManager = React.useRef<PainterManager | null>(null);
   if (!refManager.current) refManager.current = new PainterManager();
   const manager = refManager.current;
+  // Ahead of `cellInfos`, so the cloud is built with its colours rather than
+  // built from whatever `cellInfos` carried and then repainted.
+  React.useEffect(() => {
+    manager.cellColors = cellColors;
+  }, [cellColors, manager]);
   React.useEffect(() => {
     manager.cellInfos = cellInfos;
   }, [cellInfos, manager]);

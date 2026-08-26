@@ -1,5 +1,4 @@
 import type { ArrayNumber3 } from "@tolokoban/tgd";
-
 import type { PropsForSpikeReplay } from "@/spikes";
 import type { ControlsLayoutProps } from "../controls-layout";
 import type { MorphoViewerSignals } from "../signals";
@@ -30,6 +29,40 @@ export interface MorphoViewerCellInfo {
   color?: string;
 }
 
+/**
+ * Per-soma colour as the GPU wants it: a small palette, and the column each
+ * soma takes from it.
+ *
+ * The alternative — a colour string on every {@link MorphoViewerCellInfo} — is
+ * fine at the scale a morphology viewer works at, and impossible at the scale
+ * a soma cloud does: it makes recolouring a circuit rebuild an object per
+ * soma, so a viewer holding four million of them spends over a second and a
+ * gigabyte of garbage to change which population is highlighted. Given this
+ * instead, the same change is one buffer write, and the geometry the host
+ * passes never has to be rebuilt at all.
+ *
+ * Overrides {@link MorphoViewerCellInfo.color} wherever it is supplied.
+ */
+export interface MorphoViewerCellColors {
+  /**
+   * Distinct colours, as any CSS colour string, one per palette column. A
+   * `null` column is the viewer's own occlusion ramp, for somas the host has
+   * nothing to say about — light where a soma stands exposed, dark where it is
+   * buried. Empty for that ramp and nothing else, which is also what the
+   * viewer draws when nothing is coloured at all.
+   *
+   * Keep it small: it becomes a texture one pixel wide per colour. For a
+   * continuous property, quantize into a bounded set of stops.
+   */
+  palette: (string | null)[];
+  /**
+   * The palette column each soma takes, indexed like
+   * {@link MorphoViewerSomasOnlyProps.cellInfos}, which it must be as long as.
+   * Out-of-range entries sample the nearest column.
+   */
+  columnByCell: Uint16Array;
+}
+
 export type MorphoViewerSomasOnlyProps = PropsForGizmo &
   PropsForScalebar &
   PropsForOverlayInteraction &
@@ -37,6 +70,16 @@ export type MorphoViewerSomasOnlyProps = PropsForGizmo &
     className?: string;
     somaRadius?: number;
     cellInfos: MorphoViewerCellInfo[];
+    /**
+     * Per-soma colour, overriding {@link MorphoViewerCellInfo.color}.
+     *
+     * Changing this alone repaints the cloud in place: the positions, the
+     * bounding box, the camera and the ambient occlusion all stand. Changing
+     * `cellInfos` does not — that is a new scene — so a host that recolours
+     * often wants to hand the same `cellInfos` array back every time and move
+     * only this.
+     */
+    cellColors?: MorphoViewerCellColors;
     cameraType?: "orthographic" | "perspective";
     /**
      * background (canvas clear) color, as any CSS color string
