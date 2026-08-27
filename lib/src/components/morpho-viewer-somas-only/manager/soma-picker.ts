@@ -97,21 +97,35 @@ export class SomaPicker {
    *
    * At region scale a soma covers about a pixel, so requiring the exact one
    * would make clicking a matter of luck — the same reasoning as the
-   * small-circuit `getItemNear`, which this mirrors.
+   * small-circuit `getItemNear`, which this mirrors. The whole search square
+   * comes back in one `readPixels`: every readback is a CPU–GPU sync point,
+   * and a miss would otherwise pay one per spiral step. Pixels outside the
+   * buffer stay zero, which decodes as a miss.
    */
   private readIndexNear(
     xClip: number,
     yClip: number,
     radiusInPixels: number
   ): number | null {
-    const { offscreenCanvas } = this;
-    // The pointer arrives in clip space, so a pixel step is two clip units over the size.
-    const stepX = 2 / Math.max(1, offscreenCanvas.width);
-    const stepY = 2 / Math.max(1, offscreenCanvas.height);
+    const { gl } = this.context;
+    const side = radiusInPixels * 2 + 1;
+    const pixels = new Uint8Array(side * side * 4);
+    // The pointer arrives in clip space; pixel coordinates computed the way
+    // `TgdContext.readPixel` computes them, so a pick lands on the same pixel.
+    const centerX = Math.round(0.5 * (xClip + 1) * gl.drawingBufferWidth);
+    const centerY = Math.round(0.5 * (yClip + 1) * gl.drawingBufferHeight);
+    gl.readPixels(
+      centerX - radiusInPixels,
+      centerY - radiusInPixels,
+      side,
+      side,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      pixels
+    );
     for (const [dx, dy] of spiralPixelOffsets(radiusInPixels)) {
-      const index = decodeSomaPickColor(
-        this.context.readPixel(xClip + dx * stepX, yClip + dy * stepY)
-      );
+      const at = ((dy + radiusInPixels) * side + (dx + radiusInPixels)) * 4;
+      const index = decodeSomaPickColor(pixels.subarray(at, at + 4));
       if (index !== null) return index;
     }
     return null;
@@ -133,9 +147,11 @@ interface PainterSomaCloudIdOptions {
  *
  * The position and size maths mirror the visible painter line for line — with
  * the radius simplified to the multiplier alone, since every `attPoint.w`
- * there is 1 — so a pick lands wherever the eye saw the soma. Depth follows
- * the same sphere profile for the same reason: where two somas overlap, the
- * one in front visually is the one a click resolves to. What it deliberately
+ * there is 1 — so a pick lands wherever the eye saw the soma. Depth keeps the
+ * sphere profile the visible cloud once wrote; that cloud now leaves
+ * `gl_FragDepth` alone for fill rate, so where two somas overlap, pick and
+ * eye can disagree by up to a radius — not discernible where a soma covers
+ * about a pixel. What it deliberately
  * drops is everything about appearance (palette, occlusion, glow); the one
  * mismatch that leaves is the glow swell, so a spiking soma's pick target is
  * up to 70% smaller than its flash. The search spiral covers that.

@@ -20,7 +20,7 @@ import { isStillPointer, watchSpacePerPixel } from "@/behaviors";
 import { PainterGizmo } from "@/painters/gizmo";
 import { OverlayInteractionController } from "@/painters/overlay-interaction";
 import { OverlaySurface } from "@/painters/overlay-surface";
-import { PainterWorldOverlays } from "@/painters/world-overlays";
+import type { PainterWorldOverlays } from "@/painters/world-overlays";
 import {
   DEFAULT_SPIKE_AFTERGLOW_IN_SECONDS,
   DEFAULT_SPIKE_SPEED,
@@ -98,9 +98,6 @@ class PainterManager {
   } | null = null;
   /** Escape hatch if the host never echoes matching geometry. */
   private _pinTimeout: ReturnType<typeof setTimeout> | null = null;
-  /** the scene node that holds the point cloud; kept so a recolor can swap the
-   * cloud in place without recreating the context (preserving the camera). */
-  private state: TgdPainterState | null = null;
   private painterClear: TgdPainterClear | null = null;
   private context: TgdContext | null = null;
   private orbit: TgdControllerCameraOrbit | null = null;
@@ -635,7 +632,6 @@ class PainterManager {
         savedNeuronBlend = undefined;
       },
     });
-    this.state = state;
     this.painterGizmo.context = context;
     context.add(clear, state, this.painterGizmo);
     const { bbox } = painterCellInfos;
@@ -793,7 +789,6 @@ class PainterManager {
     this.orbit?.detach();
     this.orbit = null;
     this.painterClear = null;
-    this.state = null;
     this.painterCellInfos = null;
     this.painterOverlays = null;
     this.painterGizmo.context = null;
@@ -928,20 +923,16 @@ export function useManager({
   const refManager = React.useRef<PainterManager | null>(null);
   if (!refManager.current) refManager.current = new PainterManager();
   const manager = refManager.current;
-  // Ahead of `cellInfos`, so the cloud is built with its colours rather than
-  // built from whatever `cellInfos` carried and then repainted.
+  // One effect, for the order alone: colours ahead of the scene they paint,
+  // and flat positions ahead of `cellInfos`, so a host that hands both builds
+  // from the flat path rather than from `cellInfos` only to tear that down a
+  // tick later. Each setter is an identity-guarded no-op for whichever props
+  // did not change.
   React.useEffect(() => {
     manager.cellColors = cellColors;
-  }, [cellColors, manager]);
-  // And flat positions ahead of `cellInfos` too: on a host that hands both,
-  // the scene must go up from the flat path, not from `cellInfos` first only
-  // to be torn down a tick later.
-  React.useEffect(() => {
     manager.positions = positions ?? null;
-  }, [positions, manager]);
-  React.useEffect(() => {
     manager.cellInfos = cellInfos ?? NO_CELL_INFOS;
-  }, [cellInfos, manager]);
+  }, [cellColors, positions, cellInfos, manager]);
   React.useEffect(() => {
     manager.backgroundColor = backgroundColor ?? "black";
   }, [backgroundColor, manager]);
