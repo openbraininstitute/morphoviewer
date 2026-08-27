@@ -38,6 +38,14 @@ const GLOW_BIAS = 0.4;
  * appears is far easier to catch than one that changes colour.
  */
 const DEFAULT_GLOW_SWELL = 0.7;
+/**
+ * Alpha below which a soma is not drawn at all.
+ *
+ * Half a step of the palette texture's 8-bit alpha, so it catches the columns
+ * left clear for hidden somas and nothing a host can reach with an opacity
+ * setting, the lowest of which is a whole step.
+ */
+const HIDDEN_ALPHA = 0.5 / 255;
 
 export interface PainterSomaCloudOptions {
   /**
@@ -229,6 +237,13 @@ function createProgram(
     },
     mainCode: [
       "varColor = texture(uniTexture, attUV);",
+      // A palette column left clear is a soma the host is not drawing. Sending
+      // it outside the clip volume here costs no fragments at all, where
+      // letting it blend away would still shade a sprite — and the glow below
+      // forces alpha back to 1 as a soma spikes, so blending away is not even
+      // reliable. `attUV` is per instance, so all four corners of the sprite
+      // agree and the whole billboard is clipped rather than half of it.
+      `if (varColor.a < ${HIDDEN_ALPHA.toFixed(8)}) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }`,
       // Shaped once here: a sprite is one vertex and many fragments, and the
       // swell below wants the same value the colour fades on.
       `float glow = pow(attGlow, ${GLOW_BIAS.toFixed(6)});`,

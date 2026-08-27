@@ -45,16 +45,22 @@ export interface MorphoViewerCellInfo {
  */
 export interface MorphoViewerCellColors {
   /**
-   * Distinct colours, as any CSS colour string, one per palette column. A
-   * `null` column is the viewer's own occlusion ramp, for somas the host has
-   * nothing to say about — light where a soma stands exposed, dark where it is
-   * buried. Empty for that ramp and nothing else, which is also what the
-   * viewer draws when nothing is coloured at all.
+   * Distinct colours, as any CSS colour string, one per palette column, plus
+   * two sentinels:
+   *
+   * - `null` is the viewer's own occlusion ramp, for somas the host has
+   *   nothing to say about — light where a soma stands exposed, dark where it
+   *   is buried. Empty for that ramp and nothing else, which is also what the
+   *   viewer draws when nothing is coloured at all.
+   * - `false` is not drawn at all. The somas are still there — still placed,
+   *   still counted, still indexed the same — so hiding a population is the
+   *   same buffer write any other recolour is, rather than new geometry and
+   *   the scene rebuild that comes with it.
    *
    * Keep it small: it becomes a texture one pixel wide per colour. For a
    * continuous property, quantize into a bounded set of stops.
    */
-  palette: (string | null)[];
+  palette: (string | null | false)[];
   /**
    * The palette column each soma takes, one entry per soma in the order the
    * geometry was given ({@link MorphoViewerSomasOnlyProps.positions} or

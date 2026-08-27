@@ -3,6 +3,9 @@ import { PainterCellInfos } from "./painter-cell-infos";
 import type { TgdContext } from "@tolokoban/tgd";
 import type { MorphoViewerCellInfo } from "../types";
 
+/** The palette canvas as it was handed to the texture, for the colour tests. */
+const mockPalette: { canvas: HTMLCanvasElement | null } = { canvas: null };
+
 // `@tolokoban/tgd` is published as ESM and jest does not transform
 // node_modules. Only the classes the painter builds on are stood in for, each
 // reduced to what the painter actually calls on it.
@@ -31,7 +34,8 @@ jest.mock("@tolokoban/tgd", () => ({
     delete() {}
   },
   TgdTexture2D: class {
-    loadBitmap() {
+    loadBitmap(canvas: HTMLCanvasElement) {
+      mockPalette.canvas = canvas;
       return this;
     }
     delete() {}
@@ -235,5 +239,206 @@ describe("PainterCellInfos ambient occlusion", () => {
 
       expect(mustPoint()).toEqual(new Float32Array([1, 2, 3, 1]));
     });
+  });
+});
+
+type RGBA = [number, number, number, number];
+
+function parseColor(color: string): RGBA {
+  if (color === "transparent") return [0, 0, 0, 0];
+
+  const channels = /^rgba?\(([^)]+)\)$/.exec(color);
+  if (channels) {
+    const parts = channels[1].split(",").map((part) => Number.parseFloat(part));
+    return [parts[0], parts[1], parts[2], parts[3] ?? 1];
+  }
+  // `hsl()` and the named colours: opaque, and no assertion below turns on the
+  // hue, only on how far the shade darkens it.
+  return [128, 128, 128, 1];
+}
+
+class FakeGradient {
+  private readonly stops: { offset: number; color: RGBA }[] = [];
+
+  addColorStop(offset: number, color: string) {
+    this.stops.push({ offset, color: parseColor(color) });
+    this.stops.sort((a, b) => a.offset - b.offset);
+  }
+
+  at(position: number): RGBA {
+    const [first] = this.stops;
+    if (!first) return [0, 0, 0, 0];
+
+    let previous = first;
+    for (const stop of this.stops) {
+      if (stop.offset >= position) {
+        const span = stop.offset - previous.offset;
+        const ratio = span > 0 ? (position - previous.offset) / span : 0;
+        return previous.color.map(
+          (channel, i) => channel + (stop.color[i] - channel) * ratio
+        ) as RGBA;
+      }
+      previous = stop;
+    }
+    return previous.color;
+  }
+}
+
+/**
+ * Enough of a 2D context to paint the palette, since jsdom ships none and the
+ * palette is where a soma that is not drawn is decided. Source-over
+ * compositing over an RGBA grid, plus linear gradients read down `y`, which is
+ * all `createPalette` asks for.
+ */
+class FakeContext {
+  fillStyle: string | FakeGradient = "#000000";
+  readonly data: Uint8ClampedArray;
+
+  constructor(
+    readonly width: number,
+    readonly height: number
+  ) {
+    this.data = new Uint8ClampedArray(width * height * 4);
+  }
+
+  createLinearGradient() {
+    return new FakeGradient();
+  }
+
+  fillRect(x: number, y: number, width: number, height: number) {
+    const { fillStyle } = this;
+    for (let row = y; row < y + height; row++) {
+      const source =
+        typeof fillStyle === "string" ? parseColor(fillStyle) : fillStyle.at(row / this.height);
+      for (let column = x; column < x + width; column++) {
+        this.composite(column, row, source);
+      }
+    }
+  }
+
+  /** The live array, not a copy: nothing here reads it expecting a snapshot. */
+  getImageData() {
+    return { data: this.data };
+  }
+
+  putImageData() {}
+
+  private composite(x: number, y: number, [red, green, blue, alpha]: RGBA) {
+    const at = (y * this.width + x) * 4;
+    const behind = this.data[at + 3] / 255;
+    const result = alpha + behind * (1 - alpha);
+    if (result === 0) return;
+
+    this.data[at] = (red * alpha + this.data[at] * behind * (1 - alpha)) / result;
+    this.data[at + 1] = (green * alpha + this.data[at + 1] * behind * (1 - alpha)) / result;
+    this.data[at + 2] = (blue * alpha + this.data[at + 2] * behind * (1 - alpha)) / result;
+    this.data[at + 3] = result * 255;
+  }
+}
+
+/** One context per canvas, so what was painted is still there to read back. */
+const fakeContexts = new WeakMap<HTMLCanvasElement, FakeContext>();
+
+function installFakeCanvas() {
+  HTMLCanvasElement.prototype.getContext = function getContext(this: HTMLCanvasElement) {
+    const existing = fakeContexts.get(this);
+    if (existing) return existing as unknown as CanvasRenderingContext2D;
+
+    const context = new FakeContext(this.width, this.height);
+    fakeContexts.set(this, context);
+    return context as unknown as CanvasRenderingContext2D;
+  } as HTMLCanvasElement["getContext"];
+}
+
+/** The palette as it was last uploaded, read one channel down one column. */
+function channelDown(column: number, channel: number): number[] {
+  if (!mockPalette.canvas) throw new Error("the palette was never uploaded");
+
+  const context = fakeContexts.get(mockPalette.canvas);
+  if (!context) throw new Error("the palette was painted without the fake context");
+
+  const values: number[] = [];
+  for (let row = 0; row < context.height; row++) {
+    values.push(context.data[(row * context.width + column) * 4 + channel]);
+  }
+  return values;
+}
+
+const ALPHA = 3;
+const RED = 0;
+/** Rows in the palette canvas, which is `PALETTE_AO_ROWS` in the painter. */
+const ROWS = 32;
+
+/** Guards against a column read back empty, which would assert nothing. */
+function expectDown(column: number, channel: number, value: number) {
+  const values = channelDown(column, channel);
+  expect(values).toHaveLength(ROWS);
+  expect(values.filter((found) => found !== value)).toEqual([]);
+}
+
+describe("PainterCellInfos palette", () => {
+  const realGetContext = HTMLCanvasElement.prototype.getContext;
+  let context: TgdContext;
+
+  beforeEach(() => {
+    mockPalette.canvas = null;
+    installFakeCanvas();
+    context = { paint: jest.fn() } as unknown as TgdContext;
+  });
+
+  afterEach(() => {
+    HTMLCanvasElement.prototype.getContext = realGetContext;
+  });
+
+  /** Column 0 drawn, column 1 hidden, one soma in each. */
+  function paint(opacity?: number): PainterCellInfos {
+    return new PainterCellInfos(context, {
+      positions: new Float32Array([0, 0, 0, 100, 0, 0]),
+      colors: { palette: ["red", false], columnByCell: new Uint16Array([0, 1]) },
+      somaRadius: 1,
+      opacity,
+    });
+  }
+
+  it("leaves a `false` column clear, the occlusion shade included", () => {
+    paint();
+
+    // Not merely dark: the shade is black at up to 55%, so compositing it over
+    // a clear column would put a row of blobs where the somas should be gone.
+    expectDown(1, ALPHA, 0);
+    expectDown(0, ALPHA, 255);
+  });
+
+  it("still shades the columns that are drawn", () => {
+    paint();
+
+    const red = channelDown(0, RED);
+    expect(red[red.length - 1]).toBeLessThan(red[0]);
+  });
+
+  it("does not let the opacity setting bring a hidden column back", () => {
+    paint(0.5);
+
+    expectDown(1, ALPHA, 0);
+    expectDown(0, ALPHA, 128);
+  });
+
+  it("keeps a soma at zero opacity drawn rather than culled", () => {
+    paint(0);
+
+    // A step of alpha rather than none, so it stays out of the cloud's cull and
+    // a spike can still light it, which is what zero opacity has always meant.
+    expectDown(0, ALPHA, 1);
+    expectDown(1, ALPHA, 0);
+  });
+
+  it("hides on a recolour too, without new geometry", () => {
+    const painter = paint();
+
+    painter.recolor({ palette: ["red", "blue"], columnByCell: new Uint16Array([0, 1]) });
+    expectDown(1, ALPHA, 255);
+
+    painter.recolor({ palette: ["red", false], columnByCell: new Uint16Array([0, 1]) });
+    expectDown(1, ALPHA, 0);
   });
 });

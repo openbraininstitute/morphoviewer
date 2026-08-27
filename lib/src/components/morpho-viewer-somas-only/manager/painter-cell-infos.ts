@@ -55,7 +55,7 @@ export class PainterCellInfos extends TgdPainterGroup {
    * rewrites `u` around it.
    */
   private readonly dataUV: Float32Array<ArrayBuffer>;
-  private paletteColors: (string | null)[] | null;
+  private paletteColors: (string | null | false)[] | null;
   private _opacity: number;
   /** Stops the pending occlusion slice; null once it has run or been cut. */
   private cancelAmbientOcclusion: (() => void) | null = null;
@@ -323,7 +323,7 @@ function parsePositions(
 function writeColumns(
   dataUV: Float32Array,
   colors: MorphoViewerCellColors | null
-): (string | null)[] | null {
+): (string | null | false)[] | null {
   if (!colors || colors.palette.length === 0) return null;
 
   const { palette, columnByCell } = colors;
@@ -384,8 +384,11 @@ export function cellPaletteFromCellInfos(
  * A `null` column is painted with {@link DEFAULT_PALETTE_COLORS} instead: the
  * occlusion then carries the whole column rather than merely darkening one
  * hue, which is what a cloud nobody has coloured has always looked like.
+ *
+ * A `false` column is left clear, which is how a soma goes undrawn: the cloud
+ * culls whatever samples an alpha of zero.
  */
-function createPalette(colors: (string | null)[], rows: number): HTMLCanvasElement {
+function createPalette(colors: (string | null | false)[], rows: number): HTMLCanvasElement {
   const width = colors.length;
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -405,6 +408,11 @@ function createPalette(colors: (string | null)[], rows: number): HTMLCanvasEleme
 
   for (let x = 0; x < width; x++) {
     const color = colors[x];
+    // Left untouched, shade included: the canvas starts transparent, and
+    // compositing the shade over a clear column would bring the somas back as
+    // dark blobs rather than leaving them out.
+    if (color === false) continue;
+
     ctx.fillStyle = color ?? ramp;
     ctx.fillRect(x, 0, 1, rows);
     if (color === null) continue;
@@ -416,7 +424,7 @@ function createPalette(colors: (string | null)[], rows: number): HTMLCanvasEleme
 }
 
 function createPaletteBitmap(
-  paletteColors: (string | null)[] | null,
+  paletteColors: (string | null | false)[] | null,
   opacity: number
 ): HTMLCanvasElement {
   // No palette at all is the one-column palette holding the ramp: every soma
@@ -424,7 +432,15 @@ function createPaletteBitmap(
   return applyCanvasOpacity(createPalette(paletteColors ?? [null], PALETTE_AO_ROWS), opacity);
 }
 
-/** Force every pixel's alpha channel to `opacity` (keeps RGB shading intact). */
+/**
+ * Force every pixel's alpha channel to `opacity` (keeps RGB shading intact),
+ * except the columns left clear for somas that are not drawn — the opacity
+ * setting is about the somas on screen and must not bring those back.
+ *
+ * Which is also why the floor is one step rather than zero: at `opacity: 0` a
+ * soma stays drawn and invisible, as it always has, instead of falling into
+ * the cloud's cull and taking its glow with it.
+ */
 function applyCanvasOpacity(canvas: HTMLCanvasElement, opacity: number): HTMLCanvasElement {
   if (opacity >= 1) return canvas;
 
@@ -432,8 +448,10 @@ function applyCanvasOpacity(canvas: HTMLCanvasElement, opacity: number): HTMLCan
   if (!ctx) return canvas;
 
   const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const alpha = Math.round(clamp01(opacity) * 255);
+  const alpha = Math.max(1, Math.round(clamp01(opacity) * 255));
   for (let i = 3; i < image.data.length; i += 4) {
+    if (image.data[i] === 0) continue;
+
     image.data[i] = alpha;
   }
   ctx.putImageData(image, 0, 0);
