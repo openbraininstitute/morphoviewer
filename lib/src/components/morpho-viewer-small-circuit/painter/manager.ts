@@ -174,11 +174,19 @@ export class PainterManager {
   private framebufferHighlightedCells: Framebuffer | null = null;
   private framebufferBlur: Framebuffer | null = null;
   private loadedCellsCache = new CacheLRU<Promise<MorphoViewerSmallCircuitCellData | null>>(24);
-  private circuitSignature = "";
-  /** when false, the next circuit update rebuilds cells but keeps the camera
-   * (used for recolor, where only cell colors change) */
+  /**
+   * The cell ids on screen, reload key included, or null before the first
+   * circuit. Gates {@link loadedCellsCache}.
+   */
+  private circuitIds: ReadonlySet<string> | null = null;
+  /**
+   * When false, the next circuit update rebuilds the cells but keeps the
+   * camera: a recolour, a reload, or a population hidden or shown again, none
+   * of which move the cells the user framed the view around.
+   */
   private fitCameraOnUpdate = true;
-  private placementSignature = "";
+  /** The same ids without their reload key: where the cells are, not what they draw. */
+  private placementIds: ReadonlySet<string> | null = null;
   private bbox = new TgdBoundingBox();
   private _verbose = false;
   /** Drawn on its own canvas, so it can paint at the screen's pixel ratio. */
@@ -822,18 +830,22 @@ export class PainterManager {
       return;
     }
 
-    const signature = circuit.map((item) => item.id).join("\n");
+    const ids = new Set(circuit.map((item) => item.id));
     // A cell id's query part (after `?`) is a reload key: changing it reloads morphologies
     // (hosts use it for filters like the axon toggle) but says nothing about where the cells
     // are. The camera only refits when the cells themselves change, so a reload does not
     // throw away the zoom the user is standing at.
-    const placementSignature = circuit.map((item) => item.id.split("?")[0]).join("\n");
-    this.fitCameraOnUpdate = this.placementSignature !== placementSignature;
-    this.placementSignature = placementSignature;
-    if (this.circuitSignature !== signature) {
-      this.circuitSignature = signature;
+    const placementIds = new Set(circuit.map((item) => item.id.split("?")[0]));
+    this.fitCameraOnUpdate = !this.placementIds || isAnotherScene(this.placementIds, placementIds);
+    this.placementIds = placementIds;
+    // The cache is keyed by the path part alone — `PainterCell` drops the reload key before
+    // asking — so a cell that stays on screen under a new key would be handed back the
+    // geometry that key was meant to replace. Cells leaving or arriving change no other
+    // cell's key, and what is cached for the ones that stay is still what they draw.
+    if (!this.circuitIds || isAnotherScene(this.circuitIds, ids)) {
       this.loadedCellsCache.clear();
     }
+    this.circuitIds = ids;
     this.circuit = circuit;
     this.loadCell = (id: string) => {
       const cached = this.loadedCellsCache.get(id);
@@ -1846,6 +1858,24 @@ export function usePainterManager({
 function clamp01(value: number): number {
   if (Number.isNaN(value)) return 1;
   return Math.min(1, Math.max(0, value));
+}
+
+/**
+ * Whether these cells make a scene the viewer has not drawn before, as opposed
+ * to the one it is already holding with cells taken away or given back.
+ *
+ * Containment either way, because a population hidden leaves a subset and the
+ * same population shown again leaves a superset — and in both the cells that
+ * remain are exactly where the user left them. Asking whether the two lists are
+ * equal instead would call every toggle a new scene, and re-frame the camera
+ * around whatever happens to be left.
+ */
+function isAnotherScene(previous: ReadonlySet<string>, next: ReadonlySet<string>): boolean {
+  const [fewer, more] = previous.size <= next.size ? [previous, next] : [next, previous];
+  for (const id of fewer) {
+    if (!more.has(id)) return true;
+  }
+  return false;
 }
 
 /** Drop the post-drag pin if the host never echoes matching geometry. */
