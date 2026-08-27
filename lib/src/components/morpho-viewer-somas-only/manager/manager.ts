@@ -28,7 +28,7 @@ import {
 } from "@/spikes";
 
 import { AdpatativeResolution } from "./adaptative-resolution";
-import { cellPaletteFromCellInfos, PainterCellInfos } from "./painter-cell-infos";
+import { cellPaletteFromCellInfos, hiddenSomaMask, PainterCellInfos } from "./painter-cell-infos";
 import { SomaPicker } from "./soma-picker";
 
 import type {
@@ -480,7 +480,14 @@ class PainterManager {
     // Rewriting the palette column blocks the main thread for as long as it
     // takes; that is not render cost.
     this.adaptativeResolution.invalidate();
-    painterCellInfos.recolor(this.cellPalette);
+    // Read once: on the `cellInfos` path the getter walks every cell to build
+    // it, and both of the lines below want the same palette.
+    const palette = this.cellPalette;
+    painterCellInfos.recolor(palette);
+    // A recolour is also how a soma stops being drawn, and the picker has its
+    // own cloud to keep in step. Only when one exists — it is built on the
+    // first click, and most viewers never build one at all.
+    this.somaPicker?.setHidden(hiddenSomaMask(palette, this.cellCount));
     context.paint();
   }
 
@@ -741,10 +748,14 @@ class PainterManager {
     // So is a short orbit, and turning the camera must not select a cell.
     if (!isStillPointer(evt, context.canvas.width, context.canvas.height)) return;
 
-    const picker = (this.somaPicker ??= new SomaPicker(
-      context,
-      this._positions ?? flattenPositions(this._cellInfos)
-    ));
+    let picker = this.somaPicker;
+    if (!picker) {
+      picker = new SomaPicker(context, this._positions ?? flattenPositions(this._cellInfos));
+      // Whatever was already hidden when the first click arrived; every change
+      // after this one comes through `recolorInPlace`.
+      picker.setHidden(hiddenSomaMask(this.cellPalette, this.cellCount));
+      this.somaPicker = picker;
+    }
     void picker
       .pick(evt.x, evt.y, this._somaRadius, SOMA_PICK_SEARCH_IN_PIXELS)
       .then((index) => {

@@ -61,6 +61,17 @@ export class SomaPicker {
   }
 
   /**
+   * Which somas are not on screen, so the picker does not answer with them.
+   *
+   * @see hiddenSomaMask
+   */
+  setHidden(hidden: Readonly<Float32Array> | null) {
+    if (this.isDeleted) return;
+
+    this.painter.setHidden(hidden);
+  }
+
+  /**
    * The index of the soma at (or within `searchRadiusInPixels` of) the given
    * clip-space point, or `null` for a miss.
    *
@@ -152,9 +163,14 @@ interface PainterSomaCloudIdOptions {
  * `gl_FragDepth` alone for fill rate, so where two somas overlap, pick and
  * eye can disagree by up to a radius — not discernible where a soma covers
  * about a pixel. What it deliberately
- * drops is everything about appearance (palette, occlusion, glow); the one
- * mismatch that leaves is the glow swell, so a spiking soma's pick target is
- * up to 70% smaller than its flash. The search spiral covers that.
+ * drops is everything about appearance (occlusion, glow, and the colours
+ * themselves); the one mismatch that leaves is the glow swell, so a spiking
+ * soma's pick target is up to 70% smaller than its flash. The search spiral
+ * covers that.
+ *
+ * The exception is {@link setHidden}: a soma the palette does not draw must
+ * not be pickable either, and that is not something a silhouette can work out
+ * for itself.
  */
 class PainterSomaCloudId extends TgdPainter {
   public radiusMultiplier = 1;
@@ -162,6 +178,10 @@ class PainterSomaCloudId extends TgdPainter {
   private readonly count: number;
   private readonly program: TgdProgram;
   private readonly vao: TgdVertexArray;
+  /** Where the hidden flags sit among the VAO's datasets. */
+  private readonly hiddenBufferIndex: number;
+  /** Whether anything is hidden, so clearing an empty mask uploads nothing. */
+  private hasHidden = false;
 
   constructor(
     public readonly context: TgdContext,
@@ -173,11 +193,43 @@ class PainterSomaCloudId extends TgdPainter {
     const instances = new TgdDataset({ attPoint: "vec3" }, { divisor: 1 });
     instances.set("attPoint", options.positions);
 
+    // Starts at zero — everything pickable — and stays that way unless a host
+    // hides something, which most never do.
+    const hidden = new TgdDataset(
+      { attHidden: "float" },
+      {
+        divisor: 1,
+        usage: "DYNAMIC_DRAW",
+        data: new ArrayBuffer(this.count * Float32Array.BYTES_PER_ELEMENT),
+      }
+    );
+
     const billboards = new TgdDataset({ attPointCoord: "vec2" });
     billboards.set("attPointCoord", new Float32Array([-1, -1, +1, -1, +1, +1, -1, +1]));
 
+    const datasets = [instances, hidden, billboards];
+    this.hiddenBufferIndex = datasets.indexOf(hidden);
     this.program = createIdProgram(context);
-    this.vao = new TgdVertexArray(context.gl, this.program, [instances, billboards]);
+    this.vao = new TgdVertexArray(context.gl, this.program, datasets);
+  }
+
+  /**
+   * Push which somas are not drawn, `null` for none of them.
+   *
+   * Rare enough — a population toggled, not a frame of replay — that it
+   * uploads the whole mask rather than tracking what changed.
+   */
+  setHidden(hidden: Readonly<Float32Array> | null) {
+    if (!hidden && !this.hasHidden) return;
+    if (hidden && hidden.length !== this.count) return;
+
+    const buffer = this.vao.getBuffer(this.hiddenBufferIndex);
+    if (!buffer) return;
+
+    const { gl } = this.context;
+    buffer.bind();
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, hidden ?? new Float32Array(this.count));
+    this.hasHidden = hidden !== null;
   }
 
   paint() {
@@ -209,6 +261,8 @@ function createIdProgram(context: TgdContext): TgdProgram {
     },
     attributes: {
       attPoint: "vec3",
+      /** Non-zero for a soma the palette does not draw. */
+      attHidden: "float",
       /** Between -1.0 and +1.0 */
       attPointCoord: "vec2",
     },
@@ -218,6 +272,11 @@ function createIdProgram(context: TgdContext): TgdProgram {
       varDepth: "float",
     },
     mainCode: [
+      // Out of the clip volume, exactly as the visible cloud culls it, so the
+      // buffer holds what the eye sees. Nothing behind the click can reach the
+      // pick otherwise: the ID buffer is depth-tested, so a hidden soma in
+      // front would win and the visible one behind it would never be drawn.
+      "if (attHidden > 0.5) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }",
       "int id = gl_InstanceID + 1;",
       "varColor = vec4(vec3(float(id & 0xFF), float((id >> 8) & 0xFF), float((id >> 16) & 0xFF)) / 255.0, 1.0);",
       "float radius = uniRadiusMultiplier;",

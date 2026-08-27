@@ -139,7 +139,9 @@ export type MorphoViewerSomasOnlyProps = PropsForGizmo &
      *
      * Picking draws the cloud once more into a hidden ID buffer — built on the
      * first click and only while this callback is set, since it carries its own
-     * copy of every position — so a viewer without it pays nothing.
+     * copy of every position — so a viewer without it pays nothing. Somas a
+     * `false` palette column leaves undrawn are left out of it too, so they
+     * neither answer a click nor swallow one meant for a soma behind them.
      */
     onCellClick?(cellIndex: number): void;
     onClose?(): void;

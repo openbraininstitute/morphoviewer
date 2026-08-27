@@ -338,6 +338,36 @@ function writeColumns(
 }
 
 /**
+ * One entry per soma, `1` where the palette leaves it undrawn and `0` where it
+ * is on screen. Null when nothing is hidden, which is the common case and
+ * saves a walk over every soma.
+ *
+ * The picker paints its own cloud, on its own context, and samples no palette
+ * — so it has to be told. Filtering its answer afterwards would not do: it
+ * reports the first soma outward from the click, so a hidden one in front
+ * swallows the click meant for whatever stands behind it, and there is nothing
+ * left to filter.
+ */
+export function hiddenSomaMask(
+  colors: MorphoViewerCellColors | null,
+  count: number
+): Float32Array | null {
+  if (!colors?.palette.includes(false)) return null;
+
+  const { palette, columnByCell } = colors;
+  const last = palette.length - 1;
+  const hidden = new Float32Array(count);
+  // Somas past the columns given keep the palette's own default, which is a
+  // column that is drawn. Out-of-range columns clamp the way `writeColumns`
+  // clamps them, so the two never disagree about which column a soma is in.
+  const described = Math.min(count, columnByCell.length);
+  for (let cell = 0; cell < described; cell++) {
+    if (palette[Math.min(columnByCell[cell], last)] === false) hidden[cell] = 1;
+  }
+  return hidden;
+}
+
+/**
  * The palette a `cellInfos` array carries in its own `color` fields: the
  * distinct colors in first-seen order, and the column each soma takes.
  *

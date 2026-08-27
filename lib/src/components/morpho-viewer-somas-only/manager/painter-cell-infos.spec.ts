@@ -1,4 +1,4 @@
-import { PainterCellInfos } from "./painter-cell-infos";
+import { hiddenSomaMask, PainterCellInfos } from "./painter-cell-infos";
 
 import type { TgdContext } from "@tolokoban/tgd";
 import type { MorphoViewerCellInfo } from "../types";
@@ -440,5 +440,39 @@ describe("PainterCellInfos palette", () => {
 
     painter.recolor({ palette: ["red", false], columnByCell: new Uint16Array([0, 1]) });
     expectDown(1, ALPHA, 0);
+  });
+});
+
+describe("hiddenSomaMask", () => {
+  it("says nothing when the palette hides nothing", () => {
+    const columnByCell = new Uint16Array([0, 1, 0, 1]);
+    expect(hiddenSomaMask({ palette: ["red", null], columnByCell }, 4)).toBeNull();
+    expect(hiddenSomaMask(null, 4)).toBeNull();
+  });
+
+  it("flags the somas whose column is not drawn", () => {
+    const mask = hiddenSomaMask(
+      { palette: ["red", false, "blue"], columnByCell: new Uint16Array([0, 1, 2, 1]) },
+      4
+    );
+
+    expect(Array.from(mask ?? [])).toEqual([0, 1, 0, 1]);
+  });
+
+  it("clamps an out-of-range column the way the palette does", () => {
+    // `writeColumns` sends a column past the end to the last one, so a mask
+    // that did anything else would disagree with what is on screen.
+    const mask = hiddenSomaMask(
+      { palette: ["red", false], columnByCell: new Uint16Array([9, 0]) },
+      2
+    );
+
+    expect(Array.from(mask ?? [])).toEqual([1, 0]);
+  });
+
+  it("leaves somas the columns do not describe pickable", () => {
+    const mask = hiddenSomaMask({ palette: [false], columnByCell: new Uint16Array([0]) }, 3);
+
+    expect(Array.from(mask ?? [])).toEqual([1, 0, 0]);
   });
 });
