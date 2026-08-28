@@ -98,8 +98,19 @@ export class PainterCell extends TgdPainterGroup {
           color: texture,
           lockLightsToCamera: true,
           opacity: options.opacity ?? 1,
+          // Half ambient and half diffuse, so a surface turned away from the light keeps half
+          // its colour instead of going black. That is the band `PainterCellSomas` draws its
+          // spheres in (`smoothstep(...) * 0.5 + 0.5`), and the two have to agree: a
+          // population drawn as somas alone stands beside one drawn in full, so a colour that
+          // renders light on the spheres and near-black on the neurites reads as two colours
+          // rather than one. The alpha carries the intensity — the 0 it used to hold left
+          // these cells with no ambient at all.
           ambient: new TgdLight({
-            color: [0.8, 0.8, 0.8, 0],
+            color: [0.5, 0.5, 0.5, 1],
+          }),
+          light: new TgdLight({
+            direction: [-0.3, 0.3, -1],
+            color: [0.5, 0.5, 0.5, 1],
           }),
         });
         break;
