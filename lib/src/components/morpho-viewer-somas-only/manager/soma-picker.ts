@@ -11,9 +11,7 @@ import {
   TgdVertexArray,
 } from "@tolokoban/tgd";
 
-import { spiralPixelOffsets } from "@/morphology-picking";
-
-import { decodeSomaPickColor } from "./soma-pick-codec";
+import { decodePickColor, spiralPixelOffsets } from "@/morphology-picking";
 
 /**
  * Resolve a click on the soma cloud to the index of the soma under it.
@@ -136,8 +134,9 @@ export class SomaPicker {
     );
     for (const [dx, dy] of spiralPixelOffsets(radiusInPixels)) {
       const at = ((dy + radiusInPixels) * side + (dx + radiusInPixels)) * 4;
-      const index = decodeSomaPickColor(pixels.subarray(at, at + 4));
-      if (index !== null) return index;
+      // The shader numbers from 1, so that the cleared buffer reads as a miss.
+      const id = decodePickColor(pixels.subarray(at, at + 4));
+      if (id !== null) return id - 1;
     }
     return null;
   }

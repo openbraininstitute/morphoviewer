@@ -18,8 +18,7 @@ import {
 } from "@tolokoban/tgd";
 
 import { type MorphoViewerTree, MorphoViewerTreeItemType } from "@/components/morpho-viewer-simul";
-import { MaterialSegmentIndex } from "@/morphology-picking";
-import { int16ToVec3 } from "@/utils";
+import { encodePickColor, MaterialSegmentIndex } from "@/morphology-picking";
 
 import { createCellFromTree } from "./factory/tree";
 import { MaterialDiffuseAlpha } from "./material-diffuse-alpha";
@@ -115,7 +114,7 @@ export class PainterCell extends TgdPainterGroup {
       // Offscreen selection IDs.
       default:
         this.material = new TgdMaterialFlat({
-          color: [...int16ToVec3(materialType), 1],
+          color: [...encodePickColor(materialType), 1],
         });
         break;
     }

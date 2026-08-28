@@ -7,8 +7,7 @@ import {
   webglPresetDepth,
 } from "@tolokoban/tgd";
 
-import { spiralPixelOffsets } from "@/morphology-picking";
-import { vec3ToInt16 } from "@/utils";
+import { decodePickColor, spiralPixelOffsets } from "@/morphology-picking";
 
 import { PainterCellId } from "../painter-cell";
 import { isSameCell } from "../same-cell";
@@ -144,10 +143,10 @@ export class OffscreenPainter {
     if (this.isDeleted) return;
 
     const { cellByIndex, offscreenContext: context } = this;
-    const [R, G, B] = context.readPixel(xScreen, yScreen);
-    const divider = 1 / 0xff;
-    const index = vec3ToInt16([R * divider, G * divider, B * divider]) - FIRST_INDEX;
-    return cellByIndex[index] ?? undefined;
+    const index = decodePickColor(context.readPixel(xScreen, yScreen));
+    if (index === null) return;
+
+    return cellByIndex[index - FIRST_INDEX] ?? undefined;
   }
 
   /**

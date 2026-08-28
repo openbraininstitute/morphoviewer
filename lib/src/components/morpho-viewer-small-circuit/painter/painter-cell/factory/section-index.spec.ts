@@ -143,10 +143,10 @@ describe("segment index encoding", () => {
   /** Matches `makeUV` in `factory/tree.ts`. */
   const encode = (index: number, count: number) => (index + 1.5) / (count + 2);
 
-  /** Matches `float01ToVec3` followed by the read-back in `OffscreenPainter.getItemAt`. */
+  /** Matches tgd's GLSL `float01ToVec3` followed by the read-back in `getSegmentAt`. */
   const throughColour = (value: number) => Math.round(value * 0xffffff) / 0xffffff;
 
-  /** Matches `OffscreenPainter.getItemAt`. */
+  /** Matches `SegmentOffscreenPainter.getSegmentAt`. */
   const decode = (value: number, count: number) => Math.floor((count + 2) * value) - 1;
 
   it.each([1, 2, 100, 10_000, 100_000])("round-trips every index of a %i-segment cell", (count) => {
