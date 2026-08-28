@@ -71,6 +71,7 @@ export class PainterCell extends TgdPainterGroup {
   private readonly material: TgdMaterial;
   private readonly texturePalette: TgdTexture2D;
   private _isDeleted = false;
+  private _isLoaded = false;
   private _bbox = new TgdBoundingBox();
   private _sections: CellSectionIndex | null = null;
   private _dendrogramMix = 0;
@@ -132,6 +133,26 @@ export class PainterCell extends TgdPainterGroup {
     // The soma sphere is the whole drawing for a cell the host has no morphology for, so
     // there is nothing to ask for and nothing to wait on.
     if (!cell.somaOnly) this.loadCell();
+  }
+
+  /**
+   * The values this painter was built from.
+   *
+   * Read when a scene is updated: a painter costs a compiled shader program, so one whose cell
+   * came back unchanged is kept rather than thrown away and built again.
+   */
+  get cell(): MorphoViewerSmallCircuitCell {
+    return this.options.cell;
+  }
+
+  /**
+   * Whether `loadCell` has answered, whatever it answered.
+   *
+   * A painter kept across a scene update has already reported itself once, and will not report
+   * again; a count of what the scene is waiting on has to take it as arrived.
+   */
+  get isLoaded(): boolean {
+    return this._isLoaded;
   }
 
   get bbox(): Readonly<TgdBoundingBox> {
@@ -222,6 +243,7 @@ export class PainterCell extends TgdPainterGroup {
       // will not serve for this cell. Reported all the same, because the cell has finished
       // loading and a count waiting on it would never reach the end.
       if (!isCellAsTree(data)) {
+        this._isLoaded = true;
         onCellLoaded?.(null);
         return;
       }
@@ -248,6 +270,7 @@ export class PainterCell extends TgdPainterGroup {
       if (transformedBBox) {
         this._bbox = transformedBBox;
       }
+      this._isLoaded = true;
       onCellLoaded?.(transformedBBox);
       context.paint();
     } catch (error) {
@@ -257,11 +280,15 @@ export class PainterCell extends TgdPainterGroup {
       if (this.isDeleted || this.context.isDeleted) return;
 
       console.error(`Error loading cell "${cell.id}":`, error);
+      this._isLoaded = true;
       onCellLoaded?.(null);
     }
   }
 
   delete(): void {
+    // The mesh holds a shader program, a vertex array and its buffers, and the morphology
+    // replaces it with more of the same. Dropping the reference releases none of that.
+    super.delete();
     this.texturePalette.delete();
     this.isDeleted = true;
   }

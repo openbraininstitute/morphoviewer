@@ -44,6 +44,8 @@ import {
   SpikingCircuit,
 } from "@/spikes";
 
+import { isSameCell } from "./same-cell";
+
 import type { PainterWorldOverlays } from "@/painters/world-overlays";
 import type { MorphoViewerSpikes } from "@/spikes";
 import type { MorphoViewerTreeItemType } from "../../morpho-viewer-simul";
@@ -218,6 +220,13 @@ export class PainterManager {
   /** Off unless a host subscribes: projecting on every frame is wasted work otherwise. */
   private _locationLabelsEnabled = false;
   private readonly cellPainters: PainterCell[] = [];
+  /**
+   * The `somaAsSphere` the painters now on screen were built with.
+   *
+   * A cell bakes it into the geometry it builds, so it is the one setting a painter cannot be
+   * told about after the fact — changing it is the update that keeps nothing.
+   */
+  private paintedSomaAsSphere = false;
   private _dendrogramMode = false;
   private dendrogramMix = 0;
   private dendrogramAnimations: TgdAnimation[] = [];
@@ -869,59 +878,80 @@ export class PainterManager {
     }
 
     try {
-      this.groupCells.removeAll();
-      this.onLoadProgress?.(0);
+      // Set aside rather than deleted: a painter carries a shader program of its own, compiled
+      // and linked on the spot, which makes building one by far the most expensive thing an
+      // update does. Hiding a population, or putting another on show, leaves most cells
+      // exactly as they were — those keep the painters they already have.
+      const keptCells = takeById(this.cellPainters);
+      const keptHighlights = takeById(this.cellsForHighlights);
+      const keepable = this.paintedSomaAsSphere === this._somaAsSphere;
+      this.paintedSomaAsSphere = this._somaAsSphere;
+      this.groupCells.removeAll(false);
+      this.groupHighlightedCells.removeAll(false);
+      this.cellPainters.splice(0);
+      this.cellsForHighlights.splice(0);
       // Cells drawn as somas alone are left out: no morphology is coming for them, so counting
       // them would hold the fraction below 1 for good, and a scene made mostly of them would
       // report itself all but loaded before the first morphology arrived.
       this.cellCountTotal = this.circuit.filter((cell) => !cell.somaOnly).length;
       this.cellCountLoaded = 0;
-      // Nothing is on its way, so the scene is as loaded as it will get.
-      if (this.cellCountTotal === 0) this.onLoadProgress?.(1);
-      this.offscreen?.delete();
-      this.offscreen = new OffscreenPainter(context, {
-        circuit: this.circuit,
-        loadCell,
-        dendrogramMix: this.dendrogramMix,
-      });
+      // Updated rather than rebuilt, for the same reason: its painters carry a program each
+      // too, and it holds one for every cell whether or not the pointer ever goes near it.
+      if (this.offscreen) {
+        this.offscreen.setCircuit(this.circuit, loadCell);
+      } else {
+        this.offscreen = new OffscreenPainter(context, {
+          circuit: this.circuit,
+          loadCell,
+          dendrogramMix: this.dendrogramMix,
+        });
+      }
       this.rebuildSegmentOffscreen();
-      const { cellsForHighlights: highlightingCells } = this;
-      highlightingCells.splice(0);
-      this.groupHighlightedCells.removeAll(false);
       this.bbox = new TgdBoundingBox();
-      this.cellPainters.splice(0);
       for (const cell of this.circuit) {
         const [x, y, z] = cell.center;
         const r = cell.somaRadius;
         this.bbox.addSphere(x, y, z, r * 5);
-        const painterCell = new PainterCell(context, {
-          cell,
-          loadCell,
-          material: "full",
-          opacity: this._neuronOpacity,
-          somaAsSphere: this._somaAsSphere,
-          onCellLoaded: (bbox) => {
-            // Only a cell that brought geometry moves the frame. One that answered with
-            // nothing still stands where its soma was put, and the loop above already
-            // measured that; re-fitting on it would combine every painter's box and repaint
-            // the scene to arrive back where it started.
-            if (bbox && this.fitCameraOnUpdate) {
-              this.adaptCameraFromBBox();
-            }
-            this.cellCountLoaded++;
-            this.onLoadProgress?.(this.cellCountLoaded / this.cellCountTotal);
-          },
-        });
+        const painterCell =
+          (keepable ? reusePainterFor(keptCells, cell) : undefined) ??
+          new PainterCell(context, {
+            cell,
+            loadCell,
+            material: "full",
+            opacity: this._neuronOpacity,
+            somaAsSphere: this._somaAsSphere,
+            onCellLoaded: (bbox) => {
+              // Only a cell that brought geometry moves the frame. One that answered with
+              // nothing still stands where its soma was put, and the loop above already
+              // measured that; re-fitting on it would combine every painter's box and repaint
+              // the scene to arrive back where it started.
+              if (bbox && this.fitCameraOnUpdate) {
+                this.adaptCameraFromBBox();
+              }
+              this.cellCountLoaded++;
+              this.onLoadProgress?.(this.cellCountLoaded / this.cellCountTotal);
+            },
+          });
+        // A kept painter has already reported itself and will not report again.
+        if (painterCell.isLoaded && !cell.somaOnly) this.cellCountLoaded++;
         this.cellPainters.push(painterCell);
         painterCell.dendrogramMix = this.dendrogramMix;
         this.groupCells.add(painterCell);
-        const highlightedCell = new PainterCellFlat(context, {
-          cell,
-          loadCell,
-        });
+        const highlightedCell =
+          (keepable ? reusePainterFor(keptHighlights, cell) : undefined) ??
+          new PainterCellFlat(context, { cell, loadCell });
         highlightedCell.dendrogramMix = this.dendrogramMix;
-        highlightingCells.push(highlightedCell);
+        this.cellsForHighlights.push(highlightedCell);
       }
+      // What no cell claimed has left the scene.
+      for (const painter of keptCells.values()) painter.delete();
+      for (const painter of keptHighlights.values()) painter.delete();
+      // Reported once the scene stands, and as the fraction it really is: a toggle that keeps
+      // every morphology it had is finished the moment it is drawn, and a scene of somas alone
+      // is as loaded as it will ever get.
+      this.onLoadProgress?.(
+        this.cellCountTotal === 0 ? 1 : this.cellCountLoaded / this.cellCountTotal
+      );
       this.spiking.setCellCount(this.circuit.length);
       this.updateHighlightedCells();
       if (this.fitCameraOnUpdate) {
@@ -1609,7 +1639,10 @@ export class PainterManager {
     this.context.value?.animCancelArray(this.dendrogramAnimations);
     this.dendrogramAnimations = [];
     this.dendrogramMix = this._dendrogramMode ? 1 : 0;
+    // Dropped rather than left for the next scene to find: an update keeps the painters whose
+    // cells came back unchanged, and these hold a context that is about to go.
     this.cellPainters.splice(0);
+    this.cellsForHighlights.splice(0);
     if (this.gizmoOverlay) {
       this.gizmoOverlay.eventTipClick.removeListener(this.handleGizmoTipClick);
       this.gizmoOverlay.detach();
@@ -1881,6 +1914,28 @@ function isAnotherScene(previous: ReadonlySet<string>, next: ReadonlySet<string>
     if (!more.has(id)) return true;
   }
   return false;
+}
+
+/** The painters of a scene about to be replaced, by the cell each one draws. */
+function takeById<T extends PainterCell>(painters: readonly T[]): Map<string, T> {
+  return new Map(painters.map((painter) => [painter.cell.id, painter]));
+}
+
+/**
+ * The painter already drawing this cell, if it was built from exactly these values.
+ *
+ * Taken out of the map on a hit, so that what is left when the scene has been walked is what
+ * the scene no longer holds.
+ */
+function reusePainterFor<T extends PainterCell>(
+  kept: Map<string, T>,
+  cell: MorphoViewerSmallCircuitCell
+): T | undefined {
+  const painter = kept.get(cell.id);
+  if (!painter || !isSameCell(painter.cell, cell)) return undefined;
+
+  kept.delete(cell.id);
+  return painter;
 }
 
 /** Drop the post-drag pin if the host never echoes matching geometry. */
