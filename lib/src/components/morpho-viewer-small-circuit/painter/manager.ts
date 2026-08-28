@@ -871,8 +871,13 @@ export class PainterManager {
     try {
       this.groupCells.removeAll();
       this.onLoadProgress?.(0);
-      this.cellCountTotal = this.circuit.length;
+      // Cells drawn as somas alone are left out: no morphology is coming for them, so counting
+      // them would hold the fraction below 1 for good, and a scene made mostly of them would
+      // report itself all but loaded before the first morphology arrived.
+      this.cellCountTotal = this.circuit.filter((cell) => !cell.somaOnly).length;
       this.cellCountLoaded = 0;
+      // Nothing is on its way, so the scene is as loaded as it will get.
+      if (this.cellCountTotal === 0) this.onLoadProgress?.(1);
       this.offscreen?.delete();
       this.offscreen = new OffscreenPainter(context, {
         circuit: this.circuit,
@@ -896,11 +901,11 @@ export class PainterManager {
           opacity: this._neuronOpacity,
           somaAsSphere: this._somaAsSphere,
           onCellLoaded: (bbox) => {
-            if (bbox) {
-              //   recenterBBox(bbox, x, y, z);
-              //   this.bbox.addBBox(bbox);
-            }
-            if (this.fitCameraOnUpdate) {
+            // Only a cell that brought geometry moves the frame. One that answered with
+            // nothing still stands where its soma was put, and the loop above already
+            // measured that; re-fitting on it would combine every painter's box and repaint
+            // the scene to arrive back where it started.
+            if (bbox && this.fitCameraOnUpdate) {
               this.adaptCameraFromBBox();
             }
             this.cellCountLoaded++;

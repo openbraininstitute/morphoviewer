@@ -129,7 +129,9 @@ export class PainterCell extends TgdPainterGroup {
       material: this.material,
     });
     this.add(mesh);
-    this.loadCell();
+    // The soma sphere is the whole drawing for a cell the host has no morphology for, so
+    // there is nothing to ask for and nothing to wait on.
+    if (!cell.somaOnly) this.loadCell();
   }
 
   get bbox(): Readonly<TgdBoundingBox> {
@@ -216,34 +218,38 @@ export class PainterCell extends TgdPainterGroup {
       // so stop here instead.
       if (this.isDeleted) return;
 
-      if (isCellAsTree(data)) {
-        const { node, bbox, sections, setDendrogramMix } = createCellFromTree(
-          context,
-          material,
-          data.data,
-          isSelectionMaterial(this.options.material ?? "full"),
-          this.options.somaAsSphere ?? false
-        );
-        this._sections = sections;
-        this.applyDendrogramMix = setDendrogramMix;
-        // A cell can load while the viewer is already in dendrogram mode.
-        setDendrogramMix(this._dendrogramMix);
-        const [x, y, z] = cell.center;
-        const quat = new TgdQuat(cell.orientation);
-        node.transfo.setPosition(x, y, z);
-        node.transfo.orientation = quat;
-        const [sx, sy, sz] = computeSomaCenter(data, node.transfo);
-        const transformedBBox = recenterBBox(applyTransfoToBBox(node.transfo, bbox), sx, sy, sz);
-        this.removeAll();
-        this.add(node);
-        if (transformedBBox) {
-          this._bbox = transformedBBox;
-        }
-        if (onCellLoaded) {
-          onCellLoaded(transformedBBox);
-        }
-        context.paint();
+      // Answered, but with nothing to draw: a morphology the host could not find, or one it
+      // will not serve for this cell. Reported all the same, because the cell has finished
+      // loading and a count waiting on it would never reach the end.
+      if (!isCellAsTree(data)) {
+        onCellLoaded?.(null);
+        return;
       }
+
+      const { node, bbox, sections, setDendrogramMix } = createCellFromTree(
+        context,
+        material,
+        data.data,
+        isSelectionMaterial(this.options.material ?? "full"),
+        this.options.somaAsSphere ?? false
+      );
+      this._sections = sections;
+      this.applyDendrogramMix = setDendrogramMix;
+      // A cell can load while the viewer is already in dendrogram mode.
+      setDendrogramMix(this._dendrogramMix);
+      const [x, y, z] = cell.center;
+      const quat = new TgdQuat(cell.orientation);
+      node.transfo.setPosition(x, y, z);
+      node.transfo.orientation = quat;
+      const [sx, sy, sz] = computeSomaCenter(data, node.transfo);
+      const transformedBBox = recenterBBox(applyTransfoToBBox(node.transfo, bbox), sx, sy, sz);
+      this.removeAll();
+      this.add(node);
+      if (transformedBBox) {
+        this._bbox = transformedBBox;
+      }
+      onCellLoaded?.(transformedBBox);
+      context.paint();
     } catch (error) {
       // A painter torn down mid-load is routine, not a failure: toggling location picking
       // rebuilds the segment pass and takes its context with it while morphologies are still
