@@ -9,6 +9,9 @@ import type { MorphoViewerSmallCircuitCell, SectionColors } from "../types";
  * are grey somas. A cell with no colour of its own is left to the painter holding it — that
  * colour is picked at random, so calling it a change would repaint the scene in new colours
  * every time anything else moved.
+ *
+ * Asked only of cells drawn in full: a cell that draws as a soma alone belongs to the cloud,
+ * which is rebuilt whole rather than matched up cell by cell.
  */
 export function isSameCell(
   a: MorphoViewerSmallCircuitCell,
@@ -16,7 +19,6 @@ export function isSameCell(
 ): boolean {
   return (
     a.somaRadius === b.somaRadius &&
-    (a.somaOnly ?? false) === (b.somaOnly ?? false) &&
     a.center.every((value, index) => value === b.center[index]) &&
     a.orientation.every((value, index) => value === b.orientation[index]) &&
     isSameColor(a.color, b.color)

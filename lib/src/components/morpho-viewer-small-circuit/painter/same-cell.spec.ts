@@ -31,12 +31,6 @@ describe("isSameCell", () => {
     expect(isSameCell(cell(), cell({ somaRadius: 8 }))).toBe(false);
   });
 
-  it("sees a cell that stopped waiting for a morphology", () => {
-    expect(isSameCell(cell(), cell({ somaOnly: true }))).toBe(false);
-    // Left out and said out loud mean the same thing.
-    expect(isSameCell(cell(), cell({ somaOnly: false }))).toBe(true);
-  });
-
   it("keeps a cell that has no colour of its own", () => {
     // The painter picked one at random; calling that a change would repaint the whole scene
     // in new colours every time anything else moved.

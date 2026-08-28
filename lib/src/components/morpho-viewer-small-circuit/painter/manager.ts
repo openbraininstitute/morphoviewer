@@ -34,6 +34,7 @@ import { CacheLRU } from "@/tools/cache-lru";
 import { CameraManager, clampZoom } from "./camera";
 import { OffscreenPainter, SegmentOffscreenPainter } from "./offscreen-painter";
 import { PainterCell, PainterCellFlat } from "./painter-cell";
+import { buildSomaCloudData, PainterCellSomas } from "./painter-cell-somas";
 import { PainterLocationMarkers } from "./painter-location-markers";
 import { PainterSynapses } from "./painter-synapses";
 import { isStillPointer } from "@/behaviors";
@@ -155,8 +156,11 @@ export class PainterManager {
    * The additive highlight pass, in `circuit` order rather than keyed by cell
    * id: the spike replay writes every one of them on every frame and indexes
    * them by node, so a map lookup per cell per frame would be pure overhead.
+   *
+   * `null` where the cloud draws the cell. The order is what makes the lookup
+   * cheap, so the holes stay in rather than closing up.
    */
-  private readonly cellsForHighlights: PainterCell[] = [];
+  private readonly cellsForHighlights: (PainterCell | null)[] = [];
   private readonly groupHighlightedCells = new TgdPainterGroup({
     name: "groupHighlightedCells",
   });
@@ -220,6 +224,8 @@ export class PainterManager {
   /** Off unless a host subscribes: projecting on every frame is wasted work otherwise. */
   private _locationLabelsEnabled = false;
   private readonly cellPainters: PainterCell[] = [];
+  /** Every cell drawn as a soma alone, in one cloud. Rebuilt with the circuit. */
+  private painterCellSomas: PainterCellSomas | null = null;
   /**
    * The `somaAsSphere` the painters now on screen were built with.
    *
@@ -320,6 +326,7 @@ export class PainterManager {
         painter.opacity = opacity;
       }
     });
+    if (this.painterCellSomas) this.painterCellSomas.opacity = opacity;
     this.context.value?.paint();
   }
 
@@ -690,7 +697,9 @@ export class PainterManager {
     for (const painter of this.cellPainters) painter.dendrogramMix = mix;
     // Hover and selection draw the same geometry through their own painters, additively.
     // Left behind they would paint the 3D morphology over the chart.
-    for (const painter of this.cellsForHighlights) painter.dendrogramMix = mix;
+    for (const painter of this.cellsForHighlights) {
+      if (painter) painter.dendrogramMix = mix;
+    }
     // The pick buffers hold their own geometry, so they morph too or clicks miss.
     if (this.offscreen) this.offscreen.dendrogramMix = mix;
     if (this.segmentOffscreen) this.segmentOffscreen.dendrogramMix = mix;
@@ -912,6 +921,14 @@ export class PainterManager {
         const [x, y, z] = cell.center;
         const r = cell.somaRadius;
         this.bbox.addSphere(x, y, z, r * 5);
+        // Drawn by the cloud built below, and brightened by nothing: it has no painter of its
+        // own to turn up. The highlight pass keeps its place all the same, because a spike is
+        // written to it by node number.
+        if (cell.somaOnly) {
+          this.cellsForHighlights.push(null);
+          continue;
+        }
+
         const painterCell =
           (keepable ? reusePainterFor(keptCells, cell) : undefined) ??
           new PainterCell(context, {
@@ -933,7 +950,7 @@ export class PainterManager {
             },
           });
         // A kept painter has already reported itself and will not report again.
-        if (painterCell.isLoaded && !cell.somaOnly) this.cellCountLoaded++;
+        if (painterCell.isLoaded) this.cellCountLoaded++;
         this.cellPainters.push(painterCell);
         painterCell.dendrogramMix = this.dendrogramMix;
         this.groupCells.add(painterCell);
@@ -946,6 +963,23 @@ export class PainterManager {
       // What no cell claimed has left the scene.
       for (const painter of keptCells.values()) painter.delete();
       for (const painter of keptHighlights.values()) painter.delete();
+      // One buffer, one program and one draw call for every cell the host has no morphology
+      // for — which, beside the population on show, is nearly all of them. Rebuilt whole
+      // rather than reused: that is one program, against the three each of these cells cost
+      // when it had painters of its own.
+      this.painterCellSomas?.delete();
+      this.painterCellSomas = null;
+      const somas = buildSomaCloudData(this.circuit);
+      if (somas.cells.length > 0) {
+        const painterCellSomas = new PainterCellSomas(context, {
+          dataPoint: somas.dataPoint,
+          dataUV: somas.dataUV,
+          palette: somas.palette,
+          opacity: this._neuronOpacity,
+        });
+        this.painterCellSomas = painterCellSomas;
+        this.groupCells.add(painterCellSomas);
+      }
       // Reported once the scene stands, and as the fraction it really is: a toggle that keeps
       // every morphology it had is finished the moment it is drawn, and a scene of somas alone
       // is as loaded as it will ever get.
@@ -1015,6 +1049,9 @@ export class PainterManager {
     for (const painter of this.cellPainters) {
       bbox.addBBox(painter.bbox);
     }
+    // Added by hand because only painters are walked here: without it a scene of context
+    // somas around a few morphologies would frame the morphologies alone.
+    if (this.painterCellSomas) bbox.addBBox(this.painterCellSomas.bbox);
     this.bbox.copyFrom(bbox);
     return bbox;
   }
@@ -1034,7 +1071,7 @@ export class PainterManager {
     const { cellsForHighlights, groupHighlightedCells } = this;
     groupHighlightedCells.removeAll(false);
     for (const painter of cellsForHighlights) {
-      groupHighlightedCells.add(painter);
+      if (painter) groupHighlightedCells.add(painter);
     }
     this.applyCellBrightness();
     this.context.value?.paint();
@@ -1056,9 +1093,11 @@ export class PainterManager {
     const { cellsForHighlights, circuit, highlightedCellIdSet, spiking } = this;
     const { glow } = spiking;
     for (let i = 0; i < cellsForHighlights.length; i++) {
+      const painter = cellsForHighlights[i];
+      if (!painter) continue;
+
       const highlighted = highlightedCellIdSet.has(circuit[i].id) ? 1 : 0;
       const intensity = Math.max(highlighted, glow[i] ?? 0);
-      const painter = cellsForHighlights[i];
       painter.active = intensity > 0;
       painter.intensity = intensity;
     }
@@ -1643,6 +1682,8 @@ export class PainterManager {
     // cells came back unchanged, and these hold a context that is about to go.
     this.cellPainters.splice(0);
     this.cellsForHighlights.splice(0);
+    // Dropped, not deleted: `groupCells.removeAll()` below takes it with the rest.
+    this.painterCellSomas = null;
     if (this.gizmoOverlay) {
       this.gizmoOverlay.eventTipClick.removeListener(this.handleGizmoTipClick);
       this.gizmoOverlay.detach();
@@ -1917,8 +1958,10 @@ function isAnotherScene(previous: ReadonlySet<string>, next: ReadonlySet<string>
 }
 
 /** The painters of a scene about to be replaced, by the cell each one draws. */
-function takeById<T extends PainterCell>(painters: readonly T[]): Map<string, T> {
-  return new Map(painters.map((painter) => [painter.cell.id, painter]));
+function takeById<T extends PainterCell>(painters: readonly (T | null)[]): Map<string, T> {
+  return new Map(
+    painters.filter((painter) => painter !== null).map((painter) => [painter.cell.id, painter])
+  );
 }
 
 /**

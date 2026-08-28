@@ -10,6 +10,7 @@ import {
 import { decodePickColor, spiralPixelOffsets } from "@/morphology-picking";
 
 import { PainterCellId } from "../painter-cell";
+import { buildSomaCloudData, CLOUD_FIRST_INDEX, PainterCellSomasId } from "../painter-cell-somas";
 import { isSameCell } from "../same-cell";
 
 import type { MorphoViewerSmallCircuitCell, MorphoViewerSmallCircuitCellData } from "../../types";
@@ -55,6 +56,14 @@ export class OffscreenPainter {
    */
   private readonly cellByIndex: (MorphoViewerSmallCircuitCell | undefined)[] = [];
   private readonly freeIndices: number[] = [];
+  /**
+   * The silhouettes of the cells drawn as a soma alone, and the cell behind each instance.
+   *
+   * Rebuilt whole on every update rather than kept: it is one program and one buffer for all
+   * of them, which is the point of drawing them this way.
+   */
+  private cloud: PainterCellSomasId | null = null;
+  private cloudCells: MorphoViewerSmallCircuitCell[] = [];
   private mix = 0;
   private isDeleted = false;
 
@@ -101,6 +110,9 @@ export class OffscreenPainter {
     // list for each of them.
     this.group.removeAll(false);
     for (const cell of circuit) {
+      // Drawn by the cloud below, which numbers its own instances.
+      if (cell.somaOnly) continue;
+
       const previous = kept.get(cell.id);
       kept.delete(cell.id);
       if (previous && isSameCell(previous.mesh.cell, cell)) {
@@ -119,11 +131,21 @@ export class OffscreenPainter {
       this.meshes.set(cell.id, { mesh, index });
       this.group.add(mesh);
     }
-    // What no cell claimed has left the scene, and its index goes back in the pool.
+    // What no cell claimed has left the scene, and its index goes back in the pool. A cell
+    // that turned into a soma alone is among them: it is in the cloud now.
     for (const { mesh, index } of kept.values()) {
       mesh.delete();
       this.cellByIndex[index - FIRST_INDEX] = undefined;
       this.freeIndices.push(index);
+    }
+    const somas = buildSomaCloudData(circuit);
+    this.cloud?.delete();
+    this.cloud = null;
+    this.cloudCells = somas.cells;
+    if (somas.cells.length > 0) {
+      const cloud = new PainterCellSomasId(this.context, somas.dataPoint);
+      this.cloud = cloud;
+      this.group.add(cloud);
     }
     this.paint();
   }
@@ -146,7 +168,9 @@ export class OffscreenPainter {
     const index = decodePickColor(context.readPixel(xScreen, yScreen));
     if (index === null) return;
 
-    return cellByIndex[index - FIRST_INDEX] ?? undefined;
+    return index >= CLOUD_FIRST_INDEX
+      ? this.cloudCells[index - CLOUD_FIRST_INDEX]
+      : (cellByIndex[index - FIRST_INDEX] ?? undefined);
   }
 
   /**

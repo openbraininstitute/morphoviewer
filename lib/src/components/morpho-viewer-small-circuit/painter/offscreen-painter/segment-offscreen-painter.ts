@@ -72,6 +72,10 @@ export class SegmentOffscreenPainter {
       })
     );
     for (const cell of options.circuit) {
+      // A cell drawn as a soma alone has no sections to resolve a click against, so a painter
+      // for it would cost a shader program to answer nothing.
+      if (cell.somaOnly) continue;
+
       const painter = new PainterCell(context, {
         cell,
         loadCell: options.loadCell,
