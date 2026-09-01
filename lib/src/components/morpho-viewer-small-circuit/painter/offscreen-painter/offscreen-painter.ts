@@ -125,6 +125,10 @@ export class OffscreenPainter {
       const previous = kept.get(cell.id);
       kept.delete(cell.id);
       if (previous && isSameCell(previous.mesh.cell, cell)) {
+        // The mesh stands, but the cell it answers with is this scene's. `isSameCell` compares
+        // values, and a host that resolves a click by identity — an `indexOf`, a `WeakMap` —
+        // would be handed an object out of the circuit before this one.
+        this.cellByIndex[previous.index - FIRST_INDEX] = cell;
         this.meshes.set(cell.id, previous);
         this.group.add(previous.mesh);
         continue;

@@ -32,6 +32,7 @@ import { OverlaySurface } from "@/painters/overlay-surface";
 import { CacheLRU } from "@/tools/cache-lru";
 
 import { cachedCellLoader } from "./cached-cell-loader";
+import { dedupeById } from "./dedupe-by-id";
 import { CameraManager, clampZoom } from "./camera";
 import { OffscreenPainter, SegmentOffscreenPainter } from "./offscreen-painter";
 import { PainterCell, PainterCellFlat } from "./painter-cell";
@@ -846,14 +847,15 @@ export class PainterManager {
       return;
     }
 
+    const cells = dedupeById(circuit);
     // A cell id's query part (after `?`) is a reload key: changing it reloads morphologies
     // (hosts use it for filters like the axon toggle) but says nothing about where the cells
     // are. The camera only refits when the cells themselves change, so a reload does not
     // throw away the zoom the user is standing at.
-    const placementIds = new Set(circuit.map((item) => item.id.split("?")[0]));
+    const placementIds = new Set(cells.map((item) => item.id.split("?")[0]));
     this.fitCameraOnUpdate = !this.placementIds || isAnotherScene(this.placementIds, placementIds);
     this.placementIds = placementIds;
-    this.circuit = circuit;
+    this.circuit = cells;
     this.loadCell = cachedCellLoader(this.loadedCellsCache, loadCell);
     this.onLoadProgress?.(0);
     this.context.waitUntiDefined().then(this.updateCircuit);
