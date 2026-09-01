@@ -27,6 +27,18 @@ describe("buildSomaCloudData", () => {
     expect(dataPoint).toHaveLength(8);
   });
 
+  it("reads `somaOnly` the way the passes that skip those cells read it", () => {
+    // A host outside TypeScript, or a value straight out of JSON. Every other
+    // pass tests it for truth, so a cell this one turned down for not being
+    // exactly `true` would be drawn by nobody at all.
+    const { cells } = buildSomaCloudData([
+      cell({ id: "a", somaOnly: 1 as unknown as boolean }),
+      cell({ id: "b", somaOnly: 0 as unknown as boolean }),
+    ]);
+
+    expect(cells.map((c) => c.id)).toEqual(["a"]);
+  });
+
   it("packs each cell as its centre and radius", () => {
     const { dataPoint } = buildSomaCloudData([
       cell({ center: [1, 2, 3], somaRadius: 4 }),

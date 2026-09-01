@@ -31,7 +31,10 @@ export interface SomaCloudData {
 export function buildSomaCloudData(
   circuit: readonly MorphoViewerSmallCircuitCell[]
 ): SomaCloudData {
-  const cells = circuit.filter((cell) => cell.somaOnly === true);
+  // Truthy, not `=== true`: `updateCircuit` and both pick buffers decide the same thing the
+  // same way, and a cell they agree to leave to the cloud has to end up in it — one left out
+  // of every pass is drawn nowhere, picked nowhere, and counted as loading nowhere either.
+  const cells = circuit.filter((cell) => Boolean(cell.somaOnly));
   const palette: string[] = [];
   const columnByColor = new Map<string, number>();
   const columns = cells.map((cell) => {
