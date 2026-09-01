@@ -62,9 +62,23 @@ class PainterManager {
    * Set while the host listens for cell clicks. A flag rather than counting
    * `eventCellClick`'s listeners, because it is what gates building the pick
    * buffer — a second copy of every position — and that should never happen
-   * for a host that never asked to click anything.
+   * for a host that never asked to click anything. Held to on the way down
+   * too, which is what {@link MorphoViewerSomasOnlyProps.onCellClick} promises:
+   * a host that stops listening stops paying.
    */
-  public cellPickingEnabled = false;
+  get cellPickingEnabled(): boolean {
+    return this._cellPickingEnabled;
+  }
+  set cellPickingEnabled(enabled: boolean) {
+    this._cellPickingEnabled = enabled;
+    if (enabled) return;
+
+    // Released rather than kept: it is a second context and a second copy of
+    // every position — 56 MB of them at region scale — for a viewer nobody can
+    // click any more, and the next click rebuilds it anyway.
+    this.somaPicker?.delete();
+    this.somaPicker = null;
+  }
 
   private readonly tapGuard = new TapGuard();
   /** Playback stopping, whether the host asked for it or the recording ran out. */
@@ -95,6 +109,7 @@ class PainterManager {
   private readonly spiking = new SpikingCircuit();
   /** Built on the first click, so a viewer nobody clicks never pays for it. */
   private somaPicker: SomaPicker | null = null;
+  private _cellPickingEnabled = false;
   private painterOverlays: PainterWorldOverlays | null = null;
   private readonly overlaySurface = new OverlaySurface();
   private overlayInteraction: OverlayInteractionController | null = null;
