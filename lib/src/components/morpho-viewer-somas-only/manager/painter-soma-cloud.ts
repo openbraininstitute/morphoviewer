@@ -307,12 +307,14 @@ function createProgram(
  * sphere surface rather than by sprite centre, which is not discernible where
  * a soma covers about a pixel.
  *
- * `depthPrecision` will not separate the two: `"none"` and `"low"` drop the
- * write but also the `sqrt` that turns the squared height into the height, and
- * the lighting reads that same value. Squared, it peaks at 0.93 rather than
- * 1.0 where the light meets the sphere — which through `pow(len, 50)` is a
- * highlight at a twentieth of its intensity, so the somas come out flat. So
- * ask for `"high"` and drop the statement. Matching on `gl_FragDepth` is
+ * `depthPrecision` will not separate the two, because no setting of it is the
+ * half wanted: `"high"` alone emits the `sqrt` that turns the squared height
+ * into the height, `"none"` alone drops the write, and `"low"` sits between
+ * them dropping the `sqrt` and keeping the write — the wrong half of each.
+ * And the `sqrt` cannot go: the lighting reads that same value, and squared it
+ * peaks at 0.93 rather than 1.0 where the light meets the sphere, which
+ * through `pow(len, 50)` is a highlight at a twentieth of its intensity, so
+ * the somas come out flat. So ask for `"high"` and drop the statement. Matching on `gl_FragDepth` is
  * stable: it is the GLSL builtin, the only way a shader can write its own
  * depth, and if tgd ever stops writing it this filter simply finds nothing.
  */

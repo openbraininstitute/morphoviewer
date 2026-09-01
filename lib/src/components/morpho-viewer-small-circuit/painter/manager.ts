@@ -25,29 +25,27 @@ import {
 } from "@tolokoban/tgd";
 import React from "react";
 
-import { watchSpacePerPixel, watchZoom } from "@/behaviors";
+import { TapGuard, watchSpacePerPixel, watchZoom } from "@/behaviors";
 import { computeSectionOffset } from "@/morphology-picking";
 import { OverlayInteractionController } from "@/painters/overlay-interaction";
 import { OverlaySurface } from "@/painters/overlay-surface";
 import { CacheLRU } from "@/tools/cache-lru";
 
 import { cachedCellLoader } from "./cached-cell-loader";
-import { dedupeById } from "./dedupe-by-id";
 import { CameraManager, clampZoom } from "./camera";
+import { dedupeById } from "./dedupe-by-id";
 import { OffscreenPainter, SegmentOffscreenPainter } from "./offscreen-painter";
 import { PainterCell, PainterCellFlat } from "./painter-cell";
 import { buildSomaCloudData, PainterCellSomas } from "./painter-cell-somas";
 import { PainterLocationMarkers } from "./painter-location-markers";
 import { PainterSynapses } from "./painter-synapses";
-import { TapGuard } from "@/behaviors";
+import { isSameCell } from "./same-cell";
 
 import {
   DEFAULT_SPIKE_AFTERGLOW_IN_SECONDS,
   DEFAULT_SPIKE_SPEED,
   SpikingCircuit,
 } from "@/spikes";
-
-import { isSameCell } from "./same-cell";
 
 import type { PainterWorldOverlays } from "@/painters/world-overlays";
 import type { MorphoViewerSpikes } from "@/spikes";
