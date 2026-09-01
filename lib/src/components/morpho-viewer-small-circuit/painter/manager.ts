@@ -37,7 +37,7 @@ import { PainterCell, PainterCellFlat } from "./painter-cell";
 import { buildSomaCloudData, PainterCellSomas } from "./painter-cell-somas";
 import { PainterLocationMarkers } from "./painter-location-markers";
 import { PainterSynapses } from "./painter-synapses";
-import { isStillPointer } from "@/behaviors";
+import { TapGuard } from "@/behaviors";
 
 import {
   DEFAULT_SPIKE_AFTERGLOW_IN_SECONDS,
@@ -198,6 +198,8 @@ export class PainterManager {
   /** Drawn on its own canvas, so it can paint at the screen's pixel ratio. */
   private gizmoOverlay: TgdCanvasGizmo | null = null;
   /** Turn the view to the axis whose tip was clicked. The camera manager does the move. */
+  private readonly tapGuard = new TapGuard();
+
   private readonly handleGizmoTipClick = ({ to }: { to: Readonly<TgdQuat> }) => {
     this.cameraManager?.turnTo(to);
   };
@@ -1273,6 +1275,7 @@ export class PainterManager {
     context.inputs.pointer.eventHover.addListener(this.handlePointerHover);
     context.inputs.pointer.eventTap.addListener(this.handlePointerTap);
     context.inputs.pointer.eventTapMultiple.addListener(this.debug);
+    this.tapGuard.attach(context);
     this.cameraManager = new CameraManager(context, this.eventRestingPosition);
     // A canvas re-attach recreates the manager while the mode may still be on, and the
     // `dendrogramMode` setter early-returns on an equal value — so seed the lock here too.
@@ -1492,14 +1495,14 @@ export class PainterManager {
     const { offscreen } = this;
     if (!offscreen) return;
 
+    // Turning the camera must neither select a cell nor drop a location, and an
+    // orbit arrives here as a tap like any other press.
+    if (!this.tapGuard.isClick(evt)) return;
+
     const cell = offscreen.getItemAt(evt.x, evt.y);
     if (cell) this.eventCellClick.dispatch(cell);
 
     if (!this._locationPickingEnabled) return;
-
-    // A drag must not add a point.
-    const canvas = this.context.value?.canvas;
-    if (!isStillPointer(evt, canvas?.width ?? 0, canvas?.height ?? 0)) return;
 
     // Deliberately re-resolved rather than reusing `cell`: an exact-pixel miss is common on a
     // thin neurite, and it is the difference between a click that works and one that quietly
@@ -1712,6 +1715,7 @@ export class PainterManager {
     this.painterOverlays = null;
     this.painterSynapses = null;
     this.eventScalebar.removeListener(this.handleSpacePerPixel);
+    this.tapGuard.detach();
     if (this.context.value) {
       this.context.value.eventPaint.removeListener(this.handleSpikeFrame);
       this.context.value.inputs.pointer.eventHover.removeListener(this.handlePointerHover);

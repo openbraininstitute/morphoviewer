@@ -1,3 +1,3 @@
 export * from "./space-per-pixel";
-export * from "./still-pointer";
+export * from "./tap-guard";
 export * from "./zoom";

@@ -16,7 +16,7 @@ import {
 } from "@tolokoban/tgd";
 import React from "react";
 
-import { isStillPointer, watchSpacePerPixel } from "@/behaviors";
+import { TapGuard, watchSpacePerPixel } from "@/behaviors";
 import { PainterGizmo } from "@/painters/gizmo";
 import { OverlayInteractionController } from "@/painters/overlay-interaction";
 import { OverlaySurface } from "@/painters/overlay-surface";
@@ -65,6 +65,8 @@ class PainterManager {
    * for a host that never asked to click anything.
    */
   public cellPickingEnabled = false;
+
+  private readonly tapGuard = new TapGuard();
   /** Playback stopping, whether the host asked for it or the recording ran out. */
   public readonly eventSpikePlaying = new TgdEvent<boolean>();
 
@@ -618,6 +620,7 @@ class PainterManager {
     this.applyCellGlow();
     context.eventPaint.addListener(this.handleSpikeFrame);
     context.inputs.pointer.eventTap.addListener(this.handlePointerTap);
+    this.tapGuard.attach(context);
     // A context is created paused. One that reopens mid-replay has to be told
     // to run, or the clock would sit still until something else asked to paint.
     if (this.spiking.playing) context.play();
@@ -743,10 +746,9 @@ class PainterManager {
 
     const { context } = this;
     if (!context) return;
-    // An electrode drag that ends quickly is emitted as a tap too.
-    if (this.overlayInteraction?.isDragging) return;
-    // So is a short orbit, and turning the camera must not select a cell.
-    if (!isStillPointer(evt, context.canvas.width, context.canvas.height)) return;
+    // Turning the camera must not select a cell, and an orbit arrives here as a
+    // tap like any other press.
+    if (!this.tapGuard.isClick(evt)) return;
 
     let picker = this.somaPicker;
     if (!picker) {
@@ -791,6 +793,7 @@ class PainterManager {
     this.context.eventPaint.removeListener(this.handleSpikeFrame);
     this.context.eventResize.removeListener(this.handleResize);
     this.context.inputs.pointer.eventTap.removeListener(this.handlePointerTap);
+    this.tapGuard.detach();
     this.somaPicker?.delete();
     this.somaPicker = null;
     this.eventScalebar.removeListener(this.handleSpacePerPixel);
