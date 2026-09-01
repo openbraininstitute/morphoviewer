@@ -77,6 +77,16 @@ class PainterManager {
   private _cellColors: MorphoViewerCellColors | undefined;
   /** Colours changed and the cloud has not been repainted for them yet. */
   private colorsPending = false;
+  /**
+   * The palette the cloud is drawing, which is not always the one last handed
+   * in: {@link PainterCellInfos.recolor} refuses colours sized for geometry
+   * that has not arrived. The picker takes its hidden mask from here rather
+   * than from {@link cellPalette}, so that it hides what the cloud hides.
+   * Seeded from a refused palette it would cull somas still on screen out of
+   * the ID buffer, and draw hidden ones into it to swallow the clicks meant
+   * for cells behind them.
+   */
+  private appliedPalette: MorphoViewerCellColors | null = null;
   /** The last hidden mask handed to the picker, kept to be filled again rather than rebuilt. */
   private hiddenSomas: Float32Array | null = null;
   private _backgroundColor = "black";
@@ -534,10 +544,11 @@ class PainterManager {
     if (!painterCellInfos.recolor(palette)) return;
 
     this.colorsPending = false;
+    this.appliedPalette = palette;
     // A recolour is also how a soma stops being drawn, and the picker has its
     // own cloud to keep in step. Only when one exists — it is built on the
     // first click, and most viewers never build one at all.
-    if (this.somaPicker) this.applyHiddenSomas(this.somaPicker, palette);
+    if (this.somaPicker) this.applyHiddenSomas(this.somaPicker, this.appliedPalette);
     context.paint();
   }
 
@@ -670,16 +681,19 @@ class PainterManager {
       depth: 1,
     });
     this.painterClear = clear;
+    // Read once: on the `cellInfos` path the getter walks every cell for it.
+    const palette = this.cellPalette;
     const painterCellInfos = new PainterCellInfos(context, {
       positions: this._positions ?? undefined,
       cellInfos,
-      colors: this.cellPalette,
+      colors: palette,
       somaRadius: this.somaRadius,
       opacity: this._neuronOpacity,
     });
     this.painterCellInfos = painterCellInfos;
     // Built with the palette as it stands, so no recolour is owed for it.
     this.colorsPending = false;
+    this.appliedPalette = palette;
     this.applyCellGlow();
     context.eventPaint.addListener(this.handleSpikeFrame);
     context.inputs.pointer.eventTap.addListener(this.handlePointerTap);
@@ -818,7 +832,7 @@ class PainterManager {
       picker = new SomaPicker(context, this._positions ?? flattenPositions(this._cellInfos));
       // Whatever was already hidden when the first click arrived; every change
       // after this one comes through `recolorInPlace`.
-      this.applyHiddenSomas(picker, this.cellPalette);
+      this.applyHiddenSomas(picker, this.appliedPalette);
       this.somaPicker = picker;
     }
     void picker
@@ -873,6 +887,7 @@ class PainterManager {
     this.orbit = null;
     this.painterClear = null;
     this.painterCellInfos = null;
+    this.appliedPalette = null;
     this.painterOverlays = null;
     this.painterGizmo.context = null;
     this.context.delete();
