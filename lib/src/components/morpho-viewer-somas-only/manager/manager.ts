@@ -814,6 +814,12 @@ class PainterManager {
         if (index !== null && index < this.cellCount) {
           this.eventCellClick.dispatch(index);
         }
+      })
+      .catch((ex) => {
+        // The readback runs against a context that may have gone in the meantime. A click
+        // that cannot be resolved is a click that selects nothing, not a rejection nobody
+        // handles.
+        console.error("Unable to pick a cell:", ex);
       });
   };
 

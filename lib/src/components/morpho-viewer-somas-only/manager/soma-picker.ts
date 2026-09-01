@@ -32,6 +32,15 @@ export class SomaPicker {
   private readonly offscreenCanvas = new OffscreenCanvas(1, 1);
   private readonly context: TgdContext;
   private readonly painter: PainterSomaCloudId;
+  /**
+   * How the pick in flight is answered, or null when there is none.
+   *
+   * A pick settles from `execAfterNextPaint`, and a paint is scheduled through
+   * `requestAnimationFrame` — which stops while the tab is hidden. Held here so
+   * a pick nobody can answer any more is answered with a miss, rather than left
+   * pending for as long as the page lives.
+   */
+  private pending: ((index: number | null) => void) | null = null;
   private isDeleted = false;
 
   constructor(
@@ -92,9 +101,24 @@ export class SomaPicker {
     // orbit/zoom the click was aimed with.
     context.camera = onscreenContext.camera;
     this.painter.radiusMultiplier = radiusMultiplier;
+    // Only the click just made is worth an answer. A tab hidden between the press and the
+    // frame stops the paint that would settle the pick, and the click it belonged to is long
+    // gone by the time the tab comes back.
+    this.pending?.(null);
     return new Promise((resolve) => {
+      const settle = (index: number | null) => {
+        if (this.pending !== settle) return;
+
+        this.pending = null;
+        resolve(index);
+      };
+      this.pending = settle;
       context.execAfterNextPaint(() => {
-        resolve(this.isDeleted ? null : this.readIndexNear(xClip, yClip, searchRadiusInPixels));
+        // Superseded or already answered: the readback is a CPU–GPU sync point, so it is
+        // worth not making it for an answer nobody is waiting on.
+        if (this.pending !== settle) return;
+
+        settle(this.isDeleted ? null : this.readIndexNear(xClip, yClip, searchRadiusInPixels));
       });
       context.paint();
     });
@@ -142,6 +166,9 @@ export class SomaPicker {
 
   delete() {
     this.isDeleted = true;
+    // The frame this was waiting for is not coming. Left alone it would hold its resolve, and
+    // everything the click closed over, for as long as the page lives.
+    this.pending?.(null);
     this.context.delete();
   }
 }
