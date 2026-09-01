@@ -470,8 +470,17 @@ describe("hiddenSomaMask", () => {
     expect(Array.from(mask ?? [])).toEqual([1, 0]);
   });
 
-  it("leaves somas the columns do not describe pickable", () => {
+  it("sends somas the columns do not describe to the first column, as the palette does", () => {
+    // The alternative was leaving them wherever `u` happened to point, which on
+    // a palette this narrow is the hidden column itself: culled on screen, and
+    // reported as pickable.
     const mask = hiddenSomaMask({ palette: [false], columnByCell: new Uint16Array([0]) }, 3);
+
+    expect(Array.from(mask ?? [])).toEqual([1, 1, 1]);
+  });
+
+  it("keeps them pickable when that first column is drawn", () => {
+    const mask = hiddenSomaMask({ palette: ["red", false], columnByCell: new Uint16Array([1]) }, 3);
 
     expect(Array.from(mask ?? [])).toEqual([1, 0, 0]);
   });

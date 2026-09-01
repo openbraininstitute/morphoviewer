@@ -300,14 +300,22 @@ function addSomaBounds(dataPoint: Readonly<Float32Array>, bbox: TgdBoundingBox):
 }
 
 /**
- * The palette column a soma takes, clamped to the columns there are.
+ * The palette column a soma takes.
  *
  * The one place that rule is stated: what is drawn and what is pickable are
  * decided by two different walks over these columns, and a soma that landed in
  * different columns between them would be invisible and still swallow clicks.
+ *
+ * A column past the end of the palette is clamped to the last one; a soma the
+ * host described no column for takes the first. That is a column like any
+ * other — hidden if the palette hides it — and answering here rather than
+ * leaving `u` at whatever it held is what keeps the two walks together: at a
+ * palette one column wide, the middle of the texture *is* that column, so
+ * "keep the default" meant culled on screen and pickable all the same.
  */
-function columnAt(colors: MorphoViewerCellColors, cell: number): number {
-  return Math.min(colors.columnByCell[cell], colors.palette.length - 1);
+function columnForCell(colors: MorphoViewerCellColors, cell: number): number {
+  const column = cell < colors.columnByCell.length ? colors.columnByCell[cell] : 0;
+  return Math.min(column, colors.palette.length - 1);
 }
 
 /**
@@ -322,12 +330,15 @@ function writeColumns(
 ): (string | null | false)[] | null {
   if (!colors || colors.palette.length === 0) return null;
 
-  const { palette, columnByCell } = colors;
+  const { palette } = colors;
   const width = palette.length;
-  for (let cell = 0; cell < columnByCell.length; cell++) {
+  // Every soma, not only the ones the host gave a column for: one left behind
+  // samples the middle of the palette, which is a column nobody chose.
+  const count = dataUV.length >> 1;
+  for (let cell = 0; cell < count; cell++) {
     // the horizontal center of the column, so linear filtering returns the
     // exact column color for every soma
-    dataUV[cell * 2] = (columnAt(colors, cell) + 0.5) / width;
+    dataUV[cell * 2] = (columnForCell(colors, cell) + 0.5) / width;
   }
   return palette;
 }
@@ -349,13 +360,10 @@ export function hiddenSomaMask(
 ): Float32Array | null {
   if (!colors?.palette.includes(false)) return null;
 
-  const { palette, columnByCell } = colors;
+  const { palette } = colors;
   const hidden = new Float32Array(count);
-  // Somas past the columns given keep the palette's own default, which is a
-  // column that is drawn.
-  const described = Math.min(count, columnByCell.length);
-  for (let cell = 0; cell < described; cell++) {
-    if (palette[columnAt(colors, cell)] === false) hidden[cell] = 1;
+  for (let cell = 0; cell < count; cell++) {
+    if (palette[columnForCell(colors, cell)] === false) hidden[cell] = 1;
   }
   return hidden;
 }
@@ -409,7 +417,9 @@ export function cellPaletteFromCellInfos(
  * hue, which is what a cloud nobody has coloured has always looked like.
  *
  * A `false` column is left clear, which is how a soma goes undrawn: the cloud
- * culls whatever samples an alpha of zero.
+ * culls whatever samples an alpha of zero. It is the only way — a colour of
+ * its own carrying zero alpha still takes the occlusion shade composited over
+ * it, and comes out a dark soma rather than no soma.
  */
 function createPalette(colors: (string | null | false)[], rows: number): HTMLCanvasElement {
   const width = colors.length;
