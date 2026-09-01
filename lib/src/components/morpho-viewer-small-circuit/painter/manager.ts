@@ -1545,8 +1545,6 @@ export class PainterManager {
   }
 
   private rebuildSegmentOffscreen() {
-    this.segmentOffscreen?.delete();
-    this.segmentOffscreen = null;
     const context = this.context.value;
     const { loadCell } = this;
     // A location pick needs a hit in both buffers, so the cell buffer has to be at least as
@@ -1557,6 +1555,17 @@ export class PainterManager {
         ? LOCATION_PICKING_RESOLUTION_DIVIDER
         : CELL_PICKING_RESOLUTION_DIVIDER;
     }
+    // A buffer that is still wanted is updated, not built again: it holds a painter, and so a
+    // shader program, for every cell in the scene with a morphology, and this runs on every
+    // circuit update. Only turning location picking on or off gets a new one.
+    if (this.segmentOffscreen && this.needsSegmentOffscreen && context && loadCell) {
+      this.segmentOffscreen.setCircuit(this.circuit, loadCell);
+      this.applyLocationMarkers();
+      return;
+    }
+
+    this.segmentOffscreen?.delete();
+    this.segmentOffscreen = null;
     // Needed for markers too, not just picking: it owns the section index they resolve
     // against, so read-only markers have nowhere to sit without it.
     if (!this.needsSegmentOffscreen || !context || !loadCell) return;
@@ -1690,6 +1699,10 @@ export class PainterManager {
     this.framebufferHighlightedCells = null;
     this.offscreen?.delete();
     this.offscreen = null;
+    // Both pick buffers go with the scene: each holds a listener on the context below and a
+    // context of its own, and the next canvas builds its own pair.
+    this.segmentOffscreen?.delete();
+    this.segmentOffscreen = null;
     this.cameraManager?.delete();
     this.cameraManager = null;
     this.groupCells.removeAll();
