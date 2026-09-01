@@ -31,6 +31,7 @@ import { OverlayInteractionController } from "@/painters/overlay-interaction";
 import { OverlaySurface } from "@/painters/overlay-surface";
 import { CacheLRU } from "@/tools/cache-lru";
 
+import { cachedCellLoader } from "./cached-cell-loader";
 import { CameraManager, clampZoom } from "./camera";
 import { OffscreenPainter, SegmentOffscreenPainter } from "./offscreen-painter";
 import { PainterCell, PainterCellFlat } from "./painter-cell";
@@ -180,11 +181,6 @@ export class PainterManager {
   private framebufferHighlightedCells: Framebuffer | null = null;
   private framebufferBlur: Framebuffer | null = null;
   private loadedCellsCache = new CacheLRU<Promise<MorphoViewerSmallCircuitCellData | null>>(24);
-  /**
-   * The cell ids on screen, reload key included, or null before the first
-   * circuit. Gates {@link loadedCellsCache}.
-   */
-  private circuitIds: ReadonlySet<string> | null = null;
   /**
    * When false, the next circuit update rebuilds the cells but keeps the
    * camera: a recolour, a reload, or a population hidden or shown again, none
@@ -850,7 +846,6 @@ export class PainterManager {
       return;
     }
 
-    const ids = new Set(circuit.map((item) => item.id));
     // A cell id's query part (after `?`) is a reload key: changing it reloads morphologies
     // (hosts use it for filters like the axon toggle) but says nothing about where the cells
     // are. The camera only refits when the cells themselves change, so a reload does not
@@ -858,23 +853,8 @@ export class PainterManager {
     const placementIds = new Set(circuit.map((item) => item.id.split("?")[0]));
     this.fitCameraOnUpdate = !this.placementIds || isAnotherScene(this.placementIds, placementIds);
     this.placementIds = placementIds;
-    // The cache is keyed by the path part alone — `PainterCell` drops the reload key before
-    // asking — so a cell that stays on screen under a new key would be handed back the
-    // geometry that key was meant to replace. Cells leaving or arriving change no other
-    // cell's key, and what is cached for the ones that stay is still what they draw.
-    if (!this.circuitIds || isAnotherScene(this.circuitIds, ids)) {
-      this.loadedCellsCache.clear();
-    }
-    this.circuitIds = ids;
     this.circuit = circuit;
-    this.loadCell = (id: string) => {
-      const cached = this.loadedCellsCache.get(id);
-      if (cached) return cached;
-
-      const promise = loadCell(id);
-      this.loadedCellsCache.set(id, promise);
-      return promise;
-    };
+    this.loadCell = cachedCellLoader(this.loadedCellsCache, loadCell);
     this.onLoadProgress?.(0);
     this.context.waitUntiDefined().then(this.updateCircuit);
   }

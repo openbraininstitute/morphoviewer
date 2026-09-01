@@ -241,8 +241,10 @@ export class PainterCell extends TgdPainterGroup {
     const { cell, loadCell, onCellLoaded } = this.options;
 
     try {
-      const [path] = cell.id.split("?");
-      const data = await loadCell(path);
+      // Asked for by the whole id, reload key and all. The key names which
+      // geometry the host means, so it belongs in whatever the answer is filed
+      // under; the manager drops it before the host itself is asked.
+      const data = await loadCell(cell.id);
       // Morphologies arrive long after the request, and a painter can be torn down while its
       // load is still in flight — switching location picking on and off rebuilds the segment
       // pass, taking its context with it. Building geometry against a deleted context throws,
