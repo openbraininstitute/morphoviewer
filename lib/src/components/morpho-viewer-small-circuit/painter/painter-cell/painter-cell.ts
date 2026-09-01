@@ -18,8 +18,7 @@ import {
 } from "@tolokoban/tgd";
 
 import { type MorphoViewerTree, MorphoViewerTreeItemType } from "@/components/morpho-viewer-simul";
-import { MaterialSegmentIndex } from "@/morphology-picking";
-import { int16ToVec3 } from "@/utils";
+import { encodePickColor, MaterialSegmentIndex } from "@/morphology-picking";
 
 import { createCellFromTree } from "./factory/tree";
 import { MaterialDiffuseAlpha } from "./material-diffuse-alpha";
@@ -71,6 +70,7 @@ export class PainterCell extends TgdPainterGroup {
   private readonly material: TgdMaterial;
   private readonly texturePalette: TgdTexture2D;
   private _isDeleted = false;
+  private _isLoaded = false;
   private _bbox = new TgdBoundingBox();
   private _sections: CellSectionIndex | null = null;
   private _dendrogramMix = 0;
@@ -98,8 +98,19 @@ export class PainterCell extends TgdPainterGroup {
           color: texture,
           lockLightsToCamera: true,
           opacity: options.opacity ?? 1,
+          // Half ambient and half diffuse, so a surface turned away from the light keeps half
+          // its colour instead of going black. That is the band `PainterCellSomas` draws its
+          // spheres in (`smoothstep(...) * 0.5 + 0.5`), and the two have to agree: a
+          // population drawn as somas alone stands beside one drawn in full, so a colour that
+          // renders light on the spheres and near-black on the neurites reads as two colours
+          // rather than one. The alpha carries the intensity — the 0 it used to hold left
+          // these cells with no ambient at all.
           ambient: new TgdLight({
-            color: [0.8, 0.8, 0.8, 0],
+            color: [0.5, 0.5, 0.5, 1],
+          }),
+          light: new TgdLight({
+            direction: [-0.3, 0.3, -1],
+            color: [0.5, 0.5, 0.5, 1],
           }),
         });
         break;
@@ -114,7 +125,7 @@ export class PainterCell extends TgdPainterGroup {
       // Offscreen selection IDs.
       default:
         this.material = new TgdMaterialFlat({
-          color: [...int16ToVec3(materialType), 1],
+          color: [...encodePickColor(materialType), 1],
         });
         break;
     }
@@ -129,7 +140,29 @@ export class PainterCell extends TgdPainterGroup {
       material: this.material,
     });
     this.add(mesh);
-    this.loadCell();
+    // The soma sphere is the whole drawing for a cell the host has no morphology for, so
+    // there is nothing to ask for and nothing to wait on.
+    if (!cell.somaOnly) this.loadCell();
+  }
+
+  /**
+   * The values this painter was built from.
+   *
+   * Read when a scene is updated: a painter costs a compiled shader program, so one whose cell
+   * came back unchanged is kept rather than thrown away and built again.
+   */
+  get cell(): MorphoViewerSmallCircuitCell {
+    return this.options.cell;
+  }
+
+  /**
+   * Whether `loadCell` has answered, whatever it answered.
+   *
+   * A painter kept across a scene update has already reported itself once, and will not report
+   * again; a count of what the scene is waiting on has to take it as arrived.
+   */
+  get isLoaded(): boolean {
+    return this._isLoaded;
   }
 
   get bbox(): Readonly<TgdBoundingBox> {
@@ -208,42 +241,50 @@ export class PainterCell extends TgdPainterGroup {
     const { cell, loadCell, onCellLoaded } = this.options;
 
     try {
-      const [path] = cell.id.split("?");
-      const data = await loadCell(path);
+      // Asked for by the whole id, reload key and all. The key names which
+      // geometry the host means, so it belongs in whatever the answer is filed
+      // under; the manager drops it before the host itself is asked.
+      const data = await loadCell(cell.id);
       // Morphologies arrive long after the request, and a painter can be torn down while its
       // load is still in flight — switching location picking on and off rebuilds the segment
       // pass, taking its context with it. Building geometry against a deleted context throws,
       // so stop here instead.
       if (this.isDeleted) return;
 
-      if (isCellAsTree(data)) {
-        const { node, bbox, sections, setDendrogramMix } = createCellFromTree(
-          context,
-          material,
-          data.data,
-          isSelectionMaterial(this.options.material ?? "full"),
-          this.options.somaAsSphere ?? false
-        );
-        this._sections = sections;
-        this.applyDendrogramMix = setDendrogramMix;
-        // A cell can load while the viewer is already in dendrogram mode.
-        setDendrogramMix(this._dendrogramMix);
-        const [x, y, z] = cell.center;
-        const quat = new TgdQuat(cell.orientation);
-        node.transfo.setPosition(x, y, z);
-        node.transfo.orientation = quat;
-        const [sx, sy, sz] = computeSomaCenter(data, node.transfo);
-        const transformedBBox = recenterBBox(applyTransfoToBBox(node.transfo, bbox), sx, sy, sz);
-        this.removeAll();
-        this.add(node);
-        if (transformedBBox) {
-          this._bbox = transformedBBox;
-        }
-        if (onCellLoaded) {
-          onCellLoaded(transformedBBox);
-        }
-        context.paint();
+      // Answered, but with nothing to draw: a morphology the host could not find, or one it
+      // will not serve for this cell. Reported all the same, because the cell has finished
+      // loading and a count waiting on it would never reach the end.
+      if (!isCellAsTree(data)) {
+        this._isLoaded = true;
+        onCellLoaded?.(null);
+        return;
       }
+
+      const { node, bbox, sections, setDendrogramMix } = createCellFromTree(
+        context,
+        material,
+        data.data,
+        isSelectionMaterial(this.options.material ?? "full"),
+        this.options.somaAsSphere ?? false
+      );
+      this._sections = sections;
+      this.applyDendrogramMix = setDendrogramMix;
+      // A cell can load while the viewer is already in dendrogram mode.
+      setDendrogramMix(this._dendrogramMix);
+      const [x, y, z] = cell.center;
+      const quat = new TgdQuat(cell.orientation);
+      node.transfo.setPosition(x, y, z);
+      node.transfo.orientation = quat;
+      const [sx, sy, sz] = computeSomaCenter(data, node.transfo);
+      const transformedBBox = recenterBBox(applyTransfoToBBox(node.transfo, bbox), sx, sy, sz);
+      this.removeAll();
+      this.add(node);
+      if (transformedBBox) {
+        this._bbox = transformedBBox;
+      }
+      this._isLoaded = true;
+      onCellLoaded?.(transformedBBox);
+      context.paint();
     } catch (error) {
       // A painter torn down mid-load is routine, not a failure: toggling location picking
       // rebuilds the segment pass and takes its context with it while morphologies are still
@@ -251,11 +292,15 @@ export class PainterCell extends TgdPainterGroup {
       if (this.isDeleted || this.context.isDeleted) return;
 
       console.error(`Error loading cell "${cell.id}":`, error);
+      this._isLoaded = true;
       onCellLoaded?.(null);
     }
   }
 
   delete(): void {
+    // The mesh holds a shader program, a vertex array and its buffers, and the morphology
+    // replaces it with more of the same. Dropping the reference releases none of that.
+    super.delete();
     this.texturePalette.delete();
     this.isDeleted = true;
   }

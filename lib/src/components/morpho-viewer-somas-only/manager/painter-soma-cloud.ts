@@ -38,12 +38,25 @@ const GLOW_BIAS = 0.4;
  * appears is far easier to catch than one that changes colour.
  */
 const DEFAULT_GLOW_SWELL = 0.7;
+/**
+ * Alpha below which a soma is not drawn at all.
+ *
+ * Half a step of the palette texture's 8-bit alpha, so it catches the columns
+ * left clear for hidden somas and nothing a host can reach with an opacity
+ * setting, the lowest of which is a whole step.
+ */
+const HIDDEN_ALPHA = 0.5 / 255;
 
 export interface PainterSomaCloudOptions {
-  /** `[x, y, z, radius]` per soma; radius is scaled by `radiusMultiplier`. */
-  dataPoint: Float32Array;
+  /**
+   * `[x, y, z, radius]` per soma; radius is scaled by `radiusMultiplier`.
+   *
+   * Uploaded straight from the array's own `ArrayBuffer`, so it must own it:
+   * a view onto a larger buffer would send the whole of it.
+   */
+  dataPoint: Float32Array<ArrayBuffer>;
   /** `[u, v]` per soma: `u` picks the palette column, `v` carries occlusion. */
-  dataUV: Float32Array;
+  dataUV: Float32Array<ArrayBuffer>;
   /** Palette sampled at `dataUV`. Owned by the caller, never deleted here. */
   texture: TgdTexture2D;
   radiusMultiplier?: number;
@@ -76,7 +89,8 @@ export class PainterSomaCloud extends TgdPainter {
   private readonly glowSwell: number;
   private readonly program: TgdProgram;
   private readonly vao: TgdVertexArray;
-  /** Where the glow sits among the VAO's datasets, which is how it is addressed. */
+  /** Where these sit among the VAO's datasets, which is how they are addressed. */
+  private readonly uvBufferIndex: number;
   private readonly glowBufferIndex: number;
   private glowWarned = false;
 
@@ -91,13 +105,23 @@ export class PainterSomaCloud extends TgdPainter {
     this.glowSwell = options.glowSwell ?? DEFAULT_GLOW_SWELL;
     this.count = options.dataUV.length >> 1;
 
-    const instances = new TgdDataset({ attPoint: "vec4", attUV: "vec2" }, { divisor: 1 });
-    instances.set("attPoint", options.dataPoint);
-    instances.set("attUV", options.dataUV);
+    // Every one of these is built straight from a sized ArrayBuffer rather than
+    // through `TgdDataset.set`, which copies one soma at a time — a loop worth
+    // avoiding at region scale.
+    const points = new TgdDataset(
+      { attPoint: "vec4" },
+      { divisor: 1, data: options.dataPoint.buffer }
+    );
 
-    // Built straight from a sized ArrayBuffer rather than through
-    // `TgdDataset.set`, which copies one soma at a time — a loop worth avoiding
-    // at region scale for what is only a buffer of zeros.
+    // Its own dataset, and dynamic, where tgd's points cloud interleaves it
+    // with the positions: recolouring rewrites `u` for every soma and touches
+    // nothing else, and sharing one buffer would make that six floats of
+    // traffic per soma to move one — the same reason the glow sits apart.
+    const uv = new TgdDataset(
+      { attUV: "vec2" },
+      { divisor: 1, usage: "DYNAMIC_DRAW", data: options.dataUV.buffer }
+    );
+
     const glow = new TgdDataset(
       { attGlow: "float" },
       {
@@ -110,10 +134,28 @@ export class PainterSomaCloud extends TgdPainter {
     const billboards = new TgdDataset({ attPointCoord: "vec2" });
     billboards.set("attPointCoord", new Float32Array([-1, -1, +1, -1, +1, +1, -1, +1]));
 
-    const datasets = [instances, glow, billboards];
+    const datasets = [points, uv, glow, billboards];
+    this.uvBufferIndex = datasets.indexOf(uv);
     this.glowBufferIndex = datasets.indexOf(glow);
     this.program = createProgram(context, this.glowColor, this.glowSwell);
     this.vao = new TgdVertexArray(context.gl, this.program, datasets);
+  }
+
+  /**
+   * Push a new palette column for every soma.
+   *
+   * Expects the array {@link PainterCellInfos} owns and rewrites in place, so
+   * this is a straight copy to the GPU — and the occlusion it carries in `v`
+   * rides along untouched, which is the point: occlusion depends on the
+   * positions alone, and a recolour does not move a soma.
+   */
+  setUV(dataUV: Readonly<Float32Array>) {
+    const buffer = this.vao.getBuffer(this.uvBufferIndex);
+    if (!buffer) return;
+
+    const { gl } = this.context;
+    buffer.bind();
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, dataUV as Float32Array);
   }
 
   /**
@@ -191,23 +233,27 @@ function createProgram(
     varying: {
       varColor: "vec4",
       varPointCoord: "vec2",
-      varDepth: "float",
       varGlow: "float",
     },
     mainCode: [
       "varColor = texture(uniTexture, attUV);",
+      // A palette column left clear is a soma the host is not drawing. Sending
+      // it outside the clip volume here costs no fragments at all, where
+      // letting it blend away would still shade a sprite — and the glow below
+      // forces alpha back to 1 as a soma spikes, so blending away is not even
+      // reliable. `attUV` is per instance, so all four corners of the sprite
+      // agree and the whole billboard is clipped rather than half of it.
+      `if (varColor.a < ${HIDDEN_ALPHA.toFixed(8)}) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }`,
       // Shaped once here: a sprite is one vertex and many fragments, and the
       // swell below wants the same value the colour fades on.
       `float glow = pow(attGlow, ${GLOW_BIAS.toFixed(6)});`,
       "varGlow = glow;",
       // The swell is inside the radius rather than applied to the sprite
-      // afterwards, so the lit sphere and the depth it writes grow together.
+      // afterwards, so the lit sphere grows with it rather than being scaled
+      // up around a sphere of the old size.
       `float radius = attPoint.w * uniRadiusMultiplier * (1.0 + glow * ${glowSwell.toFixed(6)});`,
       "vec4 point = uniModelViewMatrix * vec4(attPoint.xyz, 1.0);",
       "gl_Position = uniProjectionMatrix * point;",
-      "vec4 depth = point + vec4(0, 0, radius, 0);",
-      "vec4 screenDepth = uniProjectionMatrix * depth;",
-      "varDepth = (gl_Position.z - screenDepth.z) * .5;",
       "vec4 shift = point + vec4(radius, radius, 0, 0);",
       "vec4 screenShift = uniProjectionMatrix * shift;",
       // tgd floors this at `uniMinSizeInPixels`, which the soma cloud has never
@@ -223,23 +269,11 @@ function createProgram(
     varying: {
       varColor: "vec4",
       varPointCoord: "vec2",
-      varDepth: "float",
       varGlow: "float",
     },
     outputs: { FragColor: "vec4" },
     functions: {
-      render: [
-        "vec4 render(vec4 color) {",
-        TgdPainterPointsCloud.fragCodeSphere({
-          enableSpecular: true,
-          specularExponent: 50,
-          specularIntensity: 0.33,
-          shadowIntensity: 0.5,
-          shadowThickness: 1,
-          light: 1,
-        }),
-        "}",
-      ],
+      render: ["vec4 render(vec4 color) {", sphereShadingWithoutDepthWrite(), "}"],
     },
     mainCode: [
       `vec3 glowColor = vec3(${red.toFixed(6)}, ${green.toFixed(6)}, ${blue.toFixed(6)});`,
@@ -260,4 +294,55 @@ function createProgram(
   }).code;
 
   return new TgdProgram(context.gl, { vert, frag });
+}
+
+/**
+ * tgd's sphere shading, with the one statement a soma cloud cannot afford.
+ *
+ * A fragment shader that writes `gl_FragDepth` cannot be early-Z rejected, so
+ * every sprite behind another still runs in full — and at region scale the
+ * somas overdraw each other many times over, leaving the frame entirely
+ * fill-rate bound: measured at 4.7M somas, 177ms a frame with the write
+ * against 25ms without it. What it buys is that two overlapping somas sort by
+ * sphere surface rather than by sprite centre, which is not discernible where
+ * a soma covers about a pixel.
+ *
+ * `depthPrecision` will not separate the two, because no setting of it is the
+ * half wanted: `"high"` alone emits the `sqrt` that turns the squared height
+ * into the height, `"none"` alone drops the write, and `"low"` sits between
+ * them dropping the `sqrt` and keeping the write — the wrong half of each.
+ * And the `sqrt` cannot go: the lighting reads that same value, and squared it
+ * peaks at 0.93 rather than 1.0 where the light meets the sphere, which
+ * through `pow(len, 50)` is a highlight at a twentieth of its intensity, so
+ * the somas come out flat. So ask for `"high"` and drop the statement. Matching on `gl_FragDepth` is
+ * stable: it is the GLSL builtin, the only way a shader can write its own
+ * depth, and if tgd ever stops writing it this filter simply finds nothing.
+ */
+function sphereShadingWithoutDepthWrite(): string[] {
+  const shading = TgdPainterPointsCloud.fragCodeSphere({
+    enableSpecular: true,
+    specularExponent: 50,
+    specularIntensity: 0.33,
+    shadowIntensity: 0.5,
+    shadowThickness: 1,
+    light: 1,
+    depthPrecision: "high",
+  });
+  // tgd types shader code as a bloc that may nest; this one is a flat list of
+  // statements, some of them empty where an option turned a line off.
+  const statements = Array.isArray(shading) ? shading : [shading];
+  const kept = statements.filter(
+    (statement): statement is string =>
+      typeof statement === "string" && !statement.includes("gl_FragDepth")
+  );
+  // Say so rather than quietly render seven times slower. Finding nothing to
+  // strip is not the safe outcome the filter's shape suggests: it means a tgd
+  // release reformatted the statement, early-Z is off again, and the only
+  // symptom is 177ms frames that no test without a GL context can see.
+  if (kept.length === statements.length) {
+    console.error(
+      "PainterSomaCloud: no gl_FragDepth write found in tgd's fragCodeSphere — the soma cloud is now fill-rate bound. Check whether tgd gained an option to drop it."
+    );
+  }
+  return kept;
 }

@@ -1,59 +1,102 @@
 import { Proximity } from "./proximity";
-import { getUniformlyDistributedRays } from "./rays";
 
 import type { ArrayNumber3 } from "@tolokoban/tgd";
 
-export function computeAmbientOcclusion(
-  bbox: { min: ArrayNumber3; max: ArrayNumber3 },
-  radius: number,
-  points: Float32Array,
-  uvs: Float32Array,
-  intensity = 0.5
-): Float32Array {
-  if (bbox.min[0] > bbox.max[0]) {
-    // Skip computation for empty bounding boxes.
-    console.log("Skip computation for empty bounding boxes.");
-    return uvs;
+/**
+ * How occluded every soma in a cloud is, as work that can be picked up and
+ * put down.
+ *
+ * The occlusion itself is a proximity sum: how much of the sphere of `radius`
+ * around a soma its neighbours take up, normalized so the most buried soma in
+ * the cloud reads 1 and an isolated one reads 0. What used to be one function
+ * call is a class because at region scale the counting is about a second of
+ * arithmetic, and the caller wants to spread it over idle slices rather than
+ * spend it in one piece on the first paint: build one, call {@link advance}
+ * until it says it is done, then {@link writeInto} the cloud's `[u, v]` array.
+ *
+ * The totals accumulate here rather than in that array, so whatever uploads
+ * it mid-computation — a recolour, say — carries the flat shading the array
+ * started with instead of half of an unnormalized result.
+ */
+export class AmbientOcclusionComputation {
+  /** Raw per-soma occlusion; {@link writeInto} is what normalizes it. */
+  private readonly totals: Float32Array;
+  /** Largest of {@link totals}, running, so normalizing needs no extra pass. */
+  private maxTotal = 0;
+  /** The soma {@link advance} continues from. */
+  private cursor = 0;
+  /** Built on first use: it walks every soma, which is exactly the kind of
+   * work creating this class must not do. */
+  private proximity: Proximity | null = null;
+  private readonly radiusSquare: number;
+  /**
+   * The sum {@link addNeighbor} is building, for the soma {@link advance} is on.
+   *
+   * A field, and the callback created once, because the obvious form — an arrow
+   * closing over a `let total` inside the loop — allocates a closure and its
+   * context for every soma. That is two allocations per soma across the whole
+   * cloud, in the loop this class exists to spread out because it is already
+   * about a second of arithmetic.
+   */
+  private accumulator = 0;
+  private readonly addNeighbor = (
+    _x: number,
+    _y: number,
+    _z: number,
+    _r: number,
+    distSquare: number
+  ) => {
+    this.accumulator += this.radiusSquare - distSquare;
+  };
+
+  constructor(
+    private readonly bbox: { min: ArrayNumber3; max: ArrayNumber3 },
+    private readonly radius: number,
+    /** `[x, y, z, radius]` per soma, the cloud's own layout. */
+    private readonly points: Float32Array
+  ) {
+    this.totals = new Float32Array(points.length >> 2);
+    this.radiusSquare = radius * radius;
   }
 
-  //   const rays = getUniformlyDistributedRays();
-  const proximity = new Proximity(points, bbox, radius);
-  const radiusSquare = radius * radius;
-  //   const invRadiusSquare = 1 / radiusSquare;
-  let indexUV = 1;
-  let maxAO = 0;
-  for (let pointIndex = 0; pointIndex < points.length; pointIndex += 4) {
-    let totalAO = 0;
-    proximity.forEachNeighbor(
-      pointIndex,
-      (_X: number, _Y: number, _Z: number, _R: number, distSquare: number) =>
-        (totalAO += radiusSquare - distSquare)
-    );
-    // Real Ambien Occlusion is disabled for now.
-    // for (const [x, y, z] of rays) {
-    //   let ao = 0;
-    //   proximity.forEachNeighbor(
-    //     pointIndex,
-    //     (X: number, Y: number, Z: number, R: number, distSquare: number) => {
-    //       const distToRaySquare =
-    //         (Y * z - z * Y) ** 2 +
-    //         (Z * x - X * z) ** 2 +
-    //         (X * y - Y * x) ** 2 / (x * x + y * y + z * z);
-    //       if (distToRaySquare > R) return true;
+  get done(): boolean {
+    // An inside-out bounding box is a cloud with nothing in it.
+    return this.cursor >= this.totals.length || this.bbox.min[0] > this.bbox.max[0];
+  }
 
-    //       ao += radiusSquare - distSquare;
-    //       if (ao > radiusSquare) return false;
-    //     }
-    //   );
-    //   totalAO += ao;
-    // }
-    uvs[indexUV] = totalAO;
-    maxAO = Math.max(maxAO, totalAO);
-    indexUV += 2;
+  /** Sum neighbours for up to `count` more somas. Returns {@link done}. */
+  advance(count: number): boolean {
+    if (this.done) return true;
+
+    const proximity = (this.proximity ??= new Proximity(this.points, this.bbox, this.radius));
+    const { totals } = this;
+    const end = Math.min(totals.length, this.cursor + count);
+    for (let soma = this.cursor; soma < end; soma++) {
+      this.accumulator = 0;
+      proximity.forEachNeighbor(soma * 4, this.addNeighbor);
+      const total = this.accumulator;
+      totals[soma] = total;
+      if (total > this.maxTotal) this.maxTotal = total;
+    }
+    this.cursor = end;
+    return this.done;
   }
-  const invMaxAO = 1 / maxAO;
-  for (let i = 1; i < uvs.length; i += 2) {
-    uvs[i] *= invMaxAO;
+
+  /**
+   * Write the normalized occlusion into the `v` of every `[u, v]` pair,
+   * leaving `u` — the palette column — alone. Call it once {@link done}.
+   *
+   * A cloud where no soma has a neighbour in range never writes at all:
+   * there is nothing to normalize by, and the flat shading the array was
+   * initialized with is already the right answer.
+   */
+  writeInto(uvs: Float32Array): void {
+    const { totals, maxTotal } = this;
+    if (maxTotal <= 0) return;
+
+    const invMax = 1 / maxTotal;
+    for (let soma = 0; soma < totals.length; soma++) {
+      uvs[soma * 2 + 1] = totals[soma] * invMax;
+    }
   }
-  return uvs;
 }

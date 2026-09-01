@@ -16,11 +16,11 @@ import {
 } from "@tolokoban/tgd";
 import React from "react";
 
-import { watchSpacePerPixel } from "@/behaviors";
+import { TapGuard, watchSpacePerPixel } from "@/behaviors";
 import { PainterGizmo } from "@/painters/gizmo";
 import { OverlayInteractionController } from "@/painters/overlay-interaction";
 import { OverlaySurface } from "@/painters/overlay-surface";
-import { PainterWorldOverlays } from "@/painters/world-overlays";
+import type { PainterWorldOverlays } from "@/painters/world-overlays";
 import {
   DEFAULT_SPIKE_AFTERGLOW_IN_SECONDS,
   DEFAULT_SPIKE_SPEED,
@@ -28,7 +28,8 @@ import {
 } from "@/spikes";
 
 import { AdpatativeResolution } from "./adaptative-resolution";
-import { PainterCellInfos } from "./painter-cell-infos";
+import { cellPaletteFromCellInfos, hiddenSomaMask, PainterCellInfos } from "./painter-cell-infos";
+import { SomaPicker } from "./soma-picker";
 
 import type {
   MorphoViewerSignalCameraResetOptions,
@@ -38,8 +39,14 @@ import type {
   MorphoViewerOverlayTransformEvent,
   MorphoViewerWorldOverlay,
 } from "../../types";
+import type { TgdInputPointerEventTap } from "@tolokoban/tgd";
+
 import type { MorphoViewerSpikes } from "@/spikes";
-import type { MorphoViewerCellInfo, MorphoViewerSomasOnlyProps } from "../types";
+import type {
+  MorphoViewerCellColors,
+  MorphoViewerCellInfo,
+  MorphoViewerSomasOnlyProps,
+} from "../types";
 
 class PainterManager {
   /**
@@ -49,16 +56,60 @@ class PainterManager {
 
   /** The spike replay playhead, in milliseconds, on every painted frame. */
   public readonly eventSpikeTime = new TgdEvent<number>();
+  /** A click resolved to the index of the soma under it, in scene order. */
+  public readonly eventCellClick = new TgdEvent<number>();
+  /**
+   * Set while the host listens for cell clicks. A flag rather than counting
+   * `eventCellClick`'s listeners, because it is what gates building the pick
+   * buffer — a second copy of every position — and that should never happen
+   * for a host that never asked to click anything. Held to on the way down
+   * too, which is what {@link MorphoViewerSomasOnlyProps.onCellClick} promises:
+   * a host that stops listening stops paying.
+   */
+  get cellPickingEnabled(): boolean {
+    return this._cellPickingEnabled;
+  }
+  set cellPickingEnabled(enabled: boolean) {
+    this._cellPickingEnabled = enabled;
+    if (enabled) return;
+
+    // Released rather than kept: it is a second context and a second copy of
+    // every position — 56 MB of them at region scale — for a viewer nobody can
+    // click any more, and the next click rebuilds it anyway.
+    this.somaPicker?.delete();
+    this.somaPicker = null;
+  }
+
+  private readonly tapGuard = new TapGuard();
   /** Playback stopping, whether the host asked for it or the recording ran out. */
   public readonly eventSpikePlaying = new TgdEvent<boolean>();
 
   private _canvas: HTMLCanvasElement | null = null;
   private _overlayCanvas: HTMLCanvasElement | null = null;
   private _cellInfos: MorphoViewerCellInfo[] = [];
+  private _positions: Float32Array | null = null;
+  private _cellColors: MorphoViewerCellColors | undefined;
+  /** Colours changed and the cloud has not been repainted for them yet. */
+  private colorsPending = false;
+  /**
+   * The palette the cloud is drawing, which is not always the one last handed
+   * in: {@link PainterCellInfos.recolor} refuses colours sized for geometry
+   * that has not arrived. The picker takes its hidden mask from here rather
+   * than from {@link cellPalette}, so that it hides what the cloud hides.
+   * Seeded from a refused palette it would cull somas still on screen out of
+   * the ID buffer, and draw hidden ones into it to swallow the clicks meant
+   * for cells behind them.
+   */
+  private appliedPalette: MorphoViewerCellColors | null = null;
+  /** The last hidden mask handed to the picker, kept to be filled again rather than rebuilt. */
+  private hiddenSomas: Float32Array | null = null;
   private _backgroundColor = "black";
   private readonly parsedBackgroundColor = new TgdColor(0, 0, 0, 1);
   private painterCellInfos: PainterCellInfos | null = null;
   private readonly spiking = new SpikingCircuit();
+  /** Built on the first click, so a viewer nobody clicks never pays for it. */
+  private somaPicker: SomaPicker | null = null;
+  private _cellPickingEnabled = false;
   private painterOverlays: PainterWorldOverlays | null = null;
   private readonly overlaySurface = new OverlaySurface();
   private overlayInteraction: OverlayInteractionController | null = null;
@@ -78,9 +129,6 @@ class PainterManager {
   } | null = null;
   /** Escape hatch if the host never echoes matching geometry. */
   private _pinTimeout: ReturnType<typeof setTimeout> | null = null;
-  /** the scene node that holds the point cloud; kept so a recolor can swap the
-   * cloud in place without recreating the context (preserving the camera). */
-  private state: TgdPainterState | null = null;
   private painterClear: TgdPainterClear | null = null;
   private context: TgdContext | null = null;
   private orbit: TgdControllerCameraOrbit | null = null;
@@ -238,7 +286,7 @@ class PainterManager {
    */
   setSpikes(spikes: MorphoViewerSpikes | undefined) {
     const wasPlaying = this.spiking.playing;
-    this.spiking.setSpikes(spikes ?? null, this._cellInfos.length);
+    this.spiking.setSpikes(spikes ?? null, this.cellCount);
     this.applySpikeFrame();
     if (wasPlaying) {
       this.context?.pause();
@@ -295,24 +343,104 @@ class PainterManager {
     this.context?.paint();
   }
 
+  get cellColors(): MorphoViewerCellColors | undefined {
+    return this._cellColors;
+  }
+  set cellColors(cellColors: MorphoViewerCellColors | undefined) {
+    if (this._cellColors === cellColors) return;
+
+    this._cellColors = cellColors;
+    // Recorded, not applied: the geometry setters run next and may replace the
+    // scene outright, and a repaint here would rewrite every palette column and
+    // re-upload the whole `[u, v]` buffer for a cloud about to be deleted.
+    // {@link applyPendingColors} does the work once the scene is settled.
+    this.colorsPending = true;
+  }
+
+  /**
+   * Repaint the cloud if the colours moved and the scene did not.
+   *
+   * Called by the hook after the geometry setters, so that a host changing both
+   * at once pays for one build rather than a recolour thrown away on the same
+   * tick. A rebuild already draws with the new palette, and clears the flag.
+   */
+  applyPendingColors() {
+    if (!this.colorsPending) return;
+
+    this.recolorInPlace();
+  }
+
+  /**
+   * What the cloud is painted from: the colours the host gave directly, or
+   * failing that the ones its `cellInfos` carry — which costs a walk over every
+   * cell, and is why {@link MorphoViewerCellColors} exists.
+   */
+  private get cellPalette(): MorphoViewerCellColors | null {
+    // On the flat path `cellColors` is the only colour source: whatever
+    // colours `cellInfos` carries describe somas that are not in the scene.
+    if (this._positions) return this._cellColors ?? null;
+    return this._cellColors ?? cellPaletteFromCellInfos(this._cellInfos);
+  }
+
+  /** Somas in the scene, whichever way the host described them. */
+  private get cellCount(): number {
+    return this._positions ? Math.floor(this._positions.length / 3) : this._cellInfos.length;
+  }
+
+  get positions(): Float32Array | null {
+    return this._positions;
+  }
+
   get cellInfos(): MorphoViewerCellInfo[] {
     return this._cellInfos;
   }
-  set cellInfos(cellInfos: MorphoViewerCellInfo[]) {
-    if (this._cellInfos === cellInfos) return;
 
+  /**
+   * The somas to draw, however the host chose to describe them.
+   *
+   * Both arrive together rather than through a setter each, because they are
+   * one decision: `positions` wins over `cellInfos`, so a host moving from the
+   * flat path back to `cellInfos` would have the first setter rebuild the
+   * scene against the `cellInfos` of before — a parse, an ambient-occlusion
+   * pass and a camera fit — for the second to tear it down and do it again.
+   */
+  setGeometry(positions: Float32Array | null, cellInfos: MorphoViewerCellInfo[]) {
+    // Identity is the whole comparison for the flat path: at the scale it
+    // exists for, a `sameGeometry` walk is millions of floats to learn what the
+    // host already said by handing back the same array. A new array is a new
+    // scene.
+    const movedPositions = this._positions !== positions;
+    const movedCellInfos = this._cellInfos !== cellInfos;
+    if (!movedPositions && !movedCellInfos) return;
+
+    const wasFlat = !!this._positions;
     const previous = this._cellInfos;
+    this._positions = positions;
     this._cellInfos = cellInfos;
-    this.spiking.setCellCount(cellInfos.length);
+    this.spiking.setCellCount(this.cellCount);
+    // Flat positions own the scene, and nothing of `cellInfos` is read while
+    // they stand — neither its somas nor the colours it carries.
+    if (positions) {
+      if (movedPositions) this.rebuild();
+      return;
+    }
+
     // a recolor keeps the same somas (ids + positions) and only swaps colors:
     // swap the point cloud in place, keep the context/camera/orbit untouched so
     // the user's zoom/angle is preserved (and no flicker). Any geometry change
     // (different count, ids, or positions) → full rebuild + camera refit.
-    const colorOnly = !!this.context && !!this.state && sameGeometry(previous, cellInfos);
+    // Coming off the flat path is a geometry change whatever `cellInfos` says:
+    // the somas on screen are the ones `positions` put there.
+    const colorOnly =
+      !wasFlat && !!this.context && !!this.painterCellInfos && sameGeometry(previous, cellInfos);
     if (colorOnly) {
       this.recolorInPlace();
       return;
     }
+    this.rebuild();
+  }
+
+  private rebuild() {
     if (this.context) {
       this.delete();
     }
@@ -407,27 +535,49 @@ class PainterManager {
     painterOverlays.minRadiusInPixels = this._overlaysMinRadiusInPixels;
   }
 
-  /** rebuild only the point cloud inside the existing scene/context. */
+  /** repaint the existing point cloud: same somas, new colours. */
   private recolorInPlace() {
-    const { context, state, cellInfos } = this;
-    if (!context || !state) return;
+    const { context, painterCellInfos } = this;
+    if (!context || !painterCellInfos) {
+      // Nothing standing to repaint, and the build that follows reads the same
+      // palette, so nothing is owed either.
+      this.colorsPending = false;
+      return;
+    }
 
-    // rebuilding the cloud (parsing + ambient occlusion + buffer upload) blocks
-    // the main thread for as long as it takes; that is not render cost.
+    // Rewriting the palette column blocks the main thread for as long as it
+    // takes; that is not render cost.
     this.adaptativeResolution.invalidate();
-    state.removeAll(true);
-    const painterCellInfos = new PainterCellInfos(context, {
-      cellInfos,
-      somaRadius: this.somaRadius,
-      opacity: this._neuronOpacity,
-    });
-    this.painterCellInfos = painterCellInfos;
-    this.bbox = painterCellInfos.bbox;
-    state.add(painterCellInfos);
-    // The replacement cloud's glow buffer is zeroed, so a recolour mid-replay
-    // would blank every lit soma until the next frame moved the clock.
-    this.applyCellGlow();
+    // Read once: on the `cellInfos` path the getter walks every cell to build
+    // it, and both of the lines below want the same palette.
+    const palette = this.cellPalette;
+    // Refused when the colours describe geometry that has not arrived. They
+    // stay owed rather than being dropped — nothing else would come back for
+    // them — and the picker is left alone: taking them there while the cloud
+    // keeps the old palette is how a soma on screen stops answering clicks and
+    // a hidden one starts.
+    if (!painterCellInfos.recolor(palette)) return;
+
+    this.colorsPending = false;
+    this.appliedPalette = palette;
+    // A recolour is also how a soma stops being drawn, and the picker has its
+    // own cloud to keep in step. Only when one exists — it is built on the
+    // first click, and most viewers never build one at all.
+    if (this.somaPicker) this.applyHiddenSomas(this.somaPicker, this.appliedPalette);
     context.paint();
+  }
+
+  /**
+   * Tell the picker which somas the palette leaves undrawn.
+   *
+   * The mask is kept between calls: at region scale it is tens of megabytes, and toggling
+   * populations one checkbox at a time recolours on every click. Safe to hand back because
+   * {@link SomaPicker.setHidden} uploads it there and then.
+   */
+  private applyHiddenSomas(picker: SomaPicker, palette: MorphoViewerCellColors | null) {
+    const hidden = hiddenSomaMask(palette, this.cellCount, this.hiddenSomas);
+    if (hidden) this.hiddenSomas = hidden;
+    picker.setHidden(hidden);
   }
 
   readonly cameraReset = (options?: MorphoViewerSignalCameraResetOptions) => {
@@ -546,14 +696,23 @@ class PainterManager {
       depth: 1,
     });
     this.painterClear = clear;
+    // Read once: on the `cellInfos` path the getter walks every cell for it.
+    const palette = this.cellPalette;
     const painterCellInfos = new PainterCellInfos(context, {
+      positions: this._positions ?? undefined,
       cellInfos,
+      colors: palette,
       somaRadius: this.somaRadius,
       opacity: this._neuronOpacity,
     });
     this.painterCellInfos = painterCellInfos;
+    // Built with the palette as it stands, so no recolour is owed for it.
+    this.colorsPending = false;
+    this.appliedPalette = palette;
     this.applyCellGlow();
     context.eventPaint.addListener(this.handleSpikeFrame);
+    context.inputs.pointer.eventTap.addListener(this.handlePointerTap);
+    this.tapGuard.attach(context);
     // A context is created paused. One that reopens mid-replay has to be told
     // to run, or the clock would sit still until something else asked to paint.
     if (this.spiking.playing) context.play();
@@ -575,7 +734,6 @@ class PainterManager {
         savedNeuronBlend = undefined;
       },
     });
-    this.state = state;
     this.painterGizmo.context = context;
     context.add(clear, state, this.painterGizmo);
     const { bbox } = painterCellInfos;
@@ -675,6 +833,40 @@ class PainterManager {
 
   private _cameraChangeTimeout = -1;
 
+  private readonly handlePointerTap = (evt: TgdInputPointerEventTap) => {
+    if (!this.cellPickingEnabled) return;
+
+    const { context } = this;
+    if (!context) return;
+    // Turning the camera must not select a cell, and an orbit arrives here as a
+    // tap like any other press.
+    if (!this.tapGuard.isClick(evt)) return;
+
+    let picker = this.somaPicker;
+    if (!picker) {
+      picker = new SomaPicker(context, this._positions ?? flattenPositions(this._cellInfos));
+      // Whatever was already hidden when the first click arrived; every change
+      // after this one comes through `recolorInPlace`.
+      this.applyHiddenSomas(picker, this.appliedPalette);
+      this.somaPicker = picker;
+    }
+    void picker
+      .pick(evt.x, evt.y, this._somaRadius, SOMA_PICK_SEARCH_IN_PIXELS)
+      .then((index) => {
+        // Bounds-checked against the cells of *now*: the pick is asynchronous,
+        // and the circuit may have been swapped under it.
+        if (index !== null && index < this.cellCount) {
+          this.eventCellClick.dispatch(index);
+        }
+      })
+      .catch((ex) => {
+        // The readback runs against a context that may have gone in the meantime. A click
+        // that cannot be resolved is a click that selects nothing, not a rejection nobody
+        // handles.
+        console.error("Unable to pick a cell:", ex);
+      });
+  };
+
   private handleCameraChange = () => {
     const { context } = this;
     if (!context) return;
@@ -698,6 +890,10 @@ class PainterManager {
     this.scalebarCleanup?.();
     this.context.eventPaint.removeListener(this.handleSpikeFrame);
     this.context.eventResize.removeListener(this.handleResize);
+    this.context.inputs.pointer.eventTap.removeListener(this.handlePointerTap);
+    this.tapGuard.detach();
+    this.somaPicker?.delete();
+    this.somaPicker = null;
     this.eventScalebar.removeListener(this.handleSpacePerPixel);
     this.overlayInteraction?.detach();
     this.overlayInteraction = null;
@@ -705,8 +901,8 @@ class PainterManager {
     this.orbit?.detach();
     this.orbit = null;
     this.painterClear = null;
-    this.state = null;
     this.painterCellInfos = null;
+    this.appliedPalette = null;
     this.painterOverlays = null;
     this.painterGizmo.context = null;
     this.context.delete();
@@ -740,8 +936,26 @@ function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
+/** `[x, y, z]` per soma — what `SomaPicker` reads — for the `cellInfos` path. */
+function flattenPositions(cellInfos: MorphoViewerCellInfo[]): Float32Array {
+  const positions = new Float32Array(cellInfos.length * 3);
+  for (let i = 0; i < cellInfos.length; i++) {
+    const [x, y, z] = cellInfos[i].position;
+    positions[i * 3] = x;
+    positions[i * 3 + 1] = y;
+    positions[i * 3 + 2] = z;
+  }
+  return positions;
+}
+
 /** Drop the post-drag pin if the host never echoes matching geometry. */
 const OVERLAY_PIN_TIMEOUT_MS = 2000;
+
+/**
+ * How far a click may miss a soma and still pick it. At region scale a soma
+ * covers about a pixel, so the exact pixel would make clicking one a lottery.
+ */
+const SOMA_PICK_SEARCH_IN_PIXELS = 4;
 
 /** Shallow-clone overlay groups so interaction never mutates host React props. */
 function cloneOverlays(
@@ -795,7 +1009,9 @@ function readOverlayTip(
 }
 
 export function useManager({
+  positions,
   cellInfos,
+  cellColors,
   somaRadius,
   gizmo,
   cameraType,
@@ -806,6 +1022,7 @@ export function useManager({
   overlaysInteractive = false,
   onOverlayTransform,
   highlightedOverlayId,
+  onCellClick,
   neuronOpacity = 1,
   signals,
   spikes,
@@ -819,9 +1036,18 @@ export function useManager({
   const refManager = React.useRef<PainterManager | null>(null);
   if (!refManager.current) refManager.current = new PainterManager();
   const manager = refManager.current;
+  // One effect, for the order alone: colours ahead of the scene they paint, and
+  // the geometry as one call, so a host that hands both — or moves from one to
+  // the other — builds the scene it ends up with rather than the one it passed
+  // through. Each call is an identity-guarded no-op for whichever props did not
+  // change.
   React.useEffect(() => {
-    manager.cellInfos = cellInfos;
-  }, [cellInfos, manager]);
+    manager.cellColors = cellColors;
+    manager.setGeometry(positions ?? null, cellInfos ?? NO_CELL_INFOS);
+    // Last, so that a recolour arriving with new geometry is absorbed by the
+    // build rather than painted twice.
+    manager.applyPendingColors();
+  }, [cellColors, positions, cellInfos, manager]);
   React.useEffect(() => {
     manager.backgroundColor = backgroundColor ?? "black";
   }, [backgroundColor, manager]);
@@ -856,6 +1082,13 @@ export function useManager({
   React.useEffect(() => {
     manager.gizmo = gizmo;
   }, [gizmo, manager]);
+  React.useEffect(() => {
+    manager.cellPickingEnabled = Boolean(onCellClick);
+    if (!onCellClick) return;
+
+    manager.eventCellClick.addListener(onCellClick);
+    return () => manager.eventCellClick.removeListener(onCellClick);
+  }, [onCellClick, manager]);
 
   React.useEffect(() => {
     manager.setSpikes(spikes);
@@ -893,3 +1126,6 @@ export function useManager({
 }
 
 const DEFAULT_SOMA_RADIUS = 12;
+
+/** What a host on the flat path leaves `cellInfos` at, without a new `[]` per render. */
+const NO_CELL_INFOS: MorphoViewerCellInfo[] = [];

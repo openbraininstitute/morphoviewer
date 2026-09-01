@@ -24,6 +24,17 @@ export interface MorphoViewerSmallCircuitCell {
   orientation: [x: number, y: number, z: number, w: number];
   somaRadius: number;
   color?: string | SectionColors;
+  /**
+   * No morphology will be asked for this cell: it draws as its soma and nothing replaces it.
+   *
+   * Set it wherever the host already knows there is nothing to fetch — a point neuron, or a
+   * population drawn for context beside the one on show. `loadCell` is then never called, and
+   * the cell is left out of the count `onLoadProgress` reports, so that fraction stays a
+   * fraction of the morphologies actually on their way.
+   *
+   * Not `somaAsSphere`, which is about how a loaded soma is drawn.
+   */
+  somaOnly?: boolean;
 }
 
 /** One point on one neurite, as resolved from a click in the 3D view. */

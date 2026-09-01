@@ -98,6 +98,13 @@ export class OverlayInteractionController {
   private onTransform?: (event: MorphoViewerOverlayTransformEvent) => void;
   private modifierRotate = false;
   private syncRaf = 0;
+  /**
+   * Whether the press that is in flight went down on an overlay.
+   *
+   * Latched at the press rather than tested again at the release: it is the press the user
+   * aimed, and by the time the tap arrives the drag it may have started is already finished.
+   */
+  private pressedOnOverlay = false;
 
   constructor(private readonly options: OverlayInteractionOptions) {
     this.onTransform = options.onTransform;
@@ -127,6 +134,7 @@ export class OverlayInteractionController {
     pointer.eventMoveStart.addListener(this.handleMoveStart, PRIORITY);
     pointer.eventMove.addListener(this.handleMove, PRIORITY);
     pointer.eventMoveEnd.addListener(this.handleMoveEnd, PRIORITY);
+    pointer.eventTap.addListener(this.handleTap, PRIORITY);
     globalThis.addEventListener?.("keydown", this.handleKeyChange);
     globalThis.addEventListener?.("keyup", this.handleKeyChange);
     const { canvas } = this.options.context;
@@ -144,6 +152,7 @@ export class OverlayInteractionController {
     pointer.eventMoveStart.removeListener(this.handleMoveStart);
     pointer.eventMove.removeListener(this.handleMove);
     pointer.eventMoveEnd.removeListener(this.handleMoveEnd);
+    pointer.eventTap.removeListener(this.handleTap);
     globalThis.removeEventListener?.("keydown", this.handleKeyChange);
     globalThis.removeEventListener?.("keyup", this.handleKeyChange);
     const { canvas } = this.options.context;
@@ -178,13 +187,33 @@ export class OverlayInteractionController {
     return undefined;
   };
 
+  /**
+   * Stop a click on an overlay from reaching the scene behind it.
+   *
+   * A press that moves far enough becomes a drag, and the viewers already discard the tap it
+   * ends with. One that does not move is still a click on the electrode the user pointed at,
+   * and without this the viewer picks whatever cell stands behind it — which is what a host
+   * turning `overlaysInteractive` on is least expecting.
+   */
+  private readonly handleTap = (): boolean | undefined => {
+    const onOverlay = this.pressedOnOverlay;
+    this.pressedOnOverlay = false;
+    return onOverlay ? true : undefined;
+  };
+
   private readonly handleMoveStart = (evt: TgdInputPointerEventMove): boolean | undefined => {
+    // Every press, before anything can turn one away: what this remembers is where the button
+    // went down, and a press that never reached the pick is a press that was not on an
+    // overlay.
+    this.pressedOnOverlay = false;
     if (evt.buttonMiddle) return;
     const rotate = wantsRotate(evt);
     if (!rotate && !evt.buttonLeft && evt.buttons !== 0) return;
 
     const hit = this.pickOverlay(evt.current.x, evt.current.y);
     if (!hit) return;
+
+    this.pressedOnOverlay = true;
 
     const overlays = this.options.getOverlays();
     const groupIndices: number[] = [];

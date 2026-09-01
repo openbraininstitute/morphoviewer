@@ -25,18 +25,21 @@ import {
 } from "@tolokoban/tgd";
 import React from "react";
 
-import { watchSpacePerPixel, watchZoom } from "@/behaviors";
+import { TapGuard, watchSpacePerPixel, watchZoom } from "@/behaviors";
 import { computeSectionOffset } from "@/morphology-picking";
 import { OverlayInteractionController } from "@/painters/overlay-interaction";
 import { OverlaySurface } from "@/painters/overlay-surface";
 import { CacheLRU } from "@/tools/cache-lru";
 
+import { cachedCellLoader } from "./cached-cell-loader";
 import { CameraManager, clampZoom } from "./camera";
+import { dedupeById } from "./dedupe-by-id";
 import { OffscreenPainter, SegmentOffscreenPainter } from "./offscreen-painter";
 import { PainterCell, PainterCellFlat } from "./painter-cell";
+import { buildSomaCloudData, PainterCellSomas } from "./painter-cell-somas";
 import { PainterLocationMarkers } from "./painter-location-markers";
 import { PainterSynapses } from "./painter-synapses";
-import { isStillPointer } from "./still-pointer";
+import { isSameCell } from "./same-cell";
 
 import {
   DEFAULT_SPIKE_AFTERGLOW_IN_SECONDS,
@@ -153,8 +156,11 @@ export class PainterManager {
    * The additive highlight pass, in `circuit` order rather than keyed by cell
    * id: the spike replay writes every one of them on every frame and indexes
    * them by node, so a map lookup per cell per frame would be pure overhead.
+   *
+   * `null` where the cloud draws the cell. The order is what makes the lookup
+   * cheap, so the holes stay in rather than closing up.
    */
-  private readonly cellsForHighlights: PainterCell[] = [];
+  private readonly cellsForHighlights: (PainterCell | null)[] = [];
   private readonly groupHighlightedCells = new TgdPainterGroup({
     name: "groupHighlightedCells",
   });
@@ -174,16 +180,21 @@ export class PainterManager {
   private framebufferHighlightedCells: Framebuffer | null = null;
   private framebufferBlur: Framebuffer | null = null;
   private loadedCellsCache = new CacheLRU<Promise<MorphoViewerSmallCircuitCellData | null>>(24);
-  private circuitSignature = "";
-  /** when false, the next circuit update rebuilds cells but keeps the camera
-   * (used for recolor, where only cell colors change) */
+  /**
+   * When false, the next circuit update rebuilds the cells but keeps the
+   * camera: a recolour, a reload, or a population hidden or shown again, none
+   * of which move the cells the user framed the view around.
+   */
   private fitCameraOnUpdate = true;
-  private placementSignature = "";
+  /** The same ids without their reload key: where the cells are, not what they draw. */
+  private placementIds: ReadonlySet<string> | null = null;
   private bbox = new TgdBoundingBox();
   private _verbose = false;
   /** Drawn on its own canvas, so it can paint at the screen's pixel ratio. */
   private gizmoOverlay: TgdCanvasGizmo | null = null;
   /** Turn the view to the axis whose tip was clicked. The camera manager does the move. */
+  private readonly tapGuard = new TapGuard();
+
   private readonly handleGizmoTipClick = ({ to }: { to: Readonly<TgdQuat> }) => {
     this.cameraManager?.turnTo(to);
   };
@@ -210,6 +221,15 @@ export class PainterManager {
   /** Off unless a host subscribes: projecting on every frame is wasted work otherwise. */
   private _locationLabelsEnabled = false;
   private readonly cellPainters: PainterCell[] = [];
+  /** Every cell drawn as a soma alone, in one cloud. Rebuilt with the circuit. */
+  private painterCellSomas: PainterCellSomas | null = null;
+  /**
+   * The `somaAsSphere` the painters now on screen were built with.
+   *
+   * A cell bakes it into the geometry it builds, so it is the one setting a painter cannot be
+   * told about after the fact — changing it is the update that keeps nothing.
+   */
+  private paintedSomaAsSphere = false;
   private _dendrogramMode = false;
   private dendrogramMix = 0;
   private dendrogramAnimations: TgdAnimation[] = [];
@@ -303,6 +323,7 @@ export class PainterManager {
         painter.opacity = opacity;
       }
     });
+    if (this.painterCellSomas) this.painterCellSomas.opacity = opacity;
     this.context.value?.paint();
   }
 
@@ -673,7 +694,9 @@ export class PainterManager {
     for (const painter of this.cellPainters) painter.dendrogramMix = mix;
     // Hover and selection draw the same geometry through their own painters, additively.
     // Left behind they would paint the 3D morphology over the chart.
-    for (const painter of this.cellsForHighlights) painter.dendrogramMix = mix;
+    for (const painter of this.cellsForHighlights) {
+      if (painter) painter.dendrogramMix = mix;
+    }
     // The pick buffers hold their own geometry, so they morph too or clicks miss.
     if (this.offscreen) this.offscreen.dendrogramMix = mix;
     if (this.segmentOffscreen) this.segmentOffscreen.dendrogramMix = mix;
@@ -822,27 +845,16 @@ export class PainterManager {
       return;
     }
 
-    const signature = circuit.map((item) => item.id).join("\n");
+    const cells = dedupeById(circuit);
     // A cell id's query part (after `?`) is a reload key: changing it reloads morphologies
     // (hosts use it for filters like the axon toggle) but says nothing about where the cells
     // are. The camera only refits when the cells themselves change, so a reload does not
     // throw away the zoom the user is standing at.
-    const placementSignature = circuit.map((item) => item.id.split("?")[0]).join("\n");
-    this.fitCameraOnUpdate = this.placementSignature !== placementSignature;
-    this.placementSignature = placementSignature;
-    if (this.circuitSignature !== signature) {
-      this.circuitSignature = signature;
-      this.loadedCellsCache.clear();
-    }
-    this.circuit = circuit;
-    this.loadCell = (id: string) => {
-      const cached = this.loadedCellsCache.get(id);
-      if (cached) return cached;
-
-      const promise = loadCell(id);
-      this.loadedCellsCache.set(id, promise);
-      return promise;
-    };
+    const placementIds = new Set(cells.map((item) => item.id.split("?")[0]));
+    this.fitCameraOnUpdate = !this.placementIds || isAnotherScene(this.placementIds, placementIds);
+    this.placementIds = placementIds;
+    this.circuit = cells;
+    this.loadCell = cachedCellLoader(this.loadedCellsCache, loadCell);
     this.onLoadProgress?.(0);
     this.context.waitUntiDefined().then(this.updateCircuit);
   }
@@ -857,54 +869,109 @@ export class PainterManager {
     }
 
     try {
-      this.groupCells.removeAll();
-      this.onLoadProgress?.(0);
-      this.cellCountTotal = this.circuit.length;
-      this.cellCountLoaded = 0;
-      this.offscreen?.delete();
-      this.offscreen = new OffscreenPainter(context, {
-        circuit: this.circuit,
-        loadCell,
-        dendrogramMix: this.dendrogramMix,
-      });
-      this.rebuildSegmentOffscreen();
-      const { cellsForHighlights: highlightingCells } = this;
-      highlightingCells.splice(0);
+      // Set aside rather than deleted: a painter carries a shader program of its own, compiled
+      // and linked on the spot, which makes building one by far the most expensive thing an
+      // update does. Hiding a population, or putting another on show, leaves most cells
+      // exactly as they were — those keep the painters they already have.
+      const keptCells = takeById(this.cellPainters);
+      const keptHighlights = takeById(this.cellsForHighlights);
+      const keepable = this.paintedSomaAsSphere === this._somaAsSphere;
+      this.paintedSomaAsSphere = this._somaAsSphere;
+      this.groupCells.removeAll(false);
       this.groupHighlightedCells.removeAll(false);
-      this.bbox = new TgdBoundingBox();
       this.cellPainters.splice(0);
+      this.cellsForHighlights.splice(0);
+      // Cells drawn as somas alone are left out: no morphology is coming for them, so counting
+      // them would hold the fraction below 1 for good, and a scene made mostly of them would
+      // report itself all but loaded before the first morphology arrived.
+      this.cellCountTotal = this.circuit.filter((cell) => !cell.somaOnly).length;
+      this.cellCountLoaded = 0;
+      // Built once for both passes that draw these cells. Instance `i` has to be the same cell
+      // in the visible cloud and in the pick buffer or a click resolves to the wrong one, and
+      // one array is what holds that — where two builds only ever happened to agree.
+      const somas = buildSomaCloudData(this.circuit);
+      // Updated rather than rebuilt, for the same reason: its painters carry a program each
+      // too, and it holds one for every cell whether or not the pointer ever goes near it.
+      if (this.offscreen) {
+        this.offscreen.setCircuit(this.circuit, loadCell, somas);
+      } else {
+        this.offscreen = new OffscreenPainter(context, {
+          circuit: this.circuit,
+          loadCell,
+          somas,
+          dendrogramMix: this.dendrogramMix,
+        });
+      }
+      this.rebuildSegmentOffscreen();
+      this.bbox = new TgdBoundingBox();
       for (const cell of this.circuit) {
         const [x, y, z] = cell.center;
         const r = cell.somaRadius;
         this.bbox.addSphere(x, y, z, r * 5);
-        const painterCell = new PainterCell(context, {
-          cell,
-          loadCell,
-          material: "full",
-          opacity: this._neuronOpacity,
-          somaAsSphere: this._somaAsSphere,
-          onCellLoaded: (bbox) => {
-            if (bbox) {
-              //   recenterBBox(bbox, x, y, z);
-              //   this.bbox.addBBox(bbox);
-            }
-            if (this.fitCameraOnUpdate) {
-              this.adaptCameraFromBBox();
-            }
-            this.cellCountLoaded++;
-            this.onLoadProgress?.(this.cellCountLoaded / this.cellCountTotal);
-          },
-        });
+        // Drawn by the cloud built below, and brightened by nothing: it has no painter of its
+        // own to turn up. The highlight pass keeps its place all the same, because a spike is
+        // written to it by node number.
+        if (cell.somaOnly) {
+          this.cellsForHighlights.push(null);
+          continue;
+        }
+
+        const painterCell =
+          (keepable ? reusePainterFor(keptCells, cell) : undefined) ??
+          new PainterCell(context, {
+            cell,
+            loadCell,
+            material: "full",
+            opacity: this._neuronOpacity,
+            somaAsSphere: this._somaAsSphere,
+            onCellLoaded: (bbox) => {
+              // Only a cell that brought geometry moves the frame. One that answered with
+              // nothing still stands where its soma was put, and the loop above already
+              // measured that; re-fitting on it would combine every painter's box and repaint
+              // the scene to arrive back where it started.
+              if (bbox && this.fitCameraOnUpdate) {
+                this.adaptCameraFromBBox();
+              }
+              this.cellCountLoaded++;
+              this.onLoadProgress?.(this.cellCountLoaded / this.cellCountTotal);
+            },
+          });
+        // A kept painter has already reported itself and will not report again.
+        if (painterCell.isLoaded) this.cellCountLoaded++;
         this.cellPainters.push(painterCell);
         painterCell.dendrogramMix = this.dendrogramMix;
         this.groupCells.add(painterCell);
-        const highlightedCell = new PainterCellFlat(context, {
-          cell,
-          loadCell,
-        });
+        const highlightedCell =
+          (keepable ? reusePainterFor(keptHighlights, cell) : undefined) ??
+          new PainterCellFlat(context, { cell, loadCell });
         highlightedCell.dendrogramMix = this.dendrogramMix;
-        highlightingCells.push(highlightedCell);
+        this.cellsForHighlights.push(highlightedCell);
       }
+      // What no cell claimed has left the scene.
+      for (const painter of keptCells.values()) painter.delete();
+      for (const painter of keptHighlights.values()) painter.delete();
+      // One buffer, one program and one draw call for every cell the host has no morphology
+      // for — which, beside the population on show, is nearly all of them. Rebuilt whole
+      // rather than reused: that is one program, against the three each of these cells cost
+      // when it had painters of its own.
+      this.painterCellSomas?.delete();
+      this.painterCellSomas = null;
+      if (somas.cells.length > 0) {
+        const painterCellSomas = new PainterCellSomas(context, {
+          dataPoint: somas.dataPoint,
+          dataUV: somas.dataUV,
+          palette: somas.palette,
+          opacity: this._neuronOpacity,
+        });
+        this.painterCellSomas = painterCellSomas;
+        this.groupCells.add(painterCellSomas);
+      }
+      // Reported once the scene stands, and as the fraction it really is: a toggle that keeps
+      // every morphology it had is finished the moment it is drawn, and a scene of somas alone
+      // is as loaded as it will ever get.
+      this.onLoadProgress?.(
+        this.cellCountTotal === 0 ? 1 : this.cellCountLoaded / this.cellCountTotal
+      );
       this.spiking.setCellCount(this.circuit.length);
       this.updateHighlightedCells();
       if (this.fitCameraOnUpdate) {
@@ -968,6 +1035,9 @@ export class PainterManager {
     for (const painter of this.cellPainters) {
       bbox.addBBox(painter.bbox);
     }
+    // Added by hand because only painters are walked here: without it a scene of context
+    // somas around a few morphologies would frame the morphologies alone.
+    if (this.painterCellSomas) bbox.addBBox(this.painterCellSomas.bbox);
     this.bbox.copyFrom(bbox);
     return bbox;
   }
@@ -987,7 +1057,7 @@ export class PainterManager {
     const { cellsForHighlights, groupHighlightedCells } = this;
     groupHighlightedCells.removeAll(false);
     for (const painter of cellsForHighlights) {
-      groupHighlightedCells.add(painter);
+      if (painter) groupHighlightedCells.add(painter);
     }
     this.applyCellBrightness();
     this.context.value?.paint();
@@ -1009,9 +1079,11 @@ export class PainterManager {
     const { cellsForHighlights, circuit, highlightedCellIdSet, spiking } = this;
     const { glow } = spiking;
     for (let i = 0; i < cellsForHighlights.length; i++) {
+      const painter = cellsForHighlights[i];
+      if (!painter) continue;
+
       const highlighted = highlightedCellIdSet.has(circuit[i].id) ? 1 : 0;
       const intensity = Math.max(highlighted, glow[i] ?? 0);
-      const painter = cellsForHighlights[i];
       painter.active = intensity > 0;
       painter.intensity = intensity;
     }
@@ -1187,6 +1259,7 @@ export class PainterManager {
     context.inputs.pointer.eventHover.addListener(this.handlePointerHover);
     context.inputs.pointer.eventTap.addListener(this.handlePointerTap);
     context.inputs.pointer.eventTapMultiple.addListener(this.debug);
+    this.tapGuard.attach(context);
     this.cameraManager = new CameraManager(context, this.eventRestingPosition);
     // A canvas re-attach recreates the manager while the mode may still be on, and the
     // `dendrogramMode` setter early-returns on an equal value — so seed the lock here too.
@@ -1406,14 +1479,14 @@ export class PainterManager {
     const { offscreen } = this;
     if (!offscreen) return;
 
+    // Turning the camera must neither select a cell nor drop a location, and an
+    // orbit arrives here as a tap like any other press.
+    if (!this.tapGuard.isClick(evt)) return;
+
     const cell = offscreen.getItemAt(evt.x, evt.y);
     if (cell) this.eventCellClick.dispatch(cell);
 
     if (!this._locationPickingEnabled) return;
-
-    // A drag must not add a point.
-    const canvas = this.context.value?.canvas;
-    if (!isStillPointer(evt, canvas?.width ?? 0, canvas?.height ?? 0)) return;
 
     // Deliberately re-resolved rather than reusing `cell`: an exact-pixel miss is common on a
     // thin neurite, and it is the difference between a click that works and one that quietly
@@ -1470,8 +1543,6 @@ export class PainterManager {
   }
 
   private rebuildSegmentOffscreen() {
-    this.segmentOffscreen?.delete();
-    this.segmentOffscreen = null;
     const context = this.context.value;
     const { loadCell } = this;
     // A location pick needs a hit in both buffers, so the cell buffer has to be at least as
@@ -1482,6 +1553,17 @@ export class PainterManager {
         ? LOCATION_PICKING_RESOLUTION_DIVIDER
         : CELL_PICKING_RESOLUTION_DIVIDER;
     }
+    // A buffer that is still wanted is updated, not built again: it holds a painter, and so a
+    // shader program, for every cell in the scene with a morphology, and this runs on every
+    // circuit update. Only turning location picking on or off gets a new one.
+    if (this.segmentOffscreen && this.needsSegmentOffscreen && context && loadCell) {
+      this.segmentOffscreen.setCircuit(this.circuit, loadCell);
+      this.applyLocationMarkers();
+      return;
+    }
+
+    this.segmentOffscreen?.delete();
+    this.segmentOffscreen = null;
     // Needed for markers too, not just picking: it owns the section index they resolve
     // against, so read-only markers have nowhere to sit without it.
     if (!this.needsSegmentOffscreen || !context || !loadCell) return;
@@ -1592,7 +1674,12 @@ export class PainterManager {
     this.context.value?.animCancelArray(this.dendrogramAnimations);
     this.dendrogramAnimations = [];
     this.dendrogramMix = this._dendrogramMode ? 1 : 0;
+    // Dropped rather than left for the next scene to find: an update keeps the painters whose
+    // cells came back unchanged, and these hold a context that is about to go.
     this.cellPainters.splice(0);
+    this.cellsForHighlights.splice(0);
+    // Dropped, not deleted: `groupCells.removeAll()` below takes it with the rest.
+    this.painterCellSomas = null;
     if (this.gizmoOverlay) {
       this.gizmoOverlay.eventTipClick.removeListener(this.handleGizmoTipClick);
       this.gizmoOverlay.detach();
@@ -1610,6 +1697,10 @@ export class PainterManager {
     this.framebufferHighlightedCells = null;
     this.offscreen?.delete();
     this.offscreen = null;
+    // Both pick buffers go with the scene: each holds a listener on the context below and a
+    // context of its own, and the next canvas builds its own pair.
+    this.segmentOffscreen?.delete();
+    this.segmentOffscreen = null;
     this.cameraManager?.delete();
     this.cameraManager = null;
     this.groupCells.removeAll();
@@ -1621,6 +1712,7 @@ export class PainterManager {
     this.painterOverlays = null;
     this.painterSynapses = null;
     this.eventScalebar.removeListener(this.handleSpacePerPixel);
+    this.tapGuard.detach();
     if (this.context.value) {
       this.context.value.eventPaint.removeListener(this.handleSpikeFrame);
       this.context.value.inputs.pointer.eventHover.removeListener(this.handlePointerHover);
@@ -1846,6 +1938,48 @@ export function usePainterManager({
 function clamp01(value: number): number {
   if (Number.isNaN(value)) return 1;
   return Math.min(1, Math.max(0, value));
+}
+
+/**
+ * Whether these cells make a scene the viewer has not drawn before, as opposed
+ * to the one it is already holding with cells taken away or given back.
+ *
+ * Containment either way, because a population hidden leaves a subset and the
+ * same population shown again leaves a superset — and in both the cells that
+ * remain are exactly where the user left them. Asking whether the two lists are
+ * equal instead would call every toggle a new scene, and re-frame the camera
+ * around whatever happens to be left.
+ */
+function isAnotherScene(previous: ReadonlySet<string>, next: ReadonlySet<string>): boolean {
+  const [fewer, more] = previous.size <= next.size ? [previous, next] : [next, previous];
+  for (const id of fewer) {
+    if (!more.has(id)) return true;
+  }
+  return false;
+}
+
+/** The painters of a scene about to be replaced, by the cell each one draws. */
+function takeById<T extends PainterCell>(painters: readonly (T | null)[]): Map<string, T> {
+  return new Map(
+    painters.filter((painter) => painter !== null).map((painter) => [painter.cell.id, painter])
+  );
+}
+
+/**
+ * The painter already drawing this cell, if it was built from exactly these values.
+ *
+ * Taken out of the map on a hit, so that what is left when the scene has been walked is what
+ * the scene no longer holds.
+ */
+function reusePainterFor<T extends PainterCell>(
+  kept: Map<string, T>,
+  cell: MorphoViewerSmallCircuitCell
+): T | undefined {
+  const painter = kept.get(cell.id);
+  if (!painter || !isSameCell(painter.cell, cell)) return undefined;
+
+  kept.delete(cell.id);
+  return painter;
 }
 
 /** Drop the post-drag pin if the host never echoes matching geometry. */

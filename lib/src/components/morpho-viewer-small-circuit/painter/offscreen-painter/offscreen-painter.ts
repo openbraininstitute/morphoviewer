@@ -7,16 +7,20 @@ import {
   webglPresetDepth,
 } from "@tolokoban/tgd";
 
-import { spiralPixelOffsets } from "@/morphology-picking";
-import { vec3ToInt16 } from "@/utils";
+import { decodePickColor, spiralPixelOffsets } from "@/morphology-picking";
 
 import { PainterCellId } from "../painter-cell";
+import { CLOUD_FIRST_INDEX, PainterCellSomasId } from "../painter-cell-somas";
+import { isSameCell } from "../same-cell";
 
 import type { MorphoViewerSmallCircuitCell, MorphoViewerSmallCircuitCellData } from "../../types";
+import type { SomaCloudData } from "../painter-cell-somas";
 
 export interface OffscreenPainterOptions {
   circuit: MorphoViewerSmallCircuitCell[];
   loadCell: (id: string) => Promise<MorphoViewerSmallCircuitCellData | null>;
+  /** The cells drawn as a soma alone, built once by the caller. @see setCircuit */
+  somas: SomaCloudData;
   /** Current dendrogram morph, so a rebuilt buffer matches what is on screen. */
   dendrogramMix?: number;
 }
@@ -44,15 +48,32 @@ export class OffscreenPainter {
   private readonly offscreenCanvas = new OffscreenCanvas(1, 1);
   private readonly offscreenContext: TgdContext;
   private readonly group = new TgdPainterGroup();
-  private readonly meshes: PainterCellId[] = [];
-  private readonly circuit: MorphoViewerSmallCircuitCell[];
+  /** The painter drawing each cell, by cell id, with the index it paints itself as. */
+  private readonly meshes = new Map<string, { mesh: PainterCellId; index: number }>();
+  /**
+   * The cell behind each index, which is what a read pixel resolves to.
+   *
+   * An index belongs to the painter that was given it and is only handed on once that painter
+   * is gone, so a cell that stays on screen keeps the colour it is drawn in — which is what
+   * lets this buffer be updated rather than built again.
+   */
+  private readonly cellByIndex: (MorphoViewerSmallCircuitCell | undefined)[] = [];
+  private readonly freeIndices: number[] = [];
+  /**
+   * The silhouettes of the cells drawn as a soma alone, and the cell behind each instance.
+   *
+   * Rebuilt whole on every update rather than kept: it is one program and one buffer for all
+   * of them, which is the point of drawing them this way.
+   */
+  private cloud: PainterCellSomasId | null = null;
+  private cloudCells: MorphoViewerSmallCircuitCell[] = [];
+  private mix = 0;
   private isDeleted = false;
 
   constructor(
     private readonly onscreenContext: TgdContext,
     options: OffscreenPainterOptions
   ) {
-    this.circuit = options.circuit;
     onscreenContext.eventPaint.addListener(this.paint);
     const context = new TgdContext(this.offscreenCanvas, {
       preserveDrawingBuffer: true,
@@ -71,18 +92,72 @@ export class OffscreenPainter {
         children: [this.group],
       })
     );
-    let index = FIRST_INDEX;
-    for (const cell of this.circuit) {
-      const mesh = new PainterCellId(context, {
-        cell,
-        loadCell: options.loadCell,
-        id: index,
-      });
-      // Seeded, not pushed: this buffer is rebuilt on every circuit update.
-      mesh.dendrogramMix = options.dendrogramMix ?? 0;
+    this.mix = options.dendrogramMix ?? 0;
+    this.setCircuit(options.circuit, options.loadCell, options.somas);
+  }
+
+  /**
+   * Draw these cells instead, keeping the painters that already draw them.
+   *
+   * A painter compiles a shader program of its own, so building one for every cell on every
+   * update is the most expensive thing this buffer can do — and a population hidden or put on
+   * show leaves most of them untouched.
+   *
+   * `somas` is handed in rather than built here: the visible cloud draws from the same data,
+   * and a pick resolves to the cell the eye was on only while instance `i` means the same cell
+   * in both. Sharing the one array is what holds that, where two builds only ever happened to
+   * agree.
+   */
+  setCircuit(
+    circuit: MorphoViewerSmallCircuitCell[],
+    loadCell: (id: string) => Promise<MorphoViewerSmallCircuitCellData | null>,
+    somas: SomaCloudData
+  ) {
+    const kept = new Map(this.meshes);
+    this.meshes.clear();
+    // Emptied and refilled rather than picked apart: removing one painter at a time walks the
+    // list for each of them.
+    this.group.removeAll(false);
+    for (const cell of circuit) {
+      // Drawn by the cloud below, which numbers its own instances.
+      if (cell.somaOnly) continue;
+
+      const previous = kept.get(cell.id);
+      kept.delete(cell.id);
+      if (previous && isSameCell(previous.mesh.cell, cell)) {
+        // The mesh stands, but the cell it answers with is this scene's. `isSameCell` compares
+        // values, and a host that resolves a click by identity — an `indexOf`, a `WeakMap` —
+        // would be handed an object out of the circuit before this one.
+        this.cellByIndex[previous.index - FIRST_INDEX] = cell;
+        this.meshes.set(cell.id, previous);
+        this.group.add(previous.mesh);
+        continue;
+      }
+      // A cell drawn differently keeps the index it already had: its painter goes, the colour
+      // it is picked out by does not.
+      previous?.mesh.delete();
+      const index =
+        previous?.index ?? this.freeIndices.pop() ?? this.cellByIndex.length + FIRST_INDEX;
+      const mesh = new PainterCellId(this.context, { cell, loadCell, id: index });
+      mesh.dendrogramMix = this.mix;
+      this.cellByIndex[index - FIRST_INDEX] = cell;
+      this.meshes.set(cell.id, { mesh, index });
       this.group.add(mesh);
-      this.meshes.push(mesh);
-      index++;
+    }
+    // What no cell claimed has left the scene, and its index goes back in the pool. A cell
+    // that turned into a soma alone is among them: it is in the cloud now.
+    for (const { mesh, index } of kept.values()) {
+      mesh.delete();
+      this.cellByIndex[index - FIRST_INDEX] = undefined;
+      this.freeIndices.push(index);
+    }
+    this.cloud?.delete();
+    this.cloud = null;
+    this.cloudCells = somas.cells;
+    if (somas.cells.length > 0) {
+      const cloud = new PainterCellSomasId(this.context, somas.dataPoint);
+      this.cloud = cloud;
+      this.group.add(cloud);
     }
     this.paint();
   }
@@ -94,17 +169,20 @@ export class OffscreenPainter {
    * paints once it has moved everything else the morph touches.
    */
   set dendrogramMix(mix: number) {
-    for (const mesh of this.meshes) mesh.dendrogramMix = mix;
+    this.mix = mix;
+    for (const { mesh } of this.meshes.values()) mesh.dendrogramMix = mix;
   }
 
   getItemAt(xScreen: number, yScreen: number): MorphoViewerSmallCircuitCell | undefined {
     if (this.isDeleted) return;
 
-    const { circuit, offscreenContext: context } = this;
-    const [R, G, B] = context.readPixel(xScreen, yScreen);
-    const divider = 1 / 0xff;
-    const index = vec3ToInt16([R * divider, G * divider, B * divider]) - FIRST_INDEX;
-    return circuit[index] ?? undefined;
+    const { cellByIndex, offscreenContext: context } = this;
+    const index = decodePickColor(context.readPixel(xScreen, yScreen));
+    if (index === null) return;
+
+    return index >= CLOUD_FIRST_INDEX
+      ? this.cloudCells[index - CLOUD_FIRST_INDEX]
+      : (cellByIndex[index - FIRST_INDEX] ?? undefined);
   }
 
   /**

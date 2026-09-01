@@ -9,6 +9,7 @@ import {
 import { decodeSegmentIndex, spiralPixelOffsets } from "@/morphology-picking";
 
 import { PainterCell } from "../painter-cell";
+import { isSameCell } from "../same-cell";
 
 import type { MorphoViewerSmallCircuitCell, MorphoViewerSmallCircuitCellData } from "../../types";
 import type { CellSectionIndex, CellSegment } from "../painter-cell/factory/section-index";
@@ -46,12 +47,17 @@ export class SegmentOffscreenPainter {
   private readonly group = new TgdPainterGroup();
   /** Cell id → its painter, so a decoded index can be resolved against the right cell. */
   private readonly cellPainters = new Map<string, PainterCell>();
+  private readonly onCellLoaded?: () => void;
+  /** Kept rather than only pushed, so a painter built later goes up on the current morph. */
+  private mix: number;
   private isDeleted = false;
 
   constructor(
     private readonly onscreenContext: TgdContext,
     options: SegmentOffscreenPainterOptions
   ) {
+    this.onCellLoaded = options.onCellLoaded;
+    this.mix = options.dendrogramMix ?? 0;
     onscreenContext.eventPaint.addListener(this.paint);
     const context = new TgdContext(this.offscreenCanvas, {
       preserveDrawingBuffer: true,
@@ -71,18 +77,52 @@ export class SegmentOffscreenPainter {
         children: [this.group],
       })
     );
-    for (const cell of options.circuit) {
-      const painter = new PainterCell(context, {
+    this.setCircuit(options.circuit, options.loadCell);
+  }
+
+  /**
+   * Resolve clicks against these cells instead, keeping the painters that already draw them.
+   *
+   * The same reasoning as {@link OffscreenPainter.setCircuit}, and the same cost if it is not
+   * done: a painter compiles a shader program of its own, and this buffer holds one for every
+   * cell in the scene with a morphology. Hiding a population left the rest of the update
+   * reusing everything it could and this pass rebuilding all of it.
+   */
+  setCircuit(
+    circuit: MorphoViewerSmallCircuitCell[],
+    loadCell: (id: string) => Promise<MorphoViewerSmallCircuitCellData | null>
+  ) {
+    const kept = new Map(this.cellPainters);
+    this.cellPainters.clear();
+    // Emptied and refilled rather than picked apart: removing one painter at a time walks the
+    // list for each of them.
+    this.group.removeAll(false);
+    for (const cell of circuit) {
+      // A cell drawn as a soma alone has no sections to resolve a click against, so a painter
+      // for it would cost a shader program to answer nothing.
+      if (cell.somaOnly) continue;
+
+      const previous = kept.get(cell.id);
+      kept.delete(cell.id);
+      if (previous && isSameCell(previous.cell, cell)) {
+        this.cellPainters.set(cell.id, previous);
+        this.group.add(previous);
+        continue;
+      }
+
+      previous?.delete();
+      const painter = new PainterCell(this.context, {
         cell,
-        loadCell: options.loadCell,
+        loadCell,
         material: "segment",
-        onCellLoaded: () => options.onCellLoaded?.(),
+        onCellLoaded: () => this.onCellLoaded?.(),
       });
-      // Seeded, not pushed: enabling location picking rebuilds this buffer.
-      painter.dendrogramMix = options.dendrogramMix ?? 0;
+      painter.dendrogramMix = this.mix;
       this.cellPainters.set(cell.id, painter);
       this.group.add(painter);
     }
+    // What no cell claimed has left the scene, and takes its program with it.
+    for (const painter of kept.values()) painter.delete();
     this.paint();
   }
 
@@ -93,6 +133,7 @@ export class SegmentOffscreenPainter {
    * buffer redraws on the main context's `eventPaint`, which the caller triggers once.
    */
   set dendrogramMix(mix: number) {
+    this.mix = mix;
     for (const painter of this.cellPainters.values()) painter.dendrogramMix = mix;
   }
 

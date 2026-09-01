@@ -42,6 +42,7 @@ export default function Page() {
     "MorphoViewerSomasOnly/backgroundColor"
   );
   const cellInfos = useCellInfos(dataId);
+  const [pickedCell, setPickedCell] = React.useState<number | null>(null);
   const spikes = useRandomSpikes(cellInfos?.length ?? 0, 4);
   const [spikePlaying, setSpikePlaying] = React.useState(false);
   const [spikeSpeed, setSpikeSpeed] = React.useState(DEFAULT_SPIKE_SPEED);
@@ -66,7 +67,13 @@ export default function Page() {
 
   return (
     <div className={styles.page}>
-      <ViewOptions value={dataId} onChange={setDataId}>
+      <ViewOptions
+        value={dataId}
+        onChange={(id) => {
+          setDataId(id);
+          setPickedCell(null);
+        }}
+      >
         <div key="c9e10151-8f07-4158-a3b3-205210ceb075">3'684 cells</div>
         <div key="fly">127'400 cells</div>
         <div key="964a878a-c580-4722-b891-1a078ea9aa76">211'712 cells</div>
@@ -90,6 +97,7 @@ export default function Page() {
             onSpikeTimeChange={handleSpikeTimeChange}
             spikeSpeed={spikeSpeed}
             spikeAfterglowInSeconds={spikeAfterglowInSeconds}
+            onCellClick={setPickedCell}
             controls={[
               <ViewOptions key="species" value={species} onChange={setSpecies}>
                 <div key="fly">Fly</div>
@@ -118,6 +126,7 @@ export default function Page() {
           {spikePlaying ? "Pause" : "Play"} spikes
         </ViewButton>
         <ViewLabel value={`${spikeTimeRef.current.toFixed(0)} ms`} />
+        <ViewLabel value={pickedCell === null ? "Click a soma…" : `Cell #${pickedCell}`} />
         <ViewOptions value={`${spikeSpeed}`} onChange={(v) => setSpikeSpeed(Number(v))}>
           <div key="1000">1×</div>
           <div key="100">0.1×</div>
