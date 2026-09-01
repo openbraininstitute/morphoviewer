@@ -273,7 +273,14 @@ class PainterSomaCloudId extends TgdPainter {
 
     const { gl } = this.context;
     buffer.bind();
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, hidden ?? new Float32Array(this.count));
+    if (hidden) {
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, hidden);
+    } else {
+      // A fresh store, which WebGL zero-fills — rather than an array of zeros built on the
+      // CPU and sent across to say the same thing, which at region scale is tens of megabytes
+      // allocated to upload nothing.
+      gl.bufferData(gl.ARRAY_BUFFER, this.count * Float32Array.BYTES_PER_ELEMENT, gl.DYNAMIC_DRAW);
+    }
     this.hasHidden = hidden !== null;
   }
 

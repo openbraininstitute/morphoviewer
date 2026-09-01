@@ -77,6 +77,8 @@ class PainterManager {
   private _cellColors: MorphoViewerCellColors | undefined;
   /** Colours changed and the cloud has not been repainted for them yet. */
   private colorsPending = false;
+  /** The last hidden mask handed to the picker, kept to be filled again rather than rebuilt. */
+  private hiddenSomas: Float32Array | null = null;
   private _backgroundColor = "black";
   private readonly parsedBackgroundColor = new TgdColor(0, 0, 0, 1);
   private painterCellInfos: PainterCellInfos | null = null;
@@ -535,8 +537,21 @@ class PainterManager {
     // A recolour is also how a soma stops being drawn, and the picker has its
     // own cloud to keep in step. Only when one exists — it is built on the
     // first click, and most viewers never build one at all.
-    this.somaPicker?.setHidden(hiddenSomaMask(palette, this.cellCount));
+    if (this.somaPicker) this.applyHiddenSomas(this.somaPicker, palette);
     context.paint();
+  }
+
+  /**
+   * Tell the picker which somas the palette leaves undrawn.
+   *
+   * The mask is kept between calls: at region scale it is tens of megabytes, and toggling
+   * populations one checkbox at a time recolours on every click. Safe to hand back because
+   * {@link SomaPicker.setHidden} uploads it there and then.
+   */
+  private applyHiddenSomas(picker: SomaPicker, palette: MorphoViewerCellColors | null) {
+    const hidden = hiddenSomaMask(palette, this.cellCount, this.hiddenSomas);
+    if (hidden) this.hiddenSomas = hidden;
+    picker.setHidden(hidden);
   }
 
   readonly cameraReset = (options?: MorphoViewerSignalCameraResetOptions) => {
@@ -803,7 +818,7 @@ class PainterManager {
       picker = new SomaPicker(context, this._positions ?? flattenPositions(this._cellInfos));
       // Whatever was already hidden when the first click arrived; every change
       // after this one comes through `recolorInPlace`.
-      picker.setHidden(hiddenSomaMask(this.cellPalette, this.cellCount));
+      this.applyHiddenSomas(picker, this.cellPalette);
       this.somaPicker = picker;
     }
     void picker

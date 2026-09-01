@@ -497,6 +497,33 @@ describe("hiddenSomaMask", () => {
     expect(Array.from(mask ?? [])).toEqual([1, 1, 1]);
   });
 
+  it("fills an array it is handed rather than making one", () => {
+    const into = new Float32Array(3);
+    const colors = { palette: ["red", false] as const, columnByCell: new Uint16Array([1, 0, 1]) };
+
+    const mask = hiddenSomaMask({ ...colors, palette: [...colors.palette] }, 3, into);
+
+    expect(mask).toBe(into);
+    expect(Array.from(into)).toEqual([1, 0, 1]);
+  });
+
+  it("writes every entry, so the last mask does not show through the next", () => {
+    const into = new Float32Array([1, 1, 1]);
+
+    hiddenSomaMask({ palette: ["red", false], columnByCell: new Uint16Array([0, 1, 0]) }, 3, into);
+
+    expect(Array.from(into)).toEqual([0, 1, 0]);
+  });
+
+  it("makes its own when the one it is handed is the wrong size", () => {
+    const into = new Float32Array(2);
+
+    const mask = hiddenSomaMask({ palette: [false], columnByCell: new Uint16Array([0]) }, 3, into);
+
+    expect(mask).not.toBe(into);
+    expect(mask).toHaveLength(3);
+  });
+
   it("keeps them pickable when that first column is drawn", () => {
     const mask = hiddenSomaMask({ palette: ["red", false], columnByCell: new Uint16Array([1]) }, 3);
 

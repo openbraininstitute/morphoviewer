@@ -359,17 +359,24 @@ function writeColumns(
  * reports the first soma outward from the click, so a hidden one in front
  * swallows the click meant for whatever stands behind it, and there is nothing
  * left to filter.
+ *
+ * @param into An array to fill rather than allocate, when it is the right size
+ * for the somas there are. At region scale this is tens of megabytes, and a
+ * host stepping through populations with a checkbox list recolours on every
+ * click; the caller uploads it before the next recolour can rewrite it. Every
+ * entry is written, so what it held before does not show through.
  */
 export function hiddenSomaMask(
   colors: MorphoViewerCellColors | null,
-  count: number
+  count: number,
+  into?: Float32Array | null
 ): Float32Array | null {
   if (!colors?.palette.includes(false)) return null;
 
   const { palette } = colors;
-  const hidden = new Float32Array(count);
+  const hidden = into?.length === count ? into : new Float32Array(count);
   for (let cell = 0; cell < count; cell++) {
-    if (palette[columnForCell(colors, cell)] === false) hidden[cell] = 1;
+    hidden[cell] = palette[columnForCell(colors, cell)] === false ? 1 : 0;
   }
   return hidden;
 }
