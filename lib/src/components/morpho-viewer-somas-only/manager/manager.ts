@@ -363,42 +363,57 @@ class PainterManager {
   get positions(): Float32Array | null {
     return this._positions;
   }
-  set positions(positions: Float32Array | null) {
-    if (this._positions === positions) return;
-
-    // Identity is the whole comparison: at the scale flat positions exist
-    // for, a `sameGeometry` walk is millions of floats to learn what the host
-    // already said by handing back the same array. A new array is a new scene.
-    this._positions = positions;
-    this.spiking.setCellCount(this.cellCount);
-    if (this.context) {
-      this.delete();
-    }
-    this.initialize();
-  }
 
   get cellInfos(): MorphoViewerCellInfo[] {
     return this._cellInfos;
   }
-  set cellInfos(cellInfos: MorphoViewerCellInfo[]) {
-    if (this._cellInfos === cellInfos) return;
 
+  /**
+   * The somas to draw, however the host chose to describe them.
+   *
+   * Both arrive together rather than through a setter each, because they are
+   * one decision: `positions` wins over `cellInfos`, so a host moving from the
+   * flat path back to `cellInfos` would have the first setter rebuild the
+   * scene against the `cellInfos` of before — a parse, an ambient-occlusion
+   * pass and a camera fit — for the second to tear it down and do it again.
+   */
+  setGeometry(positions: Float32Array | null, cellInfos: MorphoViewerCellInfo[]) {
+    // Identity is the whole comparison for the flat path: at the scale it
+    // exists for, a `sameGeometry` walk is millions of floats to learn what the
+    // host already said by handing back the same array. A new array is a new
+    // scene.
+    const movedPositions = this._positions !== positions;
+    const movedCellInfos = this._cellInfos !== cellInfos;
+    if (!movedPositions && !movedCellInfos) return;
+
+    const wasFlat = !!this._positions;
     const previous = this._cellInfos;
+    this._positions = positions;
     this._cellInfos = cellInfos;
-    // Flat positions own the scene — they win over `cellInfos`, whose colours
-    // are not read on that path either — so there is nothing to rebuild.
-    if (this._positions) return;
+    this.spiking.setCellCount(this.cellCount);
+    // Flat positions own the scene, and nothing of `cellInfos` is read while
+    // they stand — neither its somas nor the colours it carries.
+    if (positions) {
+      if (movedPositions) this.rebuild();
+      return;
+    }
 
-    this.spiking.setCellCount(cellInfos.length);
     // a recolor keeps the same somas (ids + positions) and only swaps colors:
     // swap the point cloud in place, keep the context/camera/orbit untouched so
     // the user's zoom/angle is preserved (and no flicker). Any geometry change
     // (different count, ids, or positions) → full rebuild + camera refit.
-    const colorOnly = !!this.context && !!this.painterCellInfos && sameGeometry(previous, cellInfos);
+    // Coming off the flat path is a geometry change whatever `cellInfos` says:
+    // the somas on screen are the ones `positions` put there.
+    const colorOnly =
+      !wasFlat && !!this.context && !!this.painterCellInfos && sameGeometry(previous, cellInfos);
     if (colorOnly) {
       this.recolorInPlace();
       return;
     }
+    this.rebuild();
+  }
+
+  private rebuild() {
     if (this.context) {
       this.delete();
     }
@@ -970,15 +985,14 @@ export function useManager({
   const refManager = React.useRef<PainterManager | null>(null);
   if (!refManager.current) refManager.current = new PainterManager();
   const manager = refManager.current;
-  // One effect, for the order alone: colours ahead of the scene they paint,
-  // and flat positions ahead of `cellInfos`, so a host that hands both builds
-  // from the flat path rather than from `cellInfos` only to tear that down a
-  // tick later. Each setter is an identity-guarded no-op for whichever props
-  // did not change.
+  // One effect, for the order alone: colours ahead of the scene they paint, and
+  // the geometry as one call, so a host that hands both — or moves from one to
+  // the other — builds the scene it ends up with rather than the one it passed
+  // through. Each call is an identity-guarded no-op for whichever props did not
+  // change.
   React.useEffect(() => {
     manager.cellColors = cellColors;
-    manager.positions = positions ?? null;
-    manager.cellInfos = cellInfos ?? NO_CELL_INFOS;
+    manager.setGeometry(positions ?? null, cellInfos ?? NO_CELL_INFOS);
     // Last, so that a recolour arriving with new geometry is absorbed by the
     // build rather than painted twice.
     manager.applyPendingColors();
