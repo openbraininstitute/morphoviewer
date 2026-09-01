@@ -113,17 +113,23 @@ export class PainterCellInfos extends TgdPainterGroup {
    * would re-read every position, recompute the ambient occlusion and re-upload
    * the whole cloud, which is over a second at region scale for a change the
    * GPU can absorb in a single buffer write.
+   *
+   * @returns Whether the colours were taken. `false` leaves the cloud on the
+   * palette it had, and the caller still holding what it owes it.
    */
-  recolor(colors: MorphoViewerCellColors | null) {
+  recolor(colors: MorphoViewerCellColors | null): boolean {
     // A count that no longer matches means the host is mid-change: its colours
     // have arrived and its geometry has not. Painting them onto the somas
     // standing here would put the wrong colour on some of them for a frame, and
     // the rebuild that is coming repaints everything anyway.
-    if (colors && colors.palette.length > 0 && colors.columnByCell.length !== this.count) return;
+    if (colors && colors.palette.length > 0 && colors.columnByCell.length !== this.count) {
+      return false;
+    }
 
     this.paletteColors = writeColumns(this.dataUV, colors);
     this.texturePalette.loadBitmap(createPaletteBitmap(this.paletteColors, this._opacity));
     this.painterPointsCloud.setUV(this.dataUV);
+    return true;
   }
 
   get somaRadius(): number {

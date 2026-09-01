@@ -432,6 +432,24 @@ describe("PainterCellInfos palette", () => {
     expectDown(1, ALPHA, 0);
   });
 
+  it("refuses colours whose columns describe other geometry, and says so", () => {
+    const painter = paint();
+
+    // Three columns for two somas: the host's colours have arrived and its
+    // geometry has not.
+    const taken = painter.recolor({
+      palette: ["red", "blue"],
+      columnByCell: new Uint16Array([0, 1, 0]),
+    });
+
+    expect(taken).toBe(false);
+    // The hidden column it was built with, not the blue it was offered.
+    expectDown(1, ALPHA, 0);
+    expect(
+      painter.recolor({ palette: ["red", "blue"], columnByCell: new Uint16Array([0, 1]) })
+    ).toBe(true);
+  });
+
   it("hides on a recolour too, without new geometry", () => {
     const painter = paint();
 

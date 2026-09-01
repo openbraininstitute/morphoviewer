@@ -495,11 +495,13 @@ class PainterManager {
 
   /** repaint the existing point cloud: same somas, new colours. */
   private recolorInPlace() {
-    // Settled either way: if there is a cloud this repaints it, and if there is
-    // not, the build that follows reads the same palette.
-    this.colorsPending = false;
     const { context, painterCellInfos } = this;
-    if (!context || !painterCellInfos) return;
+    if (!context || !painterCellInfos) {
+      // Nothing standing to repaint, and the build that follows reads the same
+      // palette, so nothing is owed either.
+      this.colorsPending = false;
+      return;
+    }
 
     // Rewriting the palette column blocks the main thread for as long as it
     // takes; that is not render cost.
@@ -507,7 +509,14 @@ class PainterManager {
     // Read once: on the `cellInfos` path the getter walks every cell to build
     // it, and both of the lines below want the same palette.
     const palette = this.cellPalette;
-    painterCellInfos.recolor(palette);
+    // Refused when the colours describe geometry that has not arrived. They
+    // stay owed rather than being dropped — nothing else would come back for
+    // them — and the picker is left alone: taking them there while the cloud
+    // keeps the old palette is how a soma on screen stops answering clicks and
+    // a hidden one starts.
+    if (!painterCellInfos.recolor(palette)) return;
+
+    this.colorsPending = false;
     // A recolour is also how a soma stops being drawn, and the picker has its
     // own cloud to keep in step. Only when one exists — it is built on the
     // first click, and most viewers never build one at all.
