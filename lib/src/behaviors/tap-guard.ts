@@ -20,7 +20,7 @@ const MAX_CLICK_IN_SECONDS = 0.5;
 const PRIORITY = 100;
 
 /** Whether a move of `dx`,`dy` clip units left the slop circle. */
-export function movedBeyondSlop(
+function movedBeyondSlop(
   dx: number,
   dy: number,
   widthInPixels: number,

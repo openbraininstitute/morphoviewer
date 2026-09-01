@@ -8,7 +8,7 @@
  */
 export { MaterialIndex } from "./material-index";
 export { MaterialSegmentIndex } from "./material-segment-index";
-export { decodePickColor, encodePickColor } from "./pick-color-codec";
+export { decodePickColor, encodePickColor, glslEncodePickColor } from "./pick-color-codec";
 export { computeSectionOffset } from "./section-offset";
 export {
   decodeSegmentIndex,

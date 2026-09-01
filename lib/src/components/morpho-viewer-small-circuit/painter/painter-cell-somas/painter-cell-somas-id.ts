@@ -9,6 +9,8 @@ import {
   TgdVertexArray,
 } from "@tolokoban/tgd";
 
+import { glslEncodePickColor } from "@/morphology-picking";
+
 /**
  * Where the cloud's numbering starts in the cell pick buffer.
  *
@@ -87,8 +89,7 @@ function createIdProgram(context: TgdContext): TgdProgram {
       varDepth: "float",
     },
     mainCode: [
-      `int id = gl_InstanceID + ${CLOUD_FIRST_INDEX};`,
-      "varColor = vec4(vec3(float(id & 0xFF), float((id >> 8) & 0xFF), float((id >> 16) & 0xFF)) / 255.0, 1.0);",
+      ...glslEncodePickColor(`gl_InstanceID + ${CLOUD_FIRST_INDEX}`),
       "float radius = attPoint.w;",
       "vec4 point = uniModelViewMatrix * vec4(attPoint.xyz, 1.0);",
       "gl_Position = uniProjectionMatrix * point;",

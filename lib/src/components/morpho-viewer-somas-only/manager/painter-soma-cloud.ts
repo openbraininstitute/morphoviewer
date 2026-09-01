@@ -329,8 +329,18 @@ function sphereShadingWithoutDepthWrite(): string[] {
   // tgd types shader code as a bloc that may nest; this one is a flat list of
   // statements, some of them empty where an option turned a line off.
   const statements = Array.isArray(shading) ? shading : [shading];
-  return statements.filter(
+  const kept = statements.filter(
     (statement): statement is string =>
       typeof statement === "string" && !statement.includes("gl_FragDepth")
   );
+  // Say so rather than quietly render seven times slower. Finding nothing to
+  // strip is not the safe outcome the filter's shape suggests: it means a tgd
+  // release reformatted the statement, early-Z is off again, and the only
+  // symptom is 177ms frames that no test without a GL context can see.
+  if (kept.length === statements.length) {
+    console.error(
+      "PainterSomaCloud: no gl_FragDepth write found in tgd's fragCodeSphere — the soma cloud is now fill-rate bound. Check whether tgd gained an option to drop it."
+    );
+  }
+  return kept;
 }

@@ -28,6 +28,26 @@ export class AmbientOcclusionComputation {
   /** Built on first use: it walks every soma, which is exactly the kind of
    * work creating this class must not do. */
   private proximity: Proximity | null = null;
+  private readonly radiusSquare: number;
+  /**
+   * The sum {@link addNeighbor} is building, for the soma {@link advance} is on.
+   *
+   * A field, and the callback created once, because the obvious form — an arrow
+   * closing over a `let total` inside the loop — allocates a closure and its
+   * context for every soma. That is two allocations per soma across the whole
+   * cloud, in the loop this class exists to spread out because it is already
+   * about a second of arithmetic.
+   */
+  private accumulator = 0;
+  private readonly addNeighbor = (
+    _x: number,
+    _y: number,
+    _z: number,
+    _r: number,
+    distSquare: number
+  ) => {
+    this.accumulator += this.radiusSquare - distSquare;
+  };
 
   constructor(
     private readonly bbox: { min: ArrayNumber3; max: ArrayNumber3 },
@@ -36,6 +56,7 @@ export class AmbientOcclusionComputation {
     private readonly points: Float32Array
   ) {
     this.totals = new Float32Array(points.length >> 2);
+    this.radiusSquare = radius * radius;
   }
 
   get done(): boolean {
@@ -48,16 +69,12 @@ export class AmbientOcclusionComputation {
     if (this.done) return true;
 
     const proximity = (this.proximity ??= new Proximity(this.points, this.bbox, this.radius));
-    const radiusSquare = this.radius * this.radius;
     const { totals } = this;
     const end = Math.min(totals.length, this.cursor + count);
     for (let soma = this.cursor; soma < end; soma++) {
-      let total = 0;
-      proximity.forEachNeighbor(
-        soma * 4,
-        (_x: number, _y: number, _z: number, _r: number, distSquare: number) =>
-          (total += radiusSquare - distSquare)
-      );
+      this.accumulator = 0;
+      proximity.forEachNeighbor(soma * 4, this.addNeighbor);
+      const total = this.accumulator;
       totals[soma] = total;
       if (total > this.maxTotal) this.maxTotal = total;
     }

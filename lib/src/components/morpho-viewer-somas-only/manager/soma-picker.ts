@@ -1,4 +1,3 @@
-/* eslint-disable no-bitwise */
 import {
   TgdContext,
   TgdDataset,
@@ -11,7 +10,7 @@ import {
   TgdVertexArray,
 } from "@tolokoban/tgd";
 
-import { decodePickColor, spiralPixelOffsets } from "@/morphology-picking";
+import { decodePickColor, glslEncodePickColor, spiralPixelOffsets } from "@/morphology-picking";
 
 /**
  * Resolve a click on the soma cloud to the index of the soma under it.
@@ -147,6 +146,20 @@ export class SomaPicker {
   }
 }
 
+/**
+ * The array's own `ArrayBuffer`, copied first if it does not own one.
+ *
+ * Uploading `.buffer` sends the whole of it, so a `positions` prop that is a view onto a
+ * larger buffer — the host's to build however it likes — would otherwise send its neighbours
+ * too. The copy is one `slice`, against the per-soma loop it is here to avoid, and the common
+ * case (a whole array) does not pay it.
+ */
+function ownBuffer(positions: Float32Array): ArrayBuffer {
+  const ownsBuffer =
+    positions.byteOffset === 0 && positions.buffer.byteLength === positions.byteLength;
+  return ownsBuffer ? (positions.buffer as ArrayBuffer) : positions.slice().buffer;
+}
+
 interface PainterSomaCloudIdOptions {
   /** `[x, y, z]` per soma, in scene order. */
   positions: Float32Array;
@@ -189,8 +202,14 @@ class PainterSomaCloudId extends TgdPainter {
     super("PainterSomaCloudId");
     this.count = options.positions.length / 3;
 
-    const instances = new TgdDataset({ attPoint: "vec3" }, { divisor: 1 });
-    instances.set("attPoint", options.positions);
+    // Handed the buffer whole rather than through `TgdDataset.set`, which copies one soma at a
+    // time — a `subarray` and a 12-byte `set` each, so a region-scale cloud is millions of
+    // temporary views built synchronously on the first click. The `hidden` dataset below and
+    // every dataset in `PainterSomaCloud` already take this path.
+    const instances = new TgdDataset(
+      { attPoint: "vec3" },
+      { divisor: 1, data: ownBuffer(options.positions) }
+    );
 
     // Starts at zero — everything pickable — and stays that way unless a host
     // hides something, which most never do.
@@ -276,8 +295,7 @@ function createIdProgram(context: TgdContext): TgdProgram {
       // pick otherwise: the ID buffer is depth-tested, so a hidden soma in
       // front would win and the visible one behind it would never be drawn.
       "if (attHidden > 0.5) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }",
-      "int id = gl_InstanceID + 1;",
-      "varColor = vec4(vec3(float(id & 0xFF), float((id >> 8) & 0xFF), float((id >> 16) & 0xFF)) / 255.0, 1.0);",
+      ...glslEncodePickColor("gl_InstanceID + 1"),
       "float radius = uniRadiusMultiplier;",
       "vec4 point = uniModelViewMatrix * vec4(attPoint, 1.0);",
       "gl_Position = uniProjectionMatrix * point;",

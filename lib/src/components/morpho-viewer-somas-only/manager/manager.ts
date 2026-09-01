@@ -75,6 +75,8 @@ class PainterManager {
   private _cellInfos: MorphoViewerCellInfo[] = [];
   private _positions: Float32Array | null = null;
   private _cellColors: MorphoViewerCellColors | undefined;
+  /** Colours changed and the cloud has not been repainted for them yet. */
+  private colorsPending = false;
   private _backgroundColor = "black";
   private readonly parsedBackgroundColor = new TgdColor(0, 0, 0, 1);
   private painterCellInfos: PainterCellInfos | null = null;
@@ -321,6 +323,23 @@ class PainterManager {
     if (this._cellColors === cellColors) return;
 
     this._cellColors = cellColors;
+    // Recorded, not applied: the geometry setters run next and may replace the
+    // scene outright, and a repaint here would rewrite every palette column and
+    // re-upload the whole `[u, v]` buffer for a cloud about to be deleted.
+    // {@link applyPendingColors} does the work once the scene is settled.
+    this.colorsPending = true;
+  }
+
+  /**
+   * Repaint the cloud if the colours moved and the scene did not.
+   *
+   * Called by the hook after the geometry setters, so that a host changing both
+   * at once pays for one build rather than a recolour thrown away on the same
+   * tick. A rebuild already draws with the new palette, and clears the flag.
+   */
+  applyPendingColors() {
+    if (!this.colorsPending) return;
+
     this.recolorInPlace();
   }
 
@@ -476,6 +495,9 @@ class PainterManager {
 
   /** repaint the existing point cloud: same somas, new colours. */
   private recolorInPlace() {
+    // Settled either way: if there is a cloud this repaints it, and if there is
+    // not, the build that follows reads the same palette.
+    this.colorsPending = false;
     const { context, painterCellInfos } = this;
     if (!context || !painterCellInfos) return;
 
@@ -617,6 +639,8 @@ class PainterManager {
       opacity: this._neuronOpacity,
     });
     this.painterCellInfos = painterCellInfos;
+    // Built with the palette as it stands, so no recolour is owed for it.
+    this.colorsPending = false;
     this.applyCellGlow();
     context.eventPaint.addListener(this.handleSpikeFrame);
     context.inputs.pointer.eventTap.addListener(this.handlePointerTap);
@@ -946,6 +970,9 @@ export function useManager({
     manager.cellColors = cellColors;
     manager.positions = positions ?? null;
     manager.cellInfos = cellInfos ?? NO_CELL_INFOS;
+    // Last, so that a recolour arriving with new geometry is absorbed by the
+    // build rather than painted twice.
+    manager.applyPendingColors();
   }, [cellColors, positions, cellInfos, manager]);
   React.useEffect(() => {
     manager.backgroundColor = backgroundColor ?? "black";

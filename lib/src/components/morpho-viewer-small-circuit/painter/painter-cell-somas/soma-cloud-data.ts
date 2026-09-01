@@ -48,7 +48,12 @@ export function buildSomaCloudData(
   const dataUV = new Float32Array(cells.length * 2);
   cells.forEach((cell, index) => {
     const [x, y, z] = cell.center;
-    dataPoint.set([x, y, z, cell.somaRadius], index * 4);
+    // Written one float at a time: `set` would take a 4-element JS array per cell, and this
+    // runs for every context soma in the scene.
+    dataPoint[index * 4] = x;
+    dataPoint[index * 4 + 1] = y;
+    dataPoint[index * 4 + 2] = z;
+    dataPoint[index * 4 + 3] = cell.somaRadius;
     // The middle of the column: the palette is one pixel wide per colour, sampled NEAREST.
     dataUV[index * 2] = (columns[index] + 0.5) / palette.length;
     dataUV[index * 2 + 1] = 0.5;

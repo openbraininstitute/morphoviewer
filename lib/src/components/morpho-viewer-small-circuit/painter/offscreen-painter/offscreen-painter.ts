@@ -10,14 +10,17 @@ import {
 import { decodePickColor, spiralPixelOffsets } from "@/morphology-picking";
 
 import { PainterCellId } from "../painter-cell";
-import { buildSomaCloudData, CLOUD_FIRST_INDEX, PainterCellSomasId } from "../painter-cell-somas";
+import { CLOUD_FIRST_INDEX, PainterCellSomasId } from "../painter-cell-somas";
 import { isSameCell } from "../same-cell";
 
 import type { MorphoViewerSmallCircuitCell, MorphoViewerSmallCircuitCellData } from "../../types";
+import type { SomaCloudData } from "../painter-cell-somas";
 
 export interface OffscreenPainterOptions {
   circuit: MorphoViewerSmallCircuitCell[];
   loadCell: (id: string) => Promise<MorphoViewerSmallCircuitCellData | null>;
+  /** The cells drawn as a soma alone, built once by the caller. @see setCircuit */
+  somas: SomaCloudData;
   /** Current dendrogram morph, so a rebuilt buffer matches what is on screen. */
   dendrogramMix?: number;
 }
@@ -90,7 +93,7 @@ export class OffscreenPainter {
       })
     );
     this.mix = options.dendrogramMix ?? 0;
-    this.setCircuit(options.circuit, options.loadCell);
+    this.setCircuit(options.circuit, options.loadCell, options.somas);
   }
 
   /**
@@ -99,10 +102,16 @@ export class OffscreenPainter {
    * A painter compiles a shader program of its own, so building one for every cell on every
    * update is the most expensive thing this buffer can do — and a population hidden or put on
    * show leaves most of them untouched.
+   *
+   * `somas` is handed in rather than built here: the visible cloud draws from the same data,
+   * and a pick resolves to the cell the eye was on only while instance `i` means the same cell
+   * in both. Sharing the one array is what holds that, where two builds only ever happened to
+   * agree.
    */
   setCircuit(
     circuit: MorphoViewerSmallCircuitCell[],
-    loadCell: (id: string) => Promise<MorphoViewerSmallCircuitCellData | null>
+    loadCell: (id: string) => Promise<MorphoViewerSmallCircuitCellData | null>,
+    somas: SomaCloudData
   ) {
     const kept = new Map(this.meshes);
     this.meshes.clear();
@@ -138,7 +147,6 @@ export class OffscreenPainter {
       this.cellByIndex[index - FIRST_INDEX] = undefined;
       this.freeIndices.push(index);
     }
-    const somas = buildSomaCloudData(circuit);
     this.cloud?.delete();
     this.cloud = null;
     this.cloudCells = somas.cells;

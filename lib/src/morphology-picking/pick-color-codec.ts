@@ -23,3 +23,23 @@ export function decodePickColor(pixel: Readonly<Uint8Array>): number | null {
   const index = pixel[0] + (pixel[1] << 8) + (pixel[2] << 16);
   return index === 0 ? null : index;
 }
+
+/**
+ * The same encoding as {@link encodePickColor}, as the GLSL a pick shader
+ * writes it with: the statements that turn `idExpression` into `varColor`.
+ *
+ * Here rather than copied into each pick painter so the wire format has one
+ * definition — the decoder above reads whatever this writes, and a change to
+ * the byte order that reached only one of them would resolve clicks to the
+ * wrong thing with nothing to catch it.
+ *
+ * The id is bound to a local first, so a caller may hand in an expression
+ * (`gl_InstanceID + 1`) without it being evaluated three times or having to
+ * parenthesize it against `&`'s low precedence.
+ */
+export function glslEncodePickColor(idExpression: string): string[] {
+  return [
+    `int pickId = ${idExpression};`,
+    "varColor = vec4(vec3(float(pickId & 0xFF), float((pickId >> 8) & 0xFF), float((pickId >> 16) & 0xFF)) / 255.0, 1.0);",
+  ];
+}

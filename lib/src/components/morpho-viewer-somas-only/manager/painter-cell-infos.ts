@@ -66,8 +66,9 @@ export class PainterCellInfos extends TgdPainterGroup {
   ) {
     const bbox = new TgdBoundingBox();
     const dataPoint = options.positions
-      ? packPositions(options.positions, bbox)
-      : parsePositions(options.cellInfos ?? [], bbox);
+      ? packPositions(options.positions)
+      : parsePositions(options.cellInfos ?? []);
+    addSomaBounds(dataPoint, bbox);
     const count = dataPoint.length >> 2;
     const dataUV = new Float32Array(2 * count).fill(0.5);
     const paletteColors = writeColumns(dataUV, options.colors);
@@ -212,15 +213,58 @@ export class PainterCellInfos extends TgdPainterGroup {
 
 /**
  * The same somas from positions already flat: `[x, y, z]` triples into
- * `[x, y, z, radius]`, and the bounding box around them.
+ * `[x, y, z, radius]`.
  *
  * Its own loop rather than `parsePositions` over a wrapper: this is the path
  * that exists so a region-scale host never builds an object per soma, and it
  * reads the floats where they already are.
  */
-function packPositions(positions: Float32Array, bbox: TgdBoundingBox): Float32Array<ArrayBuffer> {
+function packPositions(positions: Float32Array): Float32Array<ArrayBuffer> {
   const count = Math.floor(positions.length / 3);
   const dataPoint = new Float32Array(4 * count);
+  for (let soma = 0; soma < count; soma++) {
+    dataPoint[soma * 4] = positions[soma * 3];
+    dataPoint[soma * 4 + 1] = positions[soma * 3 + 1];
+    dataPoint[soma * 4 + 2] = positions[soma * 3 + 2];
+    // set the radius to 1, and will use radiusMultiplier to change it.
+    dataPoint[soma * 4 + 3] = 1;
+  }
+  return dataPoint;
+}
+
+/**
+ * Positions into `[x, y, z, radius]` per soma.
+ *
+ * Written into a sized `Float32Array` rather than pushed onto a `number[]` and
+ * converted: at region scale that array is twenty million boxed numbers, and
+ * the garbage it leaves behind outweighs the parse itself.
+ */
+function parsePositions(cellInfos: MorphoViewerCellInfo[]): Float32Array<ArrayBuffer> {
+  const dataPoint = new Float32Array(4 * cellInfos.length);
+  let index = 0;
+  for (const { position } of cellInfos) {
+    dataPoint[index++] = position[0];
+    dataPoint[index++] = position[1];
+    dataPoint[index++] = position[2];
+    // set the radius to 1, and will use radiusMultiplier to change it.
+    dataPoint[index++] = 1;
+  }
+  return dataPoint;
+}
+
+/**
+ * The box the camera frames the cloud with: a centre and a symmetric radius
+ * rather than the plain min/max box, so an outlier pulls the frame out on both
+ * sides and the cloud stays centred where the somas actually are.
+ *
+ * One pass over the packed array both paths have just written, rather than
+ * accumulated inside each of them — the arithmetic has nothing to do with
+ * where the floats came from, and two copies of it is where it would drift.
+ */
+function addSomaBounds(dataPoint: Readonly<Float32Array>, bbox: TgdBoundingBox): void {
+  const count = dataPoint.length >> 2;
+  if (count === 0) return;
+
   let centerX = 0;
   let centerY = 0;
   let centerZ = 0;
@@ -230,11 +274,10 @@ function packPositions(positions: Float32Array, bbox: TgdBoundingBox): Float32Ar
   let maxX = Number.NEGATIVE_INFINITY;
   let maxY = Number.NEGATIVE_INFINITY;
   let maxZ = Number.NEGATIVE_INFINITY;
-  let index = 0;
   for (let soma = 0; soma < count; soma++) {
-    const x = positions[soma * 3];
-    const y = positions[soma * 3 + 1];
-    const z = positions[soma * 3 + 2];
+    const x = dataPoint[soma * 4];
+    const y = dataPoint[soma * 4 + 1];
+    const z = dataPoint[soma * 4 + 2];
     centerX += x;
     centerY += y;
     centerZ += z;
@@ -244,11 +287,6 @@ function packPositions(positions: Float32Array, bbox: TgdBoundingBox): Float32Ar
     maxX = Math.max(maxX, x);
     maxY = Math.max(maxY, y);
     maxZ = Math.max(maxZ, z);
-    dataPoint[index++] = x;
-    dataPoint[index++] = y;
-    dataPoint[index++] = z;
-    // set the radius to 1, and will use radiusMultiplier to change it.
-    dataPoint[index++] = 1;
   }
   const invCount = 1 / count;
   centerX *= invCount;
@@ -259,59 +297,17 @@ function packPositions(positions: Float32Array, bbox: TgdBoundingBox): Float32Ar
   const radiusZ = Math.max(Math.abs(maxZ - centerZ), Math.abs(centerZ - minZ));
   bbox.addSphere(centerX + radiusX, centerY + radiusY, centerZ + radiusZ, RADIUS);
   bbox.addSphere(centerX - radiusX, centerY - radiusY, centerZ - radiusZ, RADIUS);
-  return dataPoint;
 }
 
 /**
- * Positions into `[x, y, z, radius]` per soma, and the bounding box around
- * them.
+ * The palette column a soma takes, clamped to the columns there are.
  *
- * Written into a sized `Float32Array` rather than pushed onto a `number[]` and
- * converted: at region scale that array is twenty million boxed numbers, and
- * the garbage it leaves behind outweighs the parse itself.
+ * The one place that rule is stated: what is drawn and what is pickable are
+ * decided by two different walks over these columns, and a soma that landed in
+ * different columns between them would be invisible and still swallow clicks.
  */
-function parsePositions(
-  cellInfos: MorphoViewerCellInfo[],
-  bbox: TgdBoundingBox
-): Float32Array<ArrayBuffer> {
-  const dataPoint = new Float32Array(4 * cellInfos.length);
-  let centerX = 0;
-  let centerY = 0;
-  let centerZ = 0;
-  let minX = Number.POSITIVE_INFINITY;
-  let minY = Number.POSITIVE_INFINITY;
-  let minZ = Number.POSITIVE_INFINITY;
-  let maxX = Number.NEGATIVE_INFINITY;
-  let maxY = Number.NEGATIVE_INFINITY;
-  let maxZ = Number.NEGATIVE_INFINITY;
-  let index = 0;
-  for (const { position } of cellInfos) {
-    const [x, y, z] = position;
-    centerX += x;
-    centerY += y;
-    centerZ += z;
-    minX = Math.min(minX, x);
-    minY = Math.min(minY, y);
-    minZ = Math.min(minZ, z);
-    maxX = Math.max(maxX, x);
-    maxY = Math.max(maxY, y);
-    maxZ = Math.max(maxZ, z);
-    dataPoint[index++] = x;
-    dataPoint[index++] = y;
-    dataPoint[index++] = z;
-    // set the radius to 1, and will use radiusMultiplier to change it.
-    dataPoint[index++] = 1;
-  }
-  const invCount = 1 / cellInfos.length;
-  centerX *= invCount;
-  centerY *= invCount;
-  centerZ *= invCount;
-  const radiusX = Math.max(Math.abs(maxX - centerX), Math.abs(centerX - minX));
-  const radiusY = Math.max(Math.abs(maxY - centerY), Math.abs(centerY - minY));
-  const radiusZ = Math.max(Math.abs(maxZ - centerZ), Math.abs(centerZ - minZ));
-  bbox.addSphere(centerX + radiusX, centerY + radiusY, centerZ + radiusZ, RADIUS);
-  bbox.addSphere(centerX - radiusX, centerY - radiusY, centerZ - radiusZ, RADIUS);
-  return dataPoint;
+function columnAt(colors: MorphoViewerCellColors, cell: number): number {
+  return Math.min(colors.columnByCell[cell], colors.palette.length - 1);
 }
 
 /**
@@ -328,11 +324,10 @@ function writeColumns(
 
   const { palette, columnByCell } = colors;
   const width = palette.length;
-  const last = width - 1;
   for (let cell = 0; cell < columnByCell.length; cell++) {
     // the horizontal center of the column, so linear filtering returns the
     // exact column color for every soma
-    dataUV[cell * 2] = (Math.min(columnByCell[cell], last) + 0.5) / width;
+    dataUV[cell * 2] = (columnAt(colors, cell) + 0.5) / width;
   }
   return palette;
 }
@@ -355,14 +350,12 @@ export function hiddenSomaMask(
   if (!colors?.palette.includes(false)) return null;
 
   const { palette, columnByCell } = colors;
-  const last = palette.length - 1;
   const hidden = new Float32Array(count);
   // Somas past the columns given keep the palette's own default, which is a
-  // column that is drawn. Out-of-range columns clamp the way `writeColumns`
-  // clamps them, so the two never disagree about which column a soma is in.
+  // column that is drawn.
   const described = Math.min(count, columnByCell.length);
   for (let cell = 0; cell < described; cell++) {
-    if (palette[Math.min(columnByCell[cell], last)] === false) hidden[cell] = 1;
+    if (palette[columnAt(colors, cell)] === false) hidden[cell] = 1;
   }
   return hidden;
 }

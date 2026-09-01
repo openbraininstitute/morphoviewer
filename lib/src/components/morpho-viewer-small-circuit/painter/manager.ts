@@ -906,14 +906,19 @@ export class PainterManager {
       // report itself all but loaded before the first morphology arrived.
       this.cellCountTotal = this.circuit.filter((cell) => !cell.somaOnly).length;
       this.cellCountLoaded = 0;
+      // Built once for both passes that draw these cells. Instance `i` has to be the same cell
+      // in the visible cloud and in the pick buffer or a click resolves to the wrong one, and
+      // one array is what holds that — where two builds only ever happened to agree.
+      const somas = buildSomaCloudData(this.circuit);
       // Updated rather than rebuilt, for the same reason: its painters carry a program each
       // too, and it holds one for every cell whether or not the pointer ever goes near it.
       if (this.offscreen) {
-        this.offscreen.setCircuit(this.circuit, loadCell);
+        this.offscreen.setCircuit(this.circuit, loadCell, somas);
       } else {
         this.offscreen = new OffscreenPainter(context, {
           circuit: this.circuit,
           loadCell,
+          somas,
           dendrogramMix: this.dendrogramMix,
         });
       }
@@ -971,7 +976,6 @@ export class PainterManager {
       // when it had painters of its own.
       this.painterCellSomas?.delete();
       this.painterCellSomas = null;
-      const somas = buildSomaCloudData(this.circuit);
       if (somas.cells.length > 0) {
         const painterCellSomas = new PainterCellSomas(context, {
           dataPoint: somas.dataPoint,
