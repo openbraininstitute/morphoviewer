@@ -1,5 +1,6 @@
 import type { ArrayNumber3 } from "@tolokoban/tgd";
 import type { PropsForSpikeReplay } from "@/spikes";
+import type { MorphoViewerCameraFocus } from "../camera-focus";
 import type { ControlsLayoutProps } from "../controls-layout";
 import type { MorphoViewerSignals } from "../signals";
 import type {
@@ -101,6 +102,15 @@ export type MorphoViewerSomasOnlyProps = PropsForGizmo &
      * time and move only this.
      */
     cellColors?: MorphoViewerCellColors;
+    /**
+     * The somas the camera frames, as a range into
+     * {@link MorphoViewerSomasOnlyProps.positions} /
+     * {@link MorphoViewerSomasOnlyProps.cellInfos}. All of them when absent.
+     *
+     * Changing this alone moves nothing — see {@link MorphoViewerCameraFocus}.
+     * The rest of the scene is still drawn, and still reachable by zooming out.
+     */
+    cameraFocus?: MorphoViewerCameraFocus | null;
     cameraType?: "orthographic" | "perspective";
     /**
      * background (canvas clear) color, as any CSS color string

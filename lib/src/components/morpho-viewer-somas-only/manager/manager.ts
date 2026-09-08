@@ -1,5 +1,7 @@
 import {
+  type ArrayNumber3,
   TgdBoundingBox,
+  type TgdCamera,
   TgdCameraOrthographic,
   TgdCameraPerspective,
   TgdColor,
@@ -9,6 +11,7 @@ import {
   TgdPainterClear,
   type TgdPainterGizmoOptions,
   TgdPainterState,
+  TgdVec3,
   tgdActionCreateCameraInterpolation,
   webglBlendGet,
   webglBlendSet,
@@ -31,6 +34,7 @@ import { AdpatativeResolution } from "./adaptative-resolution";
 import { cellPaletteFromCellInfos, hiddenSomaMask, PainterCellInfos } from "./painter-cell-infos";
 import { SomaPicker } from "./soma-picker";
 
+import type { MorphoViewerCameraFocus } from "../../camera-focus";
 import type {
   MorphoViewerSignalCameraResetOptions,
   MorphoViewerSignalSnapshotOptions,
@@ -133,6 +137,7 @@ class PainterManager {
   private context: TgdContext | null = null;
   private orbit: TgdControllerCameraOrbit | null = null;
   private bbox = new TgdBoundingBox();
+  private _cameraFocus: MorphoViewerCameraFocus | null = null;
   private scalebarCleanup: (() => void) | null = null;
   private readonly painterGizmo = new PainterGizmo();
   private readonly adaptativeResolution = new AdpatativeResolution();
@@ -403,15 +408,31 @@ class PainterManager {
    * flat path back to `cellInfos` would have the first setter rebuild the
    * scene against the `cellInfos` of before — a parse, an ambient-occlusion
    * pass and a camera fit — for the second to tear it down and do it again.
+   *
+   * `focus` rides along for the same reason and one more: it indexes the array
+   * beside it, so arriving separately would leave a range pointing into a scene
+   * it was not measured against. It never moves the camera on its own.
    */
-  setGeometry(positions: Float32Array | null, cellInfos: MorphoViewerCellInfo[]) {
+  setGeometry(
+    positions: Float32Array | null,
+    cellInfos: MorphoViewerCellInfo[],
+    focus?: MorphoViewerCameraFocus | null
+  ) {
     // Identity is the whole comparison for the flat path: at the scale it
     // exists for, a `sameGeometry` walk is millions of floats to learn what the
     // host already said by handing back the same array. A new array is a new
     // scene.
     const movedPositions = this._positions !== positions;
     const movedCellInfos = this._cellInfos !== cellInfos;
-    if (!movedPositions && !movedCellInfos) return;
+    const movedFocus =
+      this._cameraFocus?.from !== focus?.from || this._cameraFocus?.count !== focus?.count;
+    this._cameraFocus = focus ?? null;
+    if (!movedPositions && !movedCellInfos) {
+      // The somas on screen are the same ones; only the box a fit would use has
+      // moved. Measured now so the next reset frames it, and nothing repaints.
+      if (movedFocus) this.painterCellInfos?.setFocus(this._cameraFocus);
+      return;
+    }
 
     const wasFlat = !!this._positions;
     const previous = this._cellInfos;
@@ -581,13 +602,14 @@ class PainterManager {
   }
 
   readonly cameraReset = (options?: MorphoViewerSignalCameraResetOptions) => {
-    const { context, bbox } = this;
+    const { context } = this;
     if (!context) return;
 
+    const frame = this.frameBox;
     context.camera.screenWidth = context.width;
     context.camera.screenHeight = context.height;
     const resettedCamera = context.camera.clone();
-    const [width, height] = bbox.size;
+    const [width, height] = frame.size;
     if (
       width < 1 ||
       height < 1 ||
@@ -597,13 +619,16 @@ class PainterManager {
       return;
     }
 
-    resettedCamera.fitBoundingBox(bbox);
+    resettedCamera.fitBoundingBox(frame);
     if (Number.isNaN(resettedCamera.transfo.distance)) {
       // Can be NaN if the screen size has not yet been defined.
       return;
     }
     resettedCamera.zoom = options?.zoom ?? 1;
     const state = resettedCamera.getCurrentState();
+    // Set on the live camera rather than carried in the state, which holds no
+    // planes; the move interpolates inside a slab already wide enough for it.
+    this.widenDepthRange(context.camera, state.position, state.distance);
     context.animSchedule({
       duration: 0.5,
       action: tgdActionCreateCameraInterpolation(context.camera, state),
@@ -649,16 +674,39 @@ class PainterManager {
     }
   };
 
+  /** The box the camera is fitted to: the somas on show, or the whole scene. */
+  private get frameBox(): TgdBoundingBox {
+    return this.painterCellInfos?.focusBbox ?? this.bbox;
+  }
+
+  /**
+   * Push the far plane out past the whole scene.
+   *
+   * Fitting a box sizes the depth slab to it as well as the frame, so framing
+   * one population alone would put the others behind the far plane — clipped
+   * out of existence rather than merely out of shot, with no way to zoom back
+   * to them. The frame narrows; what is drawable does not.
+   */
+  private widenDepthRange(camera: TgdCamera, position: TgdVec3 | ArrayNumber3, distance: number) {
+    const { bbox } = this;
+    const [width, height, depth] = bbox.size;
+    const radius = 0.5 * Math.hypot(width, height, depth);
+    const far = distance + TgdVec3.distance(position, bbox.center) + radius;
+    if (far > camera.far) camera.far = far;
+  }
+
   private applyBBoxToCamera() {
-    const { bbox, context } = this;
+    const { context } = this;
     if (!context) return;
 
+    const frame = this.frameBox;
     context.execBeforeNextPaint(() => {
       const { camera } = context;
       camera.screenWidth = context.width;
       camera.screenHeight = context.height;
-      camera.transfo.position = bbox.center;
-      camera.fitBoundingBox(bbox);
+      camera.transfo.position = frame.center;
+      camera.fitBoundingBox(frame);
+      this.widenDepthRange(camera, camera.transfo.position, camera.transfo.distance);
     });
     context.paint();
   }
@@ -704,6 +752,7 @@ class PainterManager {
       colors: palette,
       somaRadius: this.somaRadius,
       opacity: this._neuronOpacity,
+      focus: this._cameraFocus,
     });
     this.painterCellInfos = painterCellInfos;
     // Built with the palette as it stands, so no recolour is owed for it.
@@ -1012,6 +1061,7 @@ export function useManager({
   positions,
   cellInfos,
   cellColors,
+  cameraFocus,
   somaRadius,
   gizmo,
   cameraType,
@@ -1043,11 +1093,11 @@ export function useManager({
   // change.
   React.useEffect(() => {
     manager.cellColors = cellColors;
-    manager.setGeometry(positions ?? null, cellInfos ?? NO_CELL_INFOS);
+    manager.setGeometry(positions ?? null, cellInfos ?? NO_CELL_INFOS, cameraFocus);
     // Last, so that a recolour arriving with new geometry is absorbed by the
     // build rather than painted twice.
     manager.applyPendingColors();
-  }, [cellColors, positions, cellInfos, manager]);
+  }, [cellColors, positions, cellInfos, cameraFocus, manager]);
   React.useEffect(() => {
     manager.backgroundColor = backgroundColor ?? "black";
   }, [backgroundColor, manager]);

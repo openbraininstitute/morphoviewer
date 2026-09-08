@@ -3,6 +3,8 @@ import { TgdBoundingBox, type TgdContext, TgdPainterGroup, TgdTexture2D } from "
 import { AmbientOcclusionComputation } from "./ambient-occlusion";
 import { PainterSomaCloud } from "./painter-soma-cloud";
 
+import { type MorphoViewerCameraFocus, clampCameraFocus } from "../../camera-focus";
+
 import type { MorphoViewerCellColors, MorphoViewerCellInfo } from "../types";
 
 const RADIUS = 15;
@@ -38,10 +40,16 @@ export interface PainterCellInfosOptions {
   somaRadius: number;
   /** Soma colour opacity in `[0..1]`. Default `1`. */
   opacity?: number;
+  /** The somas the camera frames; all of them when absent. @see setFocus */
+  focus?: MorphoViewerCameraFocus | null;
 }
 
 export class PainterCellInfos extends TgdPainterGroup {
+  /** The whole cloud: what the ambient occlusion is computed over. */
   public readonly bbox: TgdBoundingBox;
+
+  /** The part of it the camera frames — {@link bbox} unless a range was named. */
+  public focusBbox: TgdBoundingBox;
 
   /** Somas drawn, which is what a set of colours has to have one of each. */
   private readonly count: number;
@@ -55,6 +63,8 @@ export class PainterCellInfos extends TgdPainterGroup {
    * rewrites `u` around it.
    */
   private readonly dataUV: Float32Array<ArrayBuffer>;
+  /** Packed `[x, y, z, r]` per soma, kept so a new focus can be measured without a rebuild. */
+  private readonly dataPoint: Float32Array;
   private paletteColors: (string | null | false)[] | null;
   private _opacity: number;
   /** Stops the pending occlusion slice; null once it has run or been cut. */
@@ -98,10 +108,32 @@ export class PainterCellInfos extends TgdPainterGroup {
     this.dataUV = dataUV;
     this.paletteColors = paletteColors;
     this._opacity = opacity;
+    this.dataPoint = dataPoint;
     this.bbox = bbox;
+    this.focusBbox = bbox;
+    this.setFocus(options.focus);
     // The cloud goes up with the flat shading `dataUV` was filled with; the
     // occlusion is computed behind it and applied when it is ready.
     this.scheduleAmbientOcclusion(new AmbientOcclusionComputation(bbox, 10 * RADIUS, dataPoint));
+  }
+
+  /**
+   * Narrow the frame to a slice of the cloud, or widen it back to all of it.
+   *
+   * One pass over the somas named and nothing else: the cloud on screen is
+   * untouched, and so is the camera — this only decides the box it is fitted to
+   * the next time something asks for a fit.
+   */
+  setFocus(focus: MorphoViewerCameraFocus | null | undefined) {
+    const range = clampCameraFocus(focus, this.count);
+    if (!range) {
+      this.focusBbox = this.bbox;
+      return;
+    }
+
+    const bbox = new TgdBoundingBox();
+    addSomaBounds(this.dataPoint.subarray(range.from * 4, (range.from + range.count) * 4), bbox);
+    this.focusBbox = bbox;
   }
 
   /**

@@ -530,3 +530,69 @@ describe("hiddenSomaMask", () => {
     expect(Array.from(mask ?? [])).toEqual([1, 0, 0]);
   });
 });
+
+describe("PainterCellInfos camera focus", () => {
+  let context: TgdContext;
+  let warn: jest.SpyInstance;
+
+  beforeEach(() => {
+    mockCloud.point = null;
+    mockCloud.uv = null;
+    context = { paint: jest.fn() } as unknown as TgdContext;
+    warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warn.mockRestore();
+  });
+
+  function build(focus?: { from: number; count: number } | null): PainterCellInfos {
+    return new PainterCellInfos(context, {
+      positions: POSITIONS,
+      colors: null,
+      somaRadius: 1,
+      focus,
+    });
+  }
+
+  it("frames the whole cloud when the host names no range", () => {
+    const painter = build();
+
+    expect(painter.focusBbox).toBe(painter.bbox);
+  });
+
+  it("frames the somas the range names, and leaves the rest measured", () => {
+    // The last soma of CELL_INFOS is 10_000 out; the first five are a cluster.
+    const painter = build({ from: 0, count: 5 });
+
+    expect(painter.focusBbox).not.toBe(painter.bbox);
+    expect(painter.focusBbox.max[0]).toBeLessThan(100);
+    // The occlusion still runs over all of them, so the wide box has to stand.
+    expect(painter.bbox.max[0]).toBeGreaterThan(9000);
+  });
+
+  it("re-measures on a new range without touching the cloud", () => {
+    const painter = build({ from: 0, count: 5 });
+    const uploaded = mockCloud.uv;
+
+    painter.setFocus({ from: 5, count: 1 });
+
+    expect(painter.focusBbox.min[0]).toBeGreaterThan(9000);
+    expect(mockCloud.uv).toBe(uploaded);
+  });
+
+  it("widens back to the whole cloud when the range is taken away", () => {
+    const painter = build({ from: 0, count: 5 });
+
+    painter.setFocus(null);
+
+    expect(painter.focusBbox).toBe(painter.bbox);
+  });
+
+  it("frames the whole cloud, loudly, for a range that is not in it", () => {
+    const painter = build({ from: 4, count: 9 });
+
+    expect(painter.focusBbox).toBe(painter.bbox);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+});

@@ -43,6 +43,17 @@ export default function Page() {
   );
   const cellInfos = useCellInfos(dataId);
   const [pickedCell, setPickedCell] = React.useState<number | null>(null);
+  // Which third of the cloud the reset button frames. Switching it must leave
+  // the view exactly where it is: the frame is the button's business, not this
+  // control's, and that is the whole of what `cameraFocus` promises.
+  const [focusPart, setFocusPart] = React.useState("all");
+  const cameraFocus = React.useMemo(() => {
+    const count = cellInfos?.length ?? 0;
+    const third = Math.floor(count / 3);
+    if (focusPart === "first") return { from: 0, count: third };
+    if (focusPart === "last") return { from: count - third, count: third };
+    return null;
+  }, [focusPart, cellInfos]);
   const spikes = useRandomSpikes(cellInfos?.length ?? 0, 4);
   const [spikePlaying, setSpikePlaying] = React.useState(false);
   const [spikeSpeed, setSpikeSpeed] = React.useState(DEFAULT_SPIKE_SPEED);
@@ -85,6 +96,7 @@ export default function Page() {
           <MorphoViewerSomasOnly
             somaRadius={SOMAS_RADII[species] ?? 10}
             cellInfos={cellInfos}
+            cameraFocus={cameraFocus}
             onMinimize={() => alert("onMinimize()")}
             onClose={() => alert("onClose()")}
             scalebar={scalebar}
@@ -105,6 +117,11 @@ export default function Page() {
                 <div key="rat">Rat</div>
                 <div key="human">Human</div>
                 <div key="alien">Alien</div>
+              </ViewOptions>,
+              <ViewOptions key="camera-focus" value={focusPart} onChange={setFocusPart}>
+                <div key="all">Frame all</div>
+                <div key="first">Frame first third</div>
+                <div key="last">Frame last third</div>
               </ViewOptions>,
               <ViewOptions key="camera-type" value={cameraType} onChange={setCameraType}>
                 <div key="orthographic">

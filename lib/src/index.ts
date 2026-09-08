@@ -28,6 +28,7 @@ export { useEventState, useEventValue } from "./utils";
 export type { CanvasOptions } from "./abstract-canvas";
 export type { MorphoViewerSpikes, PropsForSpikeReplay } from "./spikes";
 export type { ColorsInterface } from "./colors";
+export type { MorphoViewerCameraFocus } from "./components/camera-focus";
 export type { MorphoViewerSignalSnapshotOptions as MorphoViewerSnapshotOptions } from "./components/signals";
 export type {
   MorphoViewerOverlayTransformEvent,
