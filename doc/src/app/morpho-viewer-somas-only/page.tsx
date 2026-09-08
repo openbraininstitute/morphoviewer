@@ -43,9 +43,10 @@ export default function Page() {
   );
   const cellInfos = useCellInfos(dataId);
   const [pickedCell, setPickedCell] = React.useState<number | null>(null);
-  // Which third of the cloud the reset button frames. Switching it must leave
-  // the view exactly where it is: the frame is the button's business, not this
-  // control's, and that is the whole of what `cameraFocus` promises.
+  // Which slab of the cloud the reset button frames — the somas arrive sorted
+  // along Y, so a range of them is a region. Switching it must leave the view
+  // exactly where it is: the frame is the button's business, not this control's,
+  // and that is the whole of what `cameraFocus` promises.
   const [focusPart, setFocusPart] = React.useState("all");
   const cameraFocus = React.useMemo(() => {
     const count = cellInfos?.length ?? 0;
@@ -120,8 +121,8 @@ export default function Page() {
               </ViewOptions>,
               <ViewOptions key="camera-focus" value={focusPart} onChange={setFocusPart}>
                 <div key="all">Frame all</div>
-                <div key="first">Frame first third</div>
-                <div key="last">Frame last third</div>
+                <div key="first">Frame bottom third</div>
+                <div key="last">Frame top third</div>
               </ViewOptions>,
               <ViewOptions key="camera-type" value={cameraType} onChange={setCameraType}>
                 <div key="orthographic">

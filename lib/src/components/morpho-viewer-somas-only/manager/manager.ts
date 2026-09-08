@@ -711,6 +711,13 @@ class PainterManager {
     context.paint();
   }
 
+  /**
+   * Note this runs twice on mount: the canvas ref calls it during the commit,
+   * before any effect, so the first pass builds an empty scene and the effect
+   * that hands over the geometry rebuilds it. Anything the build reads —
+   * {@link _cameraFocus} among it — therefore has to be set by then, which is
+   * why the geometry and the focus arrive in one call.
+   */
   private initialize() {
     if (this.context) {
       // Already initialized.

@@ -6,11 +6,19 @@ export interface CellInfo {
   position: [number, number, number];
 }
 
+/**
+ * Sorted along Y, so that a contiguous range of them is a slab of the circuit.
+ * A host's populations arrive grouped that way; this file's do not, and an
+ * index range over them would name a third of the cells spread over all of it —
+ * which is a camera focus that cannot be seen to work.
+ */
 export function useCellInfos(dataId: string) {
   const [cellInfos, setCellInfos] = React.useState<CellInfo[] | undefined>(undefined);
   React.useEffect(() => {
     setCellInfos(undefined);
-    loadNodes(dataId).then(setCellInfos).catch(console.error);
+    loadNodes(dataId)
+      .then((cells) => setCellInfos(cells.sort((a, b) => a.position[1] - b.position[1])))
+      .catch(console.error);
   }, [dataId]);
   return cellInfos;
 }
