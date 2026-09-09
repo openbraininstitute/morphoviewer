@@ -1,6 +1,5 @@
 import type { ArrayNumber3 } from "@tolokoban/tgd";
 import type { PropsForSpikeReplay } from "@/spikes";
-import type { MorphoViewerCameraFocus } from "../camera-focus";
 import type { ControlsLayoutProps } from "../controls-layout";
 import type { MorphoViewerSignals } from "../signals";
 import type {
@@ -56,7 +55,8 @@ export interface MorphoViewerCellColors {
    * - `false` is not drawn at all. The somas are still there — still placed,
    *   still counted, still indexed the same — so hiding a population is the
    *   same buffer write any other recolour is, rather than new geometry and
-   *   the scene rebuild that comes with it.
+   *   the scene rebuild that comes with it. A reset leaves them out of the
+   *   frame as well, and fits the camera to the drawn somas alone.
    *
    * Keep it small: it becomes a texture one pixel wide per colour. For a
    * continuous property, quantize into a bounded set of stops.
@@ -102,15 +102,6 @@ export type MorphoViewerSomasOnlyProps = PropsForGizmo &
      * time and move only this.
      */
     cellColors?: MorphoViewerCellColors;
-    /**
-     * The somas the camera frames, as a range into
-     * {@link MorphoViewerSomasOnlyProps.positions} /
-     * {@link MorphoViewerSomasOnlyProps.cellInfos}. All of them when absent.
-     *
-     * Changing this alone moves nothing — see {@link MorphoViewerCameraFocus}.
-     * The rest of the scene is still drawn, and still reachable by zooming out.
-     */
-    cameraFocus?: MorphoViewerCameraFocus | null;
     cameraType?: "orthographic" | "perspective";
     /**
      * background (canvas clear) color, as any CSS color string

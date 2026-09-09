@@ -34,7 +34,6 @@ import { AdpatativeResolution } from "./adaptative-resolution";
 import { cellPaletteFromCellInfos, hiddenSomaMask, PainterCellInfos } from "./painter-cell-infos";
 import { SomaPicker } from "./soma-picker";
 
-import type { MorphoViewerCameraFocus } from "../../camera-focus";
 import type {
   MorphoViewerSignalCameraResetOptions,
   MorphoViewerSignalSnapshotOptions,
@@ -137,7 +136,6 @@ class PainterManager {
   private context: TgdContext | null = null;
   private orbit: TgdControllerCameraOrbit | null = null;
   private bbox = new TgdBoundingBox();
-  private _cameraFocus: MorphoViewerCameraFocus | null = null;
   private scalebarCleanup: (() => void) | null = null;
   private readonly painterGizmo = new PainterGizmo();
   private readonly adaptativeResolution = new AdpatativeResolution();
@@ -408,31 +406,15 @@ class PainterManager {
    * flat path back to `cellInfos` would have the first setter rebuild the
    * scene against the `cellInfos` of before — a parse, an ambient-occlusion
    * pass and a camera fit — for the second to tear it down and do it again.
-   *
-   * `focus` rides along for the same reason and one more: it indexes the array
-   * beside it, so arriving separately would leave a range pointing into a scene
-   * it was not measured against. It never moves the camera on its own.
    */
-  setGeometry(
-    positions: Float32Array | null,
-    cellInfos: MorphoViewerCellInfo[],
-    focus?: MorphoViewerCameraFocus | null
-  ) {
+  setGeometry(positions: Float32Array | null, cellInfos: MorphoViewerCellInfo[]) {
     // Identity is the whole comparison for the flat path: at the scale it
     // exists for, a `sameGeometry` walk is millions of floats to learn what the
     // host already said by handing back the same array. A new array is a new
     // scene.
     const movedPositions = this._positions !== positions;
     const movedCellInfos = this._cellInfos !== cellInfos;
-    const movedFocus =
-      this._cameraFocus?.from !== focus?.from || this._cameraFocus?.count !== focus?.count;
-    this._cameraFocus = focus ?? null;
-    if (!movedPositions && !movedCellInfos) {
-      // The somas on screen are the same ones; only the box a fit would use has
-      // moved. Measured now so the next reset frames it, and nothing repaints.
-      if (movedFocus) this.painterCellInfos?.setFocus(this._cameraFocus);
-      return;
-    }
+    if (!movedPositions && !movedCellInfos) return;
 
     const wasFlat = !!this._positions;
     const previous = this._cellInfos;
@@ -674,18 +656,28 @@ class PainterManager {
     }
   };
 
-  /** The box the camera is fitted to: the somas on show, or the whole scene. */
+  /**
+   * The box the camera is fitted to: the somas the palette draws.
+   *
+   * Hidden somas keep their place in the geometry, so the palette is the only
+   * record of what is on screen. Read from {@link appliedPalette} rather than
+   * {@link cellPalette}, which may hold colours the cloud has not taken yet.
+   */
   private get frameBox(): TgdBoundingBox {
-    return this.painterCellInfos?.focusBbox ?? this.bbox;
+    const { painterCellInfos } = this;
+    if (!painterCellInfos) return this.bbox;
+
+    const hidden = hiddenSomaMask(this.appliedPalette, this.cellCount, this.hiddenSomas);
+    if (hidden) this.hiddenSomas = hidden;
+    return painterCellInfos.bboxOf(hidden);
   }
 
   /**
    * Push the far plane out past the whole scene.
    *
    * Fitting a box sizes the depth slab to it as well as the frame, so framing
-   * one population alone would put the others behind the far plane — clipped
-   * out of existence rather than merely out of shot, with no way to zoom back
-   * to them. The frame narrows; what is drawable does not.
+   * the visible somas alone would leave the hidden ones behind the far plane.
+   * Un-hiding one without a reset would then show nothing.
    */
   private widenDepthRange(camera: TgdCamera, position: TgdVec3 | ArrayNumber3, distance: number) {
     const { bbox } = this;
@@ -714,9 +706,7 @@ class PainterManager {
   /**
    * Note this runs twice on mount: the canvas ref calls it during the commit,
    * before any effect, so the first pass builds an empty scene and the effect
-   * that hands over the geometry rebuilds it. Anything the build reads —
-   * {@link _cameraFocus} among it — therefore has to be set by then, which is
-   * why the geometry and the focus arrive in one call.
+   * that hands over the geometry rebuilds it.
    */
   private initialize() {
     if (this.context) {
@@ -759,7 +749,6 @@ class PainterManager {
       colors: palette,
       somaRadius: this.somaRadius,
       opacity: this._neuronOpacity,
-      focus: this._cameraFocus,
     });
     this.painterCellInfos = painterCellInfos;
     // Built with the palette as it stands, so no recolour is owed for it.
@@ -1068,7 +1057,6 @@ export function useManager({
   positions,
   cellInfos,
   cellColors,
-  cameraFocus,
   somaRadius,
   gizmo,
   cameraType,
@@ -1100,11 +1088,11 @@ export function useManager({
   // change.
   React.useEffect(() => {
     manager.cellColors = cellColors;
-    manager.setGeometry(positions ?? null, cellInfos ?? NO_CELL_INFOS, cameraFocus);
+    manager.setGeometry(positions ?? null, cellInfos ?? NO_CELL_INFOS);
     // Last, so that a recolour arriving with new geometry is absorbed by the
     // build rather than painted twice.
     manager.applyPendingColors();
-  }, [cellColors, positions, cellInfos, cameraFocus, manager]);
+  }, [cellColors, positions, cellInfos, manager]);
   React.useEffect(() => {
     manager.backgroundColor = backgroundColor ?? "black";
   }, [backgroundColor, manager]);

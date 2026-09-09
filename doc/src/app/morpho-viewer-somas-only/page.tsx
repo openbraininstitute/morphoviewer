@@ -43,18 +43,18 @@ export default function Page() {
   );
   const cellInfos = useCellInfos(dataId);
   const [pickedCell, setPickedCell] = React.useState<number | null>(null);
-  // Which slab of the cloud the reset button frames — the somas arrive sorted
-  // along Y, so a range of them is a region. Switching it must leave the view
-  // exactly where it is: the frame is the button's business, not this control's,
-  // and that is the whole of what `cameraFocus` promises.
-  const [focusPart, setFocusPart] = React.useState("all");
-  const cameraFocus = React.useMemo(() => {
+  // Which slab of the cloud is taken off show. The somas arrive sorted along Y,
+  // so a range of them is a region. Hiding one leaves the view where it is; the
+  // reset button re-frames what is left.
+  const [hiddenPart, setHiddenPart] = React.useState("none");
+  const cellColors = React.useMemo(() => {
     const count = cellInfos?.length ?? 0;
     const third = Math.floor(count / 3);
-    if (focusPart === "first") return { from: 0, count: third };
-    if (focusPart === "last") return { from: count - third, count: third };
-    return null;
-  }, [focusPart, cellInfos]);
+    const columnByCell = new Uint16Array(count);
+    if (hiddenPart === "first") columnByCell.fill(1, 0, third);
+    if (hiddenPart === "last") columnByCell.fill(1, count - third);
+    return { palette: ["#07f", false as const], columnByCell };
+  }, [hiddenPart, cellInfos]);
   const spikes = useRandomSpikes(cellInfos?.length ?? 0, 4);
   const [spikePlaying, setSpikePlaying] = React.useState(false);
   const [spikeSpeed, setSpikeSpeed] = React.useState(DEFAULT_SPIKE_SPEED);
@@ -97,7 +97,7 @@ export default function Page() {
           <MorphoViewerSomasOnly
             somaRadius={SOMAS_RADII[species] ?? 10}
             cellInfos={cellInfos}
-            cameraFocus={cameraFocus}
+            cellColors={cellColors}
             onMinimize={() => alert("onMinimize()")}
             onClose={() => alert("onClose()")}
             scalebar={scalebar}
@@ -119,10 +119,10 @@ export default function Page() {
                 <div key="human">Human</div>
                 <div key="alien">Alien</div>
               </ViewOptions>,
-              <ViewOptions key="camera-focus" value={focusPart} onChange={setFocusPart}>
-                <div key="all">Frame all</div>
-                <div key="first">Frame bottom third</div>
-                <div key="last">Frame top third</div>
+              <ViewOptions key="hidden-part" value={hiddenPart} onChange={setHiddenPart}>
+                <div key="none">Show all</div>
+                <div key="first">Hide bottom third</div>
+                <div key="last">Hide top third</div>
               </ViewOptions>,
               <ViewOptions key="camera-type" value={cameraType} onChange={setCameraType}>
                 <div key="orthographic">

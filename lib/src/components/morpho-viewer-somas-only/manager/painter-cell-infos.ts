@@ -3,8 +3,6 @@ import { TgdBoundingBox, type TgdContext, TgdPainterGroup, TgdTexture2D } from "
 import { AmbientOcclusionComputation } from "./ambient-occlusion";
 import { PainterSomaCloud } from "./painter-soma-cloud";
 
-import { type MorphoViewerCameraFocus, clampCameraFocus } from "../../camera-focus";
-
 import type { MorphoViewerCellColors, MorphoViewerCellInfo } from "../types";
 
 const RADIUS = 15;
@@ -40,16 +38,11 @@ export interface PainterCellInfosOptions {
   somaRadius: number;
   /** Soma colour opacity in `[0..1]`. Default `1`. */
   opacity?: number;
-  /** The somas the camera frames; all of them when absent. @see setFocus */
-  focus?: MorphoViewerCameraFocus | null;
 }
 
 export class PainterCellInfos extends TgdPainterGroup {
   /** The whole cloud: what the ambient occlusion is computed over. */
   public readonly bbox: TgdBoundingBox;
-
-  /** The part of it the camera frames — {@link bbox} unless a range was named. */
-  public focusBbox: TgdBoundingBox;
 
   /** Somas drawn, which is what a set of colours has to have one of each. */
   private readonly count: number;
@@ -63,7 +56,7 @@ export class PainterCellInfos extends TgdPainterGroup {
    * rewrites `u` around it.
    */
   private readonly dataUV: Float32Array<ArrayBuffer>;
-  /** Packed `[x, y, z, r]` per soma, kept so a new focus can be measured without a rebuild. */
+  /** Packed `[x, y, z, r]` per soma, kept so the frame can be re-measured without a rebuild. */
   private readonly dataPoint: Float32Array;
   private paletteColors: (string | null | false)[] | null;
   private _opacity: number;
@@ -110,30 +103,22 @@ export class PainterCellInfos extends TgdPainterGroup {
     this._opacity = opacity;
     this.dataPoint = dataPoint;
     this.bbox = bbox;
-    this.focusBbox = bbox;
-    this.setFocus(options.focus);
     // The cloud goes up with the flat shading `dataUV` was filled with; the
     // occlusion is computed behind it and applied when it is ready.
     this.scheduleAmbientOcclusion(new AmbientOcclusionComputation(bbox, 10 * RADIUS, dataPoint));
   }
 
   /**
-   * Narrow the frame to a slice of the cloud, or widen it back to all of it.
-   *
-   * One pass over the somas named and nothing else: the cloud on screen is
-   * untouched, and so is the camera — this only decides the box it is fitted to
-   * the next time something asks for a fit.
+   * The box around the drawn somas, or the whole cloud when the mask hides none
+   * or all of them. Measured on demand: it is read only when the camera is
+   * fitted, so a recolour costs nothing here.
    */
-  setFocus(focus: MorphoViewerCameraFocus | null | undefined) {
-    const range = clampCameraFocus(focus, this.count);
-    if (!range) {
-      this.focusBbox = this.bbox;
-      return;
-    }
+  bboxOf(hidden: Readonly<Float32Array> | null): TgdBoundingBox {
+    if (!hidden) return this.bbox;
 
     const bbox = new TgdBoundingBox();
-    addSomaBounds(this.dataPoint.subarray(range.from * 4, (range.from + range.count) * 4), bbox);
-    this.focusBbox = bbox;
+    addSomaBounds(this.dataPoint, bbox, hidden);
+    return bbox.min[0] > bbox.max[0] ? this.bbox : bbox;
   }
 
   /**
@@ -298,11 +283,18 @@ function parsePositions(cellInfos: MorphoViewerCellInfo[]): Float32Array<ArrayBu
  * One pass over the packed array both paths have just written, rather than
  * accumulated inside each of them — the arithmetic has nothing to do with
  * where the floats came from, and two copies of it is where it would drift.
+ *
+ * `hidden` somas are left out of the centre as well as the min/max: the centre
+ * is an average, so one still counted there would offset the box.
  */
-function addSomaBounds(dataPoint: Readonly<Float32Array>, bbox: TgdBoundingBox): void {
-  const count = dataPoint.length >> 2;
-  if (count === 0) return;
+function addSomaBounds(
+  dataPoint: Readonly<Float32Array>,
+  bbox: TgdBoundingBox,
+  hidden?: Readonly<Float32Array>
+): void {
+  const somas = dataPoint.length >> 2;
 
+  let count = 0;
   let centerX = 0;
   let centerY = 0;
   let centerZ = 0;
@@ -312,10 +304,13 @@ function addSomaBounds(dataPoint: Readonly<Float32Array>, bbox: TgdBoundingBox):
   let maxX = Number.NEGATIVE_INFINITY;
   let maxY = Number.NEGATIVE_INFINITY;
   let maxZ = Number.NEGATIVE_INFINITY;
-  for (let soma = 0; soma < count; soma++) {
+  for (let soma = 0; soma < somas; soma++) {
+    if (hidden?.[soma] === 1) continue;
+
     const x = dataPoint[soma * 4];
     const y = dataPoint[soma * 4 + 1];
     const z = dataPoint[soma * 4 + 2];
+    count++;
     centerX += x;
     centerY += y;
     centerZ += z;
@@ -326,6 +321,8 @@ function addSomaBounds(dataPoint: Readonly<Float32Array>, bbox: TgdBoundingBox):
     maxY = Math.max(maxY, y);
     maxZ = Math.max(maxZ, z);
   }
+  if (count === 0) return;
+
   const invCount = 1 / count;
   centerX *= invCount;
   centerY *= invCount;

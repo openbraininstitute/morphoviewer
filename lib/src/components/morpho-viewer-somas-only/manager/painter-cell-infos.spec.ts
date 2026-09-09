@@ -531,68 +531,78 @@ describe("hiddenSomaMask", () => {
   });
 });
 
-describe("PainterCellInfos camera focus", () => {
+describe("PainterCellInfos frame box", () => {
   let context: TgdContext;
-  let warn: jest.SpyInstance;
 
   beforeEach(() => {
     mockCloud.point = null;
     mockCloud.uv = null;
+    mockCloud.setUV.mockClear();
     context = { paint: jest.fn() } as unknown as TgdContext;
-    warn = jest.spyOn(console, "warn").mockImplementation(() => {});
   });
 
-  afterEach(() => {
-    warn.mockRestore();
-  });
-
-  function build(focus?: { from: number; count: number } | null): PainterCellInfos {
+  // The first five somas are a cluster; the sixth is 10_000 out.
+  function build(columns?: number[]): PainterCellInfos {
     return new PainterCellInfos(context, {
       positions: POSITIONS,
-      colors: null,
+      colors: columns ? { palette: ["red", false], columnByCell: new Uint16Array(columns) } : null,
       somaRadius: 1,
-      focus,
     });
   }
 
-  it("frames the whole cloud when the host names no range", () => {
+  function frameOf(painter: PainterCellInfos, columns?: number[]) {
+    const colors = columns
+      ? { palette: ["red", false], columnByCell: new Uint16Array(columns) }
+      : null;
+    return painter.bboxOf(hiddenSomaMask(colors, 6));
+  }
+
+  it("frames the whole cloud when the palette hides nothing", () => {
     const painter = build();
 
-    expect(painter.focusBbox).toBe(painter.bbox);
+    expect(frameOf(painter)).toBe(painter.bbox);
   });
 
-  it("frames the somas the range names, and leaves the rest measured", () => {
-    // The last soma of CELL_INFOS is 10_000 out; the first five are a cluster.
-    const painter = build({ from: 0, count: 5 });
+  it("frames the somas the palette draws, and keeps the whole cloud measured", () => {
+    const painter = build([0, 0, 0, 0, 0, 1]);
+    const frame = frameOf(painter, [0, 0, 0, 0, 0, 1]);
 
-    expect(painter.focusBbox).not.toBe(painter.bbox);
-    expect(painter.focusBbox.max[0]).toBeLessThan(100);
+    expect(frame).not.toBe(painter.bbox);
+    expect(frame.max[0]).toBeLessThan(100);
     // The occlusion still runs over all of them, so the wide box has to stand.
     expect(painter.bbox.max[0]).toBeGreaterThan(9000);
   });
 
-  it("re-measures on a new range without touching the cloud", () => {
-    const painter = build({ from: 0, count: 5 });
+  it("keeps a hidden outlier out of the centre, not just out of the min/max", () => {
+    const painter = build([0, 0, 0, 0, 0, 1]);
+    const frame = frameOf(painter, [0, 0, 0, 0, 0, 1]);
+
+    // Averaging the outlier in would move the centre, and with it the whole
+    // symmetric box, a thousand units off the cluster it frames.
+    expect(Math.abs(frame.min[0] + frame.max[0]) / 2).toBeLessThan(100);
+  });
+
+  it("widens back when a recolour puts the somas back on show", () => {
+    const painter = build([0, 0, 0, 0, 0, 1]);
+
+    painter.recolor({ palette: ["red"], columnByCell: new Uint16Array(6) });
+
+    expect(frameOf(painter)).toBe(painter.bbox);
+  });
+
+  it("frames the whole cloud when the palette leaves nothing on screen", () => {
+    const painter = build([1, 1, 1, 1, 1, 1]);
+
+    expect(frameOf(painter, [1, 1, 1, 1, 1, 1])).toBe(painter.bbox);
+  });
+
+  it("measures without touching the cloud", () => {
+    const painter = build([0, 0, 0, 0, 0, 1]);
     const uploaded = mockCloud.uv;
 
-    painter.setFocus({ from: 5, count: 1 });
+    frameOf(painter, [0, 0, 0, 0, 0, 1]);
 
-    expect(painter.focusBbox.min[0]).toBeGreaterThan(9000);
     expect(mockCloud.uv).toBe(uploaded);
-  });
-
-  it("widens back to the whole cloud when the range is taken away", () => {
-    const painter = build({ from: 0, count: 5 });
-
-    painter.setFocus(null);
-
-    expect(painter.focusBbox).toBe(painter.bbox);
-  });
-
-  it("frames the whole cloud, loudly, for a range that is not in it", () => {
-    const painter = build({ from: 4, count: 9 });
-
-    expect(painter.focusBbox).toBe(painter.bbox);
-    expect(warn).toHaveBeenCalledTimes(1);
+    expect(mockCloud.setUV).not.toHaveBeenCalled();
   });
 });

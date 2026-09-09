@@ -19,7 +19,6 @@ import {
   type TgdTexture2D,
   TgdTransfo,
   TgdValueWaitable,
-  TgdVec3,
   TgdVec4,
   tgdEasingFunctionInOutCubic,
   webglBlendGet,
@@ -34,7 +33,6 @@ import { OverlayInteractionController } from "@/painters/overlay-interaction";
 import { OverlaySurface } from "@/painters/overlay-surface";
 import { CacheLRU } from "@/tools/cache-lru";
 
-import { type MorphoViewerCameraFocus, clampCameraFocus } from "../../camera-focus";
 import { cachedCellLoader } from "./cached-cell-loader";
 import { CameraManager, clampZoom } from "./camera";
 import { dedupeById } from "./dedupe-by-id";
@@ -192,7 +190,6 @@ export class PainterManager {
   private fitCameraOnUpdate = true;
   /** The same ids without their reload key: where the cells are, not what they draw. */
   private placementIds: ReadonlySet<string> | null = null;
-  private cameraFocus: MorphoViewerCameraFocus | null = null;
   private _verbose = false;
   /** Drawn on its own canvas, so it can paint at the screen's pixel ratio. */
   private gizmoOverlay: TgdCanvasGizmo | null = null;
@@ -332,11 +329,12 @@ export class PainterManager {
   }
 
   /**
-   * Frame the cells on show again, wherever the user has moved to since.
+   * Frame everything on screen again, wherever the user has moved to since.
    *
-   * The framing is recomputed rather than replayed, because the host can put
-   * another population on show without the view following it — this is where
-   * that choice is honoured. The orientation is the exception: it is where the
+   * The framing is recomputed rather than replayed. Taking a population off
+   * show hands back a subset of the same scene, which refits nothing, so a
+   * replayed state would still frame cells that have gone. The orientation is
+   * the exception: it is where the
    * user last turned to, or was framed at, and a reset restores it rather than
    * deriving a new one.
    */
@@ -859,28 +857,16 @@ export class PainterManager {
 
   setCircuit(
     circuit: MorphoViewerSmallCircuitCell[],
-    loadCell: (id: string) => Promise<MorphoViewerSmallCircuitCellData | null>,
-    cameraFocus?: MorphoViewerCameraFocus | null
+    loadCell: (id: string) => Promise<MorphoViewerSmallCircuitCellData | null>
   ) {
-    if (this.circuit === circuit) {
-      // The same cells, so only the range framing them has moved. Kept for the
-      // next fit or reset, which is the only time it is read: putting another
-      // population on show is not on its own a reason to move the view.
-      this.cameraFocus = clampCameraFocus(cameraFocus, this.circuit.length);
-      return;
-    }
+    if (this.circuit === circuit) return;
 
     if (circuit.length === 0) {
-      this.cameraFocus = null;
       this.loadedCellsCache.clear();
       return;
     }
 
     const cells = dedupeById(circuit);
-    // The range indexes the array the host passed. Another array back from
-    // `dedupeById` means it dropped a duplicate, so every index past that drop
-    // now names a different cell and the range is no longer about this scene.
-    this.cameraFocus = cells === circuit ? clampCameraFocus(cameraFocus, cells.length) : null;
     // A cell id's query part (after `?`) is a reload key: changing it reloads morphologies
     // (hosts use it for filters like the axon toggle) but says nothing about where the cells
     // are. The camera only refits when the cells themselves change, so a reload does not
@@ -1062,48 +1048,21 @@ export class PainterManager {
   private framingState(camera: TgdCamera): Readonly<TgdCameraState> | null {
     if (camera.screenWidth < 1 || camera.screenHeight < 1) return null;
 
+    // A population taken off show is dropped from the circuit rather than drawn
+    // dark, so the whole scene is what is on screen.
     const scene = this.combineCellsBBoxes();
     if (scene.min[0] > scene.max[0]) return null;
 
-    const frame = this.focusBBox(scene);
-    const [frameW, frameH, frameD] = frame.size;
+    const [width, height, depth] = scene.size;
     const scale = 1.1; // Add a bit of margin around the circuit.
     const fitted = camera.clone();
-    fitted.transfo.position = frame.center;
-    fitted.fitSpaceAtTarget(frameW * scale, frameH * scale);
-    fitted.transfo.distance = Math.max(frameW, frameH, frameD) * scale;
+    fitted.transfo.position = scene.center;
+    fitted.fitSpaceAtTarget(width * scale, height * scale);
+    fitted.transfo.distance = Math.max(width, height, depth) * scale;
     fitted.zoom = 2;
-    // Sized to the whole scene rather than the frame: a frame around one
-    // population would otherwise leave the others behind the far plane —
-    // clipped away rather than merely out of shot, with no zoom back to them.
-    const [sceneW, sceneH, sceneD] = scene.size;
     camera.near = 1;
-    camera.far =
-      fitted.transfo.distance +
-      TgdVec3.distance(fitted.transfo.position, scene.center) +
-      0.5 * Math.hypot(sceneW, sceneH, sceneD);
+    camera.far = fitted.transfo.distance + 0.5 * Math.hypot(width, height, depth);
     return fitted.getCurrentState();
-  }
-
-  /**
-   * The box around the cells the host put on show, or the whole scene when it
-   * named none — and when what it named turned out not to be in the scene.
-   */
-  private focusBBox(scene: TgdBoundingBox): TgdBoundingBox {
-    const focus = this.cameraFocus;
-    if (!focus) return scene;
-
-    const bbox = new TgdBoundingBox();
-    const painters = new Map(this.cellPainters.map((painter) => [painter.cell.id, painter]));
-    for (let i = focus.from; i < focus.from + focus.count; i++) {
-      const cell = this.circuit[i];
-      const painter = painters.get(cell.id);
-      // No painter means the soma cloud draws it, and it stands where its soma
-      // was put — which is the box a painter would have started from anyway.
-      if (painter) bbox.addBBox(painter.bbox);
-      else bbox.addSphere(cell.center[0], cell.center[1], cell.center[2], cell.somaRadius * 5);
-    }
-    return bbox.min[0] > bbox.max[0] ? scene : bbox;
   }
 
   private combineCellsBBoxes() {
@@ -1799,7 +1758,6 @@ export class PainterManager {
 export function usePainterManager({
   backgroundColor,
   circuit,
-  cameraFocus,
   loadCell,
   onCellHover,
   onCellClick,
@@ -1874,8 +1832,8 @@ export function usePainterManager({
   }, [signals, manager]);
 
   React.useEffect(() => {
-    manager.setCircuit(circuit, loadCell, cameraFocus);
-  }, [circuit, loadCell, cameraFocus, manager]);
+    manager.setCircuit(circuit, loadCell);
+  }, [circuit, loadCell, manager]);
 
   // Building the extra pick buffer is the expensive part, so it is keyed off presence alone;
   // the selection and the callback change far more often and must not rebuild it.

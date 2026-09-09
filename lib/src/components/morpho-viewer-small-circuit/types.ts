@@ -1,5 +1,4 @@
 import type { PropsForSpikeReplay } from "@/spikes";
-import type { MorphoViewerCameraFocus } from "../camera-focus";
 import type { ControlsLayoutProps } from "../controls-layout";
 import type { MorphoViewerTree, MorphoViewerTreeItemType } from "../morpho-viewer-simul";
 import type { MorphoViewerSignals } from "../signals";
@@ -169,15 +168,6 @@ export type MorphoViewerSmallCircuitProps = PropsForGizmo &
     className?: string;
     backgroundColor?: string;
     circuit: MorphoViewerSmallCircuitCell[];
-    /**
-     * The cells the camera frames, as a range into {@link circuit}. All of them
-     * when absent.
-     *
-     * Changing this alone moves nothing — see {@link MorphoViewerCameraFocus}.
-     * The rest of the circuit is still drawn, and still reachable by zooming
-     * out.
-     */
-    cameraFocus?: MorphoViewerCameraFocus | null;
     /**
      * World-space point overlays (electrodes, markers, …).
      * Independent from {@link synapses}. Drag/rotate when
