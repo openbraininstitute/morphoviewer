@@ -607,6 +607,7 @@ class PainterManager {
       return;
     }
     resettedCamera.zoom = options?.zoom ?? 1;
+    resettedCamera.spaceHeightAtTarget *= FRAME_MARGIN;
     const state = resettedCamera.getCurrentState();
     // Set on the live camera rather than carried in the state, which holds no
     // planes; the move interpolates inside a slab already wide enough for it.
@@ -698,6 +699,7 @@ class PainterManager {
       camera.screenHeight = context.height;
       camera.transfo.position = frame.center;
       camera.fitBoundingBox(frame);
+      camera.spaceHeightAtTarget *= FRAME_MARGIN;
       this.widenDepthRange(camera, camera.transfo.position, camera.transfo.distance);
     });
     context.paint();
@@ -995,6 +997,13 @@ function flattenPositions(cellInfos: MorphoViewerCellInfo[]): Float32Array {
 
 /** Drop the post-drag pin if the host never echoes matching geometry. */
 const OVERLAY_PIN_TIMEOUT_MS = 2000;
+
+/**
+ * Slack left around the framed box. `fitBoundingBox` fits it exactly, which
+ * puts the outermost somas hard against the edge of the canvas, and the box is
+ * only padded by one soma radius: nothing at region scale.
+ */
+const FRAME_MARGIN = 1.1;
 
 /**
  * How far a click may miss a soma and still pick it. At region scale a soma
