@@ -335,13 +335,12 @@ export class PainterManager {
   }
 
   /**
-   * Frame everything on screen again, wherever the user has moved to since.
+   * Frame everything on screen again.
    *
-   * The framing is recomputed rather than replayed. Taking a population off
+   * The framing is recomputed rather than replayed: taking a population off
    * show hands back a subset of the same scene, which refits nothing, so a
    * replayed state would still frame cells that have gone. The orientation is
-   * the exception: it is where the user last turned to, or was framed at, and a
-   * reset restores it rather than deriving a new one.
+   * the exception, being where the user last turned to, and a reset restores it.
    */
   readonly cameraReset = (options?: MorphoViewerSignalCameraResetOptions) => {
     const context = this.context.value;
@@ -1043,9 +1042,8 @@ export class PainterManager {
   };
 
   /**
-   * Where the camera goes when it is fitted or reset. Sets the depth range on
-   * `camera` on the way, since planes are not part of a camera state and have
-   * to be in place before it moves.
+   * Where the camera goes when it is fitted or reset. The depth range is set on
+   * `camera` on the way, since planes are not part of a camera state.
    *
    * The state itself is worked out on a clone, so a reset can decide where it
    * is going without the view jumping there first.

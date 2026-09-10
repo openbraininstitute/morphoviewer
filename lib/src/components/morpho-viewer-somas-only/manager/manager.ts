@@ -578,11 +578,9 @@ class PainterManager {
   }
 
   /**
-   * Which somas `palette` leaves undrawn, reusing the buffer the last call
-   * made. Null when it hides none.
-   *
-   * Kept between calls because at region scale the mask is tens of megabytes,
-   * and toggling populations one checkbox at a time asks for it on every click.
+   * Which somas `palette` leaves undrawn, or null when it hides none. The
+   * buffer is reused: at region scale the mask is tens of megabytes, and
+   * toggling populations one checkbox at a time asks for it on every click.
    */
   private hiddenMask(palette: MorphoViewerCellColors | null): Float32Array | null {
     const hidden = hiddenSomaMask(palette, this.cellCount, this.hiddenSomas);
@@ -596,14 +594,14 @@ class PainterManager {
 
     context.camera.screenWidth = context.width;
     context.camera.screenHeight = context.height;
-    // Fitted on a clone so the reset can work out where it is going without the
-    // view jumping there first, then interpolated to.
+    // Fitted on a clone, so the reset can work out where it is going without
+    // the view jumping there first.
     const resettedCamera = context.camera.clone();
     if (!this.fitToFrame(resettedCamera, options?.zoom ?? 1)) return;
 
     const state = resettedCamera.getCurrentState();
-    // Set on the live camera rather than carried in the state, which holds no
-    // planes; the move interpolates inside a slab already wide enough for it.
+    // A camera state holds no planes, so the slab is widened on the live camera
+    // before the move interpolates inside it.
     this.widenDepthRange(context.camera, state.position, state.distance);
     context.animSchedule({
       duration: 0.5,
@@ -650,18 +648,14 @@ class PainterManager {
     }
   };
 
-  /**
-   * Every soma the scene holds, drawn or not, as the painter measured it.
-   * Empty until the geometry is handed over.
-   */
+  /** Every soma the scene holds, drawn or not, as the painter measured it. */
   private get bbox(): TgdBoundingBox {
     return this.painterCellInfos?.bbox ?? new TgdBoundingBox();
   }
 
   /**
-   * Point `camera` at the somas on show, with a margin around them. Answers
-   * false when there is nothing measurable to frame yet, leaving the camera
-   * where it stood.
+   * Point `camera` at the somas on show, with a margin around them. False when
+   * there is nothing measurable to frame yet, and the camera is left alone.
    *
    * Hidden somas keep their place in the geometry, so the palette is the only
    * record of what is on screen. Read from {@link appliedPalette} rather than
@@ -670,8 +664,8 @@ class PainterManager {
   private fitToFrame(camera: TgdCamera, zoom: number): boolean {
     const { painterCellInfos } = this;
     if (!painterCellInfos) return false;
-    // Ahead of measuring, not after: a reset landing before the canvas has a
-    // size would otherwise walk every soma only to throw the answer away.
+    // Before measuring, not after: a reset landing on a canvas with no size yet
+    // would otherwise walk every soma to throw the answer away.
     if (camera.screenWidth < 1 || camera.screenHeight < 1) return false;
 
     const frame = painterCellInfos.bboxOf(this.hiddenMask(this.appliedPalette));
@@ -688,10 +682,9 @@ class PainterManager {
   }
 
   /**
-   * Push the far plane out past the whole scene.
-   *
-   * Framing the visible somas alone would leave the hidden ones behind the far
-   * plane, and un-hiding one without a reset would then show nothing.
+   * Push the far plane out past the whole scene: framing the visible somas
+   * alone would leave the hidden ones behind it, and un-hiding one without a
+   * reset would show nothing.
    */
   private widenDepthRange(camera: TgdCamera, position: Readonly<TgdVec3>, distance: number) {
     const far = farPlaneCovering(this.bbox, position, distance);
@@ -714,9 +707,9 @@ class PainterManager {
   }
 
   /**
-   * Note this runs twice on mount: the canvas ref calls it during the commit,
-   * before any effect, so the first pass builds an empty scene and the effect
-   * that hands over the geometry rebuilds it.
+   * Runs twice on mount: the canvas ref calls it during the commit, before any
+   * effect, so the first pass builds an empty scene and the effect that hands
+   * over the geometry rebuilds it.
    */
   private initialize() {
     if (this.context) {

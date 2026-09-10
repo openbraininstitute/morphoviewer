@@ -55,8 +55,8 @@ export interface MorphoViewerCellColors {
    * - `false` is not drawn at all. The somas are still there — still placed,
    *   still counted, still indexed the same — so hiding a population is the
    *   same buffer write any other recolour is, rather than new geometry and
-   *   the scene rebuild that comes with it. A reset leaves them out of the
-   *   frame as well, and fits the camera to the drawn somas alone.
+   *   the scene rebuild that comes with it. A reset fits the camera to the
+   *   drawn somas alone.
    *
    * Keep it small: it becomes a texture one pixel wide per colour. For a
    * continuous property, quantize into a bounded set of stops.

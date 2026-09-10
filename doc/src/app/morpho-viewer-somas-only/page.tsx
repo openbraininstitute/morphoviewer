@@ -43,10 +43,9 @@ export default function Page() {
   );
   const cellInfos = useCellInfos(dataId);
   const [pickedCell, setPickedCell] = React.useState<number | null>(null);
-  // Which slab of the cloud is taken off show. Cut by height rather than by
-  // index, so it is a region of the circuit whatever order the cells arrive in.
-  // Hiding one leaves the view where it is; the reset button re-frames what is
-  // left.
+  // Which slab of the cloud is taken off show. Cut by height, so it is a region
+  // of the circuit whatever order the cells arrive in. Hiding one leaves the
+  // view where it is; the reset button re-frames what is left.
   const [hiddenPart, setHiddenPart] = React.useState("none");
   const yRange = React.useMemo(() => {
     let min = Number.POSITIVE_INFINITY;
@@ -60,8 +59,8 @@ export default function Page() {
   const cellColors = React.useMemo(() => {
     const cells = cellInfos ?? [];
     const columnByCell = new Uint16Array(cells.length);
-    // Leaving `false` out of the palette is what tells the viewer nothing is
-    // hidden, and spares it a walk over every soma on each reset.
+    // Leaving `false` out of the palette tells the viewer nothing is hidden,
+    // and spares it a walk over every soma on each reset.
     if (hiddenPart === "none") return { palette: ["#07f"], columnByCell };
 
     const [min, max] = yRange;

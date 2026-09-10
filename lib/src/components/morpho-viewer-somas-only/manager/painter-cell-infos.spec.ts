@@ -556,13 +556,11 @@ describe("PainterCellInfos frame box", () => {
     return hiddenSomaMask(colors, columns.length);
   }
 
-  /** The outlier alone, and every soma there is. */
   const HIDE_OUTLIER = maskOf([0, 0, 0, 0, 0, 1]);
   const HIDE_ALL = maskOf([1, 1, 1, 1, 1, 1]);
 
-  // The first five somas are a cluster; the sixth is 10_000 out. The colours a
-  // painter is built with do not reach `bboxOf`, which reads the mask it is
-  // handed, so they are left off here.
+  // The first five somas are a cluster; the sixth is 10_000 out. Constructor
+  // colours never reach `bboxOf`, which reads the mask it is handed.
   function build(): PainterCellInfos {
     return new PainterCellInfos(context, {
       positions: POSITIONS,

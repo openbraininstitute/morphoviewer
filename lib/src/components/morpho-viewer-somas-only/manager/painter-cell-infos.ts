@@ -110,8 +110,7 @@ export class PainterCellInfos extends TgdPainterGroup {
 
   /**
    * The box around the drawn somas, or the whole cloud when the mask hides none
-   * or all of them. Measured on demand: it is read only when the camera is
-   * fitted, so a recolour costs nothing here.
+   * or all of them. Measured on demand, since only a camera fit reads it.
    */
   bboxOf(hidden: Readonly<Float32Array> | null): TgdBoundingBox {
     if (!hidden) return this.bbox;
@@ -286,14 +285,13 @@ function parsePositions(cellInfos: MorphoViewerCellInfo[]): Float32Array<ArrayBu
  * `hidden` somas are left out of the centre as well as the min/max: the centre
  * is an average, so one still counted there would offset the box.
  *
- * The body below is nonetheless written out twice, once per branch. A mask test
- * inside a single loop costs the unmasked path — the one every scene build
- * takes — a factor of ten at four million somas: the `continue` is what stops
- * V8 optimizing the loop, so the test has to be hoisted out of it rather than
- * made cheap inside it.
+ * The body below is nonetheless written out twice, once per branch. Testing the
+ * mask inside a single loop costs the unmasked path — the one every scene build
+ * takes — a factor of ten at four million somas. It is the `continue` that stops
+ * V8 optimizing the loop, so the test has to be hoisted out rather than made
+ * cheap inside.
  *
- * @returns Whether any soma was measured, which is the caller's cue that the
- * box it handed in says nothing.
+ * @returns Whether any soma was measured. If not, `bbox` was left alone.
  */
 function addSomaBounds(
   dataPoint: Readonly<Float32Array>,
@@ -407,13 +405,8 @@ function writeColumns(
 
 /**
  * One entry per soma, `1` where the palette leaves it undrawn and `0` where it
- * is on screen. Null when nothing is hidden, which is the common case and
- * saves a walk over every soma.
- *
- * A palette carrying an undrawn colour no soma is actually in counts as
- * nothing hidden: hosts leave `false` in the palette and empty the column
- * instead, and answering a mask there would cost every consumer a full pass to
- * learn what `null` says at once.
+ * is on screen. Null when no soma lands in an undrawn column, which is the
+ * common case and saves a walk over every soma.
  *
  * The picker paints its own cloud, on its own context, and samples no palette
  * — so it has to be told. Filtering its answer afterwards would not do: it
