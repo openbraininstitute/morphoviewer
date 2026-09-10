@@ -1,5 +1,4 @@
 import {
-  type ArrayNumber3,
   TgdBoundingBox,
   type TgdCamera,
   TgdCameraOrthographic,
@@ -11,7 +10,7 @@ import {
   TgdPainterClear,
   type TgdPainterGizmoOptions,
   TgdPainterState,
-  TgdVec3,
+  type TgdVec3,
   tgdActionCreateCameraInterpolation,
   webglBlendGet,
   webglBlendSet,
@@ -19,7 +18,7 @@ import {
 } from "@tolokoban/tgd";
 import React from "react";
 
-import { TapGuard, watchSpacePerPixel } from "@/behaviors";
+import { farPlaneCovering, FRAME_MARGIN, TapGuard, watchSpacePerPixel } from "@/behaviors";
 import { PainterGizmo } from "@/painters/gizmo";
 import { OverlayInteractionController } from "@/painters/overlay-interaction";
 import { OverlaySurface } from "@/painters/overlay-surface";
@@ -135,7 +134,6 @@ class PainterManager {
   private painterClear: TgdPainterClear | null = null;
   private context: TgdContext | null = null;
   private orbit: TgdControllerCameraOrbit | null = null;
-  private bbox = new TgdBoundingBox();
   private scalebarCleanup: (() => void) | null = null;
   private readonly painterGizmo = new PainterGizmo();
   private readonly adaptativeResolution = new AdpatativeResolution();
@@ -571,43 +569,38 @@ class PainterManager {
   }
 
   /**
-   * Tell the picker which somas the palette leaves undrawn.
-   *
-   * The mask is kept between calls: at region scale it is tens of megabytes, and toggling
-   * populations one checkbox at a time recolours on every click. Safe to hand back because
-   * {@link SomaPicker.setHidden} uploads it there and then.
+   * Tell the picker which somas the palette leaves undrawn. Safe to hand the
+   * kept mask over because {@link SomaPicker.setHidden} uploads it there and
+   * then.
    */
   private applyHiddenSomas(picker: SomaPicker, palette: MorphoViewerCellColors | null) {
+    picker.setHidden(this.hiddenMask(palette));
+  }
+
+  /**
+   * Which somas `palette` leaves undrawn, reusing the buffer the last call
+   * made. Null when it hides none.
+   *
+   * Kept between calls because at region scale the mask is tens of megabytes,
+   * and toggling populations one checkbox at a time asks for it on every click.
+   */
+  private hiddenMask(palette: MorphoViewerCellColors | null): Float32Array | null {
     const hidden = hiddenSomaMask(palette, this.cellCount, this.hiddenSomas);
     if (hidden) this.hiddenSomas = hidden;
-    picker.setHidden(hidden);
+    return hidden;
   }
 
   readonly cameraReset = (options?: MorphoViewerSignalCameraResetOptions) => {
     const { context } = this;
     if (!context) return;
 
-    const frame = this.frameBox;
     context.camera.screenWidth = context.width;
     context.camera.screenHeight = context.height;
+    // Fitted on a clone so the reset can work out where it is going without the
+    // view jumping there first, then interpolated to.
     const resettedCamera = context.camera.clone();
-    const [width, height] = frame.size;
-    if (
-      width < 1 ||
-      height < 1 ||
-      resettedCamera.screenWidth < 1 ||
-      resettedCamera.screenHeight < 1
-    ) {
-      return;
-    }
+    if (!this.fitToFrame(resettedCamera, options?.zoom ?? 1)) return;
 
-    resettedCamera.fitBoundingBox(frame);
-    if (Number.isNaN(resettedCamera.transfo.distance)) {
-      // Can be NaN if the screen size has not yet been defined.
-      return;
-    }
-    resettedCamera.zoom = options?.zoom ?? 1;
-    resettedCamera.spaceHeightAtTarget *= FRAME_MARGIN;
     const state = resettedCamera.getCurrentState();
     // Set on the live camera rather than carried in the state, which holds no
     // planes; the move interpolates inside a slab already wide enough for it.
@@ -658,33 +651,50 @@ class PainterManager {
   };
 
   /**
-   * The box the camera is fitted to: the somas the palette draws.
+   * Every soma the scene holds, drawn or not, as the painter measured it.
+   * Empty until the geometry is handed over.
+   */
+  private get bbox(): TgdBoundingBox {
+    return this.painterCellInfos?.bbox ?? new TgdBoundingBox();
+  }
+
+  /**
+   * Point `camera` at the somas on show, with a margin around them. Answers
+   * false when there is nothing measurable to frame yet, leaving the camera
+   * where it stood.
    *
    * Hidden somas keep their place in the geometry, so the palette is the only
    * record of what is on screen. Read from {@link appliedPalette} rather than
    * {@link cellPalette}, which may hold colours the cloud has not taken yet.
    */
-  private get frameBox(): TgdBoundingBox {
+  private fitToFrame(camera: TgdCamera, zoom: number): boolean {
     const { painterCellInfos } = this;
-    if (!painterCellInfos) return this.bbox;
+    if (!painterCellInfos) return false;
+    // Ahead of measuring, not after: a reset landing before the canvas has a
+    // size would otherwise walk every soma only to throw the answer away.
+    if (camera.screenWidth < 1 || camera.screenHeight < 1) return false;
 
-    const hidden = hiddenSomaMask(this.appliedPalette, this.cellCount, this.hiddenSomas);
-    if (hidden) this.hiddenSomas = hidden;
-    return painterCellInfos.bboxOf(hidden);
+    const frame = painterCellInfos.bboxOf(this.hiddenMask(this.appliedPalette));
+    const [width, height] = frame.size;
+    if (width < 1 || height < 1) return false;
+
+    camera.fitBoundingBox(frame);
+    // Can be NaN if the screen size has not yet been defined.
+    if (Number.isNaN(camera.transfo.distance)) return false;
+
+    camera.zoom = zoom;
+    camera.spaceHeightAtTarget *= FRAME_MARGIN;
+    return true;
   }
 
   /**
    * Push the far plane out past the whole scene.
    *
-   * Fitting a box sizes the depth slab to it as well as the frame, so framing
-   * the visible somas alone would leave the hidden ones behind the far plane.
-   * Un-hiding one without a reset would then show nothing.
+   * Framing the visible somas alone would leave the hidden ones behind the far
+   * plane, and un-hiding one without a reset would then show nothing.
    */
-  private widenDepthRange(camera: TgdCamera, position: TgdVec3 | ArrayNumber3, distance: number) {
-    const { bbox } = this;
-    const [width, height, depth] = bbox.size;
-    const radius = 0.5 * Math.hypot(width, height, depth);
-    const far = distance + TgdVec3.distance(position, bbox.center) + radius;
+  private widenDepthRange(camera: TgdCamera, position: Readonly<TgdVec3>, distance: number) {
+    const far = farPlaneCovering(this.bbox, position, distance);
     if (far > camera.far) camera.far = far;
   }
 
@@ -692,14 +702,12 @@ class PainterManager {
     const { context } = this;
     if (!context) return;
 
-    const frame = this.frameBox;
     context.execBeforeNextPaint(() => {
       const { camera } = context;
       camera.screenWidth = context.width;
       camera.screenHeight = context.height;
-      camera.transfo.position = frame.center;
-      camera.fitBoundingBox(frame);
-      camera.spaceHeightAtTarget *= FRAME_MARGIN;
+      if (!this.fitToFrame(camera, 1)) return;
+
       this.widenDepthRange(camera, camera.transfo.position, camera.transfo.distance);
     });
     context.paint();
@@ -783,8 +791,6 @@ class PainterManager {
     });
     this.painterGizmo.context = context;
     context.add(clear, state, this.painterGizmo);
-    const { bbox } = painterCellInfos;
-    this.bbox = bbox;
     const camera = this.cameraType === "orthographic" ? this.cameraOrtho : this.cameraPersp;
     context.camera = camera;
     this.applyBBoxToCamera();
@@ -997,13 +1003,6 @@ function flattenPositions(cellInfos: MorphoViewerCellInfo[]): Float32Array {
 
 /** Drop the post-drag pin if the host never echoes matching geometry. */
 const OVERLAY_PIN_TIMEOUT_MS = 2000;
-
-/**
- * Slack left around the framed box. `fitBoundingBox` fits it exactly, which
- * puts the outermost somas hard against the edge of the canvas, and the box is
- * only padded by one soma radius: nothing at region scale.
- */
-const FRAME_MARGIN = 1.1;
 
 /**
  * How far a click may miss a soma and still pick it. At region scale a soma

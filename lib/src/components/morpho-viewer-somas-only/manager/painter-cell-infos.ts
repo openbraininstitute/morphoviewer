@@ -117,8 +117,7 @@ export class PainterCellInfos extends TgdPainterGroup {
     if (!hidden) return this.bbox;
 
     const bbox = new TgdBoundingBox();
-    addSomaBounds(this.dataPoint, bbox, hidden);
-    return bbox.min[0] > bbox.max[0] ? this.bbox : bbox;
+    return addSomaBounds(this.dataPoint, bbox, hidden) ? bbox : this.bbox;
   }
 
   /**
@@ -286,12 +285,21 @@ function parsePositions(cellInfos: MorphoViewerCellInfo[]): Float32Array<ArrayBu
  *
  * `hidden` somas are left out of the centre as well as the min/max: the centre
  * is an average, so one still counted there would offset the box.
+ *
+ * The body below is nonetheless written out twice, once per branch. A mask test
+ * inside a single loop costs the unmasked path — the one every scene build
+ * takes — a factor of ten at four million somas: the `continue` is what stops
+ * V8 optimizing the loop, so the test has to be hoisted out of it rather than
+ * made cheap inside it.
+ *
+ * @returns Whether any soma was measured, which is the caller's cue that the
+ * box it handed in says nothing.
  */
 function addSomaBounds(
   dataPoint: Readonly<Float32Array>,
   bbox: TgdBoundingBox,
   hidden?: Readonly<Float32Array>
-): void {
+): boolean {
   const somas = dataPoint.length >> 2;
 
   let count = 0;
@@ -304,24 +312,42 @@ function addSomaBounds(
   let maxX = Number.NEGATIVE_INFINITY;
   let maxY = Number.NEGATIVE_INFINITY;
   let maxZ = Number.NEGATIVE_INFINITY;
-  for (let soma = 0; soma < somas; soma++) {
-    if (hidden?.[soma] === 1) continue;
+  if (hidden) {
+    for (let soma = 0; soma < somas; soma++) {
+      if (hidden[soma] === 1) continue;
 
-    const x = dataPoint[soma * 4];
-    const y = dataPoint[soma * 4 + 1];
-    const z = dataPoint[soma * 4 + 2];
-    count++;
-    centerX += x;
-    centerY += y;
-    centerZ += z;
-    minX = Math.min(minX, x);
-    minY = Math.min(minY, y);
-    minZ = Math.min(minZ, z);
-    maxX = Math.max(maxX, x);
-    maxY = Math.max(maxY, y);
-    maxZ = Math.max(maxZ, z);
+      const x = dataPoint[soma * 4];
+      const y = dataPoint[soma * 4 + 1];
+      const z = dataPoint[soma * 4 + 2];
+      count++;
+      centerX += x;
+      centerY += y;
+      centerZ += z;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      minZ = Math.min(minZ, z);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+      maxZ = Math.max(maxZ, z);
+    }
+  } else {
+    count = somas;
+    for (let soma = 0; soma < somas; soma++) {
+      const x = dataPoint[soma * 4];
+      const y = dataPoint[soma * 4 + 1];
+      const z = dataPoint[soma * 4 + 2];
+      centerX += x;
+      centerY += y;
+      centerZ += z;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      minZ = Math.min(minZ, z);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+      maxZ = Math.max(maxZ, z);
+    }
   }
-  if (count === 0) return;
+  if (count === 0) return false;
 
   const invCount = 1 / count;
   centerX *= invCount;
@@ -332,6 +358,7 @@ function addSomaBounds(
   const radiusZ = Math.max(Math.abs(maxZ - centerZ), Math.abs(centerZ - minZ));
   bbox.addSphere(centerX + radiusX, centerY + radiusY, centerZ + radiusZ, RADIUS);
   bbox.addSphere(centerX - radiusX, centerY - radiusY, centerZ - radiusZ, RADIUS);
+  return true;
 }
 
 /**
@@ -383,6 +410,11 @@ function writeColumns(
  * is on screen. Null when nothing is hidden, which is the common case and
  * saves a walk over every soma.
  *
+ * A palette carrying an undrawn colour no soma is actually in counts as
+ * nothing hidden: hosts leave `false` in the palette and empty the column
+ * instead, and answering a mask there would cost every consumer a full pass to
+ * learn what `null` says at once.
+ *
  * The picker paints its own cloud, on its own context, and samples no palette
  * — so it has to be told. Filtering its answer afterwards would not do: it
  * reports the first soma outward from the click, so a hidden one in front
@@ -404,10 +436,13 @@ export function hiddenSomaMask(
 
   const { palette } = colors;
   const hidden = into?.length === count ? into : new Float32Array(count);
+  let hides = false;
   for (let cell = 0; cell < count; cell++) {
-    hidden[cell] = palette[columnForCell(colors, cell)] === false ? 1 : 0;
+    const undrawn = palette[columnForCell(colors, cell)] === false;
+    hidden[cell] = undrawn ? 1 : 0;
+    hides ||= undrawn;
   }
-  return hidden;
+  return hides ? hidden : null;
 }
 
 /**

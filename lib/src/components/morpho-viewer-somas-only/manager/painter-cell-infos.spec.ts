@@ -1,7 +1,7 @@
 import { hiddenSomaMask, PainterCellInfos } from "./painter-cell-infos";
 
 import type { TgdContext } from "@tolokoban/tgd";
-import type { MorphoViewerCellInfo } from "../types";
+import type { MorphoViewerCellColors, MorphoViewerCellInfo } from "../types";
 
 /** The palette canvas as it was handed to the texture, for the colour tests. */
 const mockPalette: { canvas: HTMLCanvasElement | null } = { canvas: null };
@@ -532,40 +532,54 @@ describe("hiddenSomaMask", () => {
 });
 
 describe("PainterCellInfos frame box", () => {
+  const realGetContext = HTMLCanvasElement.prototype.getContext;
   let context: TgdContext;
 
   beforeEach(() => {
     mockCloud.point = null;
     mockCloud.uv = null;
     mockCloud.setUV.mockClear();
+    installFakeCanvas();
     context = { paint: jest.fn() } as unknown as TgdContext;
   });
 
-  // The first five somas are a cluster; the sixth is 10_000 out.
-  function build(columns?: number[]): PainterCellInfos {
-    return new PainterCellInfos(context, {
-      positions: POSITIONS,
-      colors: columns ? { palette: ["red", false], columnByCell: new Uint16Array(columns) } : null,
-      somaRadius: 1,
-    });
+  afterEach(() => {
+    HTMLCanvasElement.prototype.getContext = realGetContext;
+  });
+
+  /** The mask a palette hiding exactly `columns` leaves behind. */
+  function maskOf(columns: number[]): Float32Array | null {
+    const colors: MorphoViewerCellColors = {
+      palette: ["red", false],
+      columnByCell: new Uint16Array(columns),
+    };
+    return hiddenSomaMask(colors, columns.length);
   }
 
-  function frameOf(painter: PainterCellInfos, columns?: number[]) {
-    const colors = columns
-      ? { palette: ["red", false], columnByCell: new Uint16Array(columns) }
-      : null;
-    return painter.bboxOf(hiddenSomaMask(colors, 6));
+  /** The outlier alone, and every soma there is. */
+  const HIDE_OUTLIER = maskOf([0, 0, 0, 0, 0, 1]);
+  const HIDE_ALL = maskOf([1, 1, 1, 1, 1, 1]);
+
+  // The first five somas are a cluster; the sixth is 10_000 out. The colours a
+  // painter is built with do not reach `bboxOf`, which reads the mask it is
+  // handed, so they are left off here.
+  function build(): PainterCellInfos {
+    return new PainterCellInfos(context, {
+      positions: POSITIONS,
+      colors: null,
+      somaRadius: 1,
+    });
   }
 
   it("frames the whole cloud when the palette hides nothing", () => {
     const painter = build();
 
-    expect(frameOf(painter)).toBe(painter.bbox);
+    expect(painter.bboxOf(null)).toBe(painter.bbox);
   });
 
   it("frames the somas the palette draws, and keeps the whole cloud measured", () => {
-    const painter = build([0, 0, 0, 0, 0, 1]);
-    const frame = frameOf(painter, [0, 0, 0, 0, 0, 1]);
+    const painter = build();
+    const frame = painter.bboxOf(HIDE_OUTLIER);
 
     expect(frame).not.toBe(painter.bbox);
     expect(frame.max[0]).toBeLessThan(100);
@@ -574,33 +588,34 @@ describe("PainterCellInfos frame box", () => {
   });
 
   it("keeps a hidden outlier out of the centre, not just out of the min/max", () => {
-    const painter = build([0, 0, 0, 0, 0, 1]);
-    const frame = frameOf(painter, [0, 0, 0, 0, 0, 1]);
+    const painter = build();
+    const frame = painter.bboxOf(HIDE_OUTLIER);
 
     // Averaging the outlier in would move the centre, and with it the whole
     // symmetric box, a thousand units off the cluster it frames.
     expect(Math.abs(frame.min[0] + frame.max[0]) / 2).toBeLessThan(100);
   });
 
-  it("widens back when a recolour puts the somas back on show", () => {
-    const painter = build([0, 0, 0, 0, 0, 1]);
+  it("still measures the positions after a recolour has rewritten the shading", () => {
+    const painter = build();
 
-    painter.recolor({ palette: ["red"], columnByCell: new Uint16Array(6) });
+    painter.recolor({ palette: ["red", false], columnByCell: new Uint16Array(6) });
 
-    expect(frameOf(painter)).toBe(painter.bbox);
+    expect(painter.bboxOf(HIDE_OUTLIER).max[0]).toBeLessThan(100);
+    expect(painter.bboxOf(null)).toBe(painter.bbox);
   });
 
   it("frames the whole cloud when the palette leaves nothing on screen", () => {
-    const painter = build([1, 1, 1, 1, 1, 1]);
+    const painter = build();
 
-    expect(frameOf(painter, [1, 1, 1, 1, 1, 1])).toBe(painter.bbox);
+    expect(painter.bboxOf(HIDE_ALL)).toBe(painter.bbox);
   });
 
   it("measures without touching the cloud", () => {
-    const painter = build([0, 0, 0, 0, 0, 1]);
+    const painter = build();
     const uploaded = mockCloud.uv;
 
-    frameOf(painter, [0, 0, 0, 0, 0, 1]);
+    painter.bboxOf(HIDE_OUTLIER);
 
     expect(mockCloud.uv).toBe(uploaded);
     expect(mockCloud.setUV).not.toHaveBeenCalled();

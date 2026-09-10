@@ -27,7 +27,13 @@ import {
 } from "@tolokoban/tgd";
 import React from "react";
 
-import { TapGuard, watchSpacePerPixel, watchZoom } from "@/behaviors";
+import {
+  farPlaneCovering,
+  FRAME_MARGIN,
+  TapGuard,
+  watchSpacePerPixel,
+  watchZoom,
+} from "@/behaviors";
 import { computeSectionOffset } from "@/morphology-picking";
 import { OverlayInteractionController } from "@/painters/overlay-interaction";
 import { OverlaySurface } from "@/painters/overlay-surface";
@@ -334,16 +340,15 @@ export class PainterManager {
    * The framing is recomputed rather than replayed. Taking a population off
    * show hands back a subset of the same scene, which refits nothing, so a
    * replayed state would still frame cells that have gone. The orientation is
-   * the exception: it is where the
-   * user last turned to, or was framed at, and a reset restores it rather than
-   * deriving a new one.
+   * the exception: it is where the user last turned to, or was framed at, and a
+   * reset restores it rather than deriving a new one.
    */
   readonly cameraReset = (options?: MorphoViewerSignalCameraResetOptions) => {
     const context = this.context.value;
     const { cameraManager } = this;
     if (!context || !cameraManager) return;
 
-    const state = this.framingState(context.camera);
+    const state = this.frameCamera(context.camera);
     if (state) {
       cameraManager.target = {
         ...state,
@@ -1021,7 +1026,7 @@ export class PainterManager {
         return;
       }
 
-      const state = this.framingState(camera);
+      const state = this.frameCamera(camera);
       if (!state) return;
 
       camera.setCurrentState(state);
@@ -1038,14 +1043,14 @@ export class PainterManager {
   };
 
   /**
-   * Where the camera goes when it is fitted or reset, and the depth range that
-   * has to be in place before it moves.
+   * Where the camera goes when it is fitted or reset. Sets the depth range on
+   * `camera` on the way, since planes are not part of a camera state and have
+   * to be in place before it moves.
    *
-   * Worked out on a clone so a reset can decide where it is going without the
-   * view jumping there first. The planes are not part of a camera state, so
-   * they are the one thing set on the live camera here.
+   * The state itself is worked out on a clone, so a reset can decide where it
+   * is going without the view jumping there first.
    */
-  private framingState(camera: TgdCamera): Readonly<TgdCameraState> | null {
+  private frameCamera(camera: TgdCamera): Readonly<TgdCameraState> | null {
     if (camera.screenWidth < 1 || camera.screenHeight < 1) return null;
 
     // A population taken off show is dropped from the circuit rather than drawn
@@ -1054,14 +1059,13 @@ export class PainterManager {
     if (scene.min[0] > scene.max[0]) return null;
 
     const [width, height, depth] = scene.size;
-    const scale = 1.1; // Add a bit of margin around the circuit.
     const fitted = camera.clone();
     fitted.transfo.position = scene.center;
-    fitted.fitSpaceAtTarget(width * scale, height * scale);
-    fitted.transfo.distance = Math.max(width, height, depth) * scale;
+    fitted.fitSpaceAtTarget(width * FRAME_MARGIN, height * FRAME_MARGIN);
+    fitted.transfo.distance = Math.max(width, height, depth) * FRAME_MARGIN;
     fitted.zoom = 2;
     camera.near = 1;
-    camera.far = fitted.transfo.distance + 0.5 * Math.hypot(width, height, depth);
+    camera.far = farPlaneCovering(scene, fitted.transfo.position, fitted.transfo.distance);
     return fitted.getCurrentState();
   }
 
