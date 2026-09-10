@@ -35,7 +35,12 @@ import {
 } from "@/spikes";
 
 import { AdpatativeResolution } from "./adaptative-resolution";
-import { cellPaletteFromCellInfos, hiddenSomaMask, PainterCellInfos } from "./painter-cell-infos";
+import {
+  cellPaletteFromCellInfos,
+  fillHiddenSomaMask,
+  PainterCellInfos,
+  paletteHidesColumns,
+} from "./painter-cell-infos";
 import { SomaPicker } from "./soma-picker";
 
 import type {
@@ -108,8 +113,14 @@ class PainterManager {
    * for cells behind them.
    */
   private appliedPalette: MorphoViewerCellColors | null = null;
-  /** The last hidden mask handed to the picker, kept to be filled again rather than rebuilt. */
+  /** The mask {@link hiddenMask} last filled, kept to be filled again rather than rebuilt. */
   private hiddenSomas: Float32Array | null = null;
+  /** What {@link hiddenSomas} was filled from, and whether that palette hid anything. */
+  private hiddenSomasFrom: {
+    palette: MorphoViewerCellColors | null;
+    count: number;
+    hides: boolean;
+  } | null = null;
   private _backgroundColor = "black";
   private readonly parsedBackgroundColor = new TgdColor(0, 0, 0, 1);
   private painterCellInfos: PainterCellInfos | null = null;
@@ -569,28 +580,41 @@ class PainterManager {
     // A recolour is also how a soma stops being drawn, and the picker has its
     // own cloud to keep in step. Only when one exists — it is built on the
     // first click, and most viewers never build one at all.
-    if (this.somaPicker) this.applyHiddenSomas(this.somaPicker, this.appliedPalette);
+    if (this.somaPicker) this.somaPicker.setHidden(this.hiddenMask(this.appliedPalette));
     context.paint();
   }
 
   /**
-   * Tell the picker which somas the palette leaves undrawn. Safe to hand the
-   * kept mask over because {@link SomaPicker.setHidden} uploads it there and
-   * then.
-   */
-  private applyHiddenSomas(picker: SomaPicker, palette: MorphoViewerCellColors | null) {
-    picker.setHidden(this.hiddenMask(palette));
-  }
-
-  /**
-   * Which somas `palette` leaves undrawn, or null when it hides none. The
-   * buffer is reused: at region scale the mask is tens of megabytes, and
-   * toggling populations one checkbox at a time asks for it on every click.
+   * Which somas `palette` leaves undrawn, or null when it hides none. Safe to
+   * hand to the picker, which uploads it there and then.
+   *
+   * Kept from one call to the next, along with the palette it came from: a
+   * reset asks for the mask a recolour has already worked out, and each answer
+   * is a walk over millions of somas into tens of megabytes. Only a recolour
+   * hands over another palette, so the object itself says whether the answer
+   * still stands.
    */
   private hiddenMask(palette: MorphoViewerCellColors | null): Float32Array | null {
-    const hidden = hiddenSomaMask(palette, this.cellCount, this.hiddenSomas);
-    if (hidden) this.hiddenSomas = hidden;
-    return hidden;
+    const { cellCount } = this;
+    const filled = this.hiddenSomasFrom;
+    if (filled?.palette === palette && filled.count === cellCount) {
+      return filled.hides ? this.hiddenSomas : null;
+    }
+
+    // Asked before the buffer is made, not after: a palette that reserves a
+    // hidden column and leaves it empty would otherwise fill one to throw it
+    // away, and so would the far commoner palette that hides nothing at all.
+    if (!paletteHidesColumns(palette) || cellCount === 0) {
+      this.hiddenSomasFrom = { palette, count: cellCount, hides: false };
+      return null;
+    }
+
+    const kept = this.hiddenSomas;
+    const mask = kept?.length === cellCount ? kept : new Float32Array(cellCount);
+    const hides = fillHiddenSomaMask(palette, mask);
+    this.hiddenSomas = mask;
+    this.hiddenSomasFrom = { palette, count: cellCount, hides };
+    return hides ? mask : null;
   }
 
   readonly cameraReset = (options?: MorphoViewerSignalCameraResetOptions) => {
@@ -889,7 +913,7 @@ class PainterManager {
       picker = new SomaPicker(context, this._positions ?? flattenPositions(this._cellInfos));
       // Whatever was already hidden when the first click arrived; every change
       // after this one comes through `recolorInPlace`.
-      this.applyHiddenSomas(picker, this.appliedPalette);
+      picker.setHidden(this.hiddenMask(this.appliedPalette));
       this.somaPicker = picker;
     }
     void picker
@@ -945,6 +969,9 @@ class PainterManager {
     this.painterClear = null;
     this.painterCellInfos = null;
     this.appliedPalette = null;
+    // Tens of megabytes at region scale, and nothing left to hide with it.
+    this.hiddenSomas = null;
+    this.hiddenSomasFrom = null;
     this.painterOverlays = null;
     this.painterGizmo.context = null;
     this.context.delete();

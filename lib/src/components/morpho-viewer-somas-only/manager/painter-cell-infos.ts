@@ -113,7 +113,10 @@ export class PainterCellInfos extends TgdPainterGroup {
    * or all of them. Measured on demand, since only a camera fit reads it.
    */
   bboxOf(hidden: Readonly<Float32Array> | null): TgdBoundingBox {
-    if (!hidden) return this.bbox;
+    // A mask of the wrong length is one built for other geometry than the somas
+    // standing here, the same mid-change state {@link recolor} refuses. Reading
+    // it would run off the end and quietly count that tail as on screen.
+    if (!hidden || hidden.length !== this.count) return this.bbox;
 
     const bbox = new TgdBoundingBox();
     return addSomaBounds(this.dataPoint, bbox, hidden) ? bbox : this.bbox;
@@ -404,9 +407,21 @@ function writeColumns(
 }
 
 /**
- * One entry per soma, `1` where the palette leaves it undrawn and `0` where it
- * is on screen. Null when no soma lands in an undrawn column, which is the
- * common case and saves a walk over every soma.
+ * Whether `colors` marks any column undrawn.
+ *
+ * One entry per colour rather than per soma, so this is the cheap half of the
+ * question {@link fillHiddenSomaMask} answers, and the half that decides
+ * whether a mask is worth the tens of megabytes it takes at region scale.
+ */
+export function paletteHidesColumns(
+  colors: MorphoViewerCellColors | null
+): colors is MorphoViewerCellColors {
+  return colors?.palette.includes(false) ?? false;
+}
+
+/**
+ * Fill `into` with one entry per soma, `1` where `colors` leaves it undrawn and
+ * `0` where it is on screen.
  *
  * The picker paints its own cloud, on its own context, and samples no palette
  * — so it has to be told. Filtering its answer afterwards would not do: it
@@ -414,28 +429,25 @@ function writeColumns(
  * swallows the click meant for whatever stands behind it, and there is nothing
  * left to filter.
  *
- * @param into An array to fill rather than allocate, when it is the right size
- * for the somas there are. At region scale this is tens of megabytes, and a
- * host stepping through populations with a checkbox list recolours on every
- * click; the caller uploads it before the next recolour can rewrite it. Every
- * entry is written, so what it held before does not show through.
+ * The caller owns `into` so that it can hand the same array back on the next
+ * recolour: a host stepping through populations with a checkbox list asks for a
+ * mask on every click. Every entry is written, so what it held before does not
+ * show through.
+ *
+ * @returns Whether any soma landed in an undrawn column. When false, `into`
+ * holds zeros and there is nothing to hide — a palette can reserve a column and
+ * leave it empty.
  */
-export function hiddenSomaMask(
-  colors: MorphoViewerCellColors | null,
-  count: number,
-  into?: Float32Array | null
-): Float32Array | null {
-  if (!colors?.palette.includes(false)) return null;
-
+export function fillHiddenSomaMask(colors: MorphoViewerCellColors, into: Float32Array): boolean {
   const { palette } = colors;
-  const hidden = into?.length === count ? into : new Float32Array(count);
+  const count = into.length;
   let hides = false;
   for (let cell = 0; cell < count; cell++) {
     const undrawn = palette[columnForCell(colors, cell)] === false;
-    hidden[cell] = undrawn ? 1 : 0;
+    into[cell] = undrawn ? 1 : 0;
     hides ||= undrawn;
   }
-  return hides ? hidden : null;
+  return hides;
 }
 
 /**

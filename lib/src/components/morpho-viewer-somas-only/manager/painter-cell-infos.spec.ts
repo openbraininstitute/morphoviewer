@@ -1,4 +1,4 @@
-import { hiddenSomaMask, PainterCellInfos } from "./painter-cell-infos";
+import { fillHiddenSomaMask, PainterCellInfos, paletteHidesColumns } from "./painter-cell-infos";
 
 import type { TgdContext } from "@tolokoban/tgd";
 import type { MorphoViewerCellColors, MorphoViewerCellInfo } from "../types";
@@ -11,16 +11,8 @@ const mockPalette: { canvas: HTMLCanvasElement | null } = { canvas: null };
 // reduced to what the painter actually calls on it.
 jest.mock("@tolokoban/tgd", () => ({
   TgdBoundingBox: class {
-    min = [
-      Number.POSITIVE_INFINITY,
-      Number.POSITIVE_INFINITY,
-      Number.POSITIVE_INFINITY,
-    ];
-    max = [
-      Number.NEGATIVE_INFINITY,
-      Number.NEGATIVE_INFINITY,
-      Number.NEGATIVE_INFINITY,
-    ];
+    min = [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY];
+    max = [Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY];
     addSphere(x: number, y: number, z: number, radius: number) {
       const center = [x, y, z];
       for (const axis of [0, 1, 2]) {
@@ -461,73 +453,81 @@ describe("PainterCellInfos palette", () => {
   });
 });
 
-describe("hiddenSomaMask", () => {
-  it("says nothing when the palette hides nothing", () => {
+describe("paletteHidesColumns", () => {
+  it("says no when no column is marked undrawn", () => {
     const columnByCell = new Uint16Array([0, 1, 0, 1]);
-    expect(hiddenSomaMask({ palette: ["red", null], columnByCell }, 4)).toBeNull();
-    expect(hiddenSomaMask(null, 4)).toBeNull();
+    expect(paletteHidesColumns({ palette: ["red", null], columnByCell })).toBe(false);
+    expect(paletteHidesColumns(null)).toBe(false);
   });
 
+  it("says yes on the column alone, before any soma is looked at", () => {
+    // The caller makes the mask on this answer, so it has to come from the
+    // palette rather than from a walk over the somas it would pay for anyway.
+    expect(paletteHidesColumns({ palette: ["red", false], columnByCell: new Uint16Array(2) })).toBe(
+      true
+    );
+  });
+});
+
+describe("fillHiddenSomaMask", () => {
+  /** The mask `colors` leaves in an array of `count` entries. */
+  function maskOf(colors: MorphoViewerCellColors, count: number) {
+    const into = new Float32Array(count);
+    const hides = fillHiddenSomaMask(colors, into);
+    return { hides, mask: Array.from(into) };
+  }
+
   it("flags the somas whose column is not drawn", () => {
-    const mask = hiddenSomaMask(
+    const { hides, mask } = maskOf(
       { palette: ["red", false, "blue"], columnByCell: new Uint16Array([0, 1, 2, 1]) },
       4
     );
 
-    expect(Array.from(mask ?? [])).toEqual([0, 1, 0, 1]);
+    expect(hides).toBe(true);
+    expect(mask).toEqual([0, 1, 0, 1]);
+  });
+
+  it("says no soma is hidden when the undrawn column is empty", () => {
+    // A host filtering populations can leave the column in place and empty it,
+    // and the caller has an allocation to skip when that is all it means.
+    const { hides, mask } = maskOf(
+      { palette: ["red", false], columnByCell: new Uint16Array([0, 0]) },
+      2
+    );
+
+    expect(hides).toBe(false);
+    expect(mask).toEqual([0, 0]);
   });
 
   it("clamps an out-of-range column the way the palette does", () => {
     // `writeColumns` sends a column past the end to the last one, so a mask
     // that did anything else would disagree with what is on screen.
-    const mask = hiddenSomaMask(
-      { palette: ["red", false], columnByCell: new Uint16Array([9, 0]) },
-      2
-    );
+    const { mask } = maskOf({ palette: ["red", false], columnByCell: new Uint16Array([9, 0]) }, 2);
 
-    expect(Array.from(mask ?? [])).toEqual([1, 0]);
+    expect(mask).toEqual([1, 0]);
   });
 
   it("sends somas the columns do not describe to the first column, as the palette does", () => {
     // The alternative was leaving them wherever `u` happened to point, which on
     // a palette this narrow is the hidden column itself: culled on screen, and
     // reported as pickable.
-    const mask = hiddenSomaMask({ palette: [false], columnByCell: new Uint16Array([0]) }, 3);
+    const { mask } = maskOf({ palette: [false], columnByCell: new Uint16Array([0]) }, 3);
 
-    expect(Array.from(mask ?? [])).toEqual([1, 1, 1]);
-  });
-
-  it("fills an array it is handed rather than making one", () => {
-    const into = new Float32Array(3);
-    const colors = { palette: ["red", false] as const, columnByCell: new Uint16Array([1, 0, 1]) };
-
-    const mask = hiddenSomaMask({ ...colors, palette: [...colors.palette] }, 3, into);
-
-    expect(mask).toBe(into);
-    expect(Array.from(into)).toEqual([1, 0, 1]);
+    expect(mask).toEqual([1, 1, 1]);
   });
 
   it("writes every entry, so the last mask does not show through the next", () => {
     const into = new Float32Array([1, 1, 1]);
 
-    hiddenSomaMask({ palette: ["red", false], columnByCell: new Uint16Array([0, 1, 0]) }, 3, into);
+    fillHiddenSomaMask({ palette: ["red", false], columnByCell: new Uint16Array([0, 1, 0]) }, into);
 
     expect(Array.from(into)).toEqual([0, 1, 0]);
   });
 
-  it("makes its own when the one it is handed is the wrong size", () => {
-    const into = new Float32Array(2);
-
-    const mask = hiddenSomaMask({ palette: [false], columnByCell: new Uint16Array([0]) }, 3, into);
-
-    expect(mask).not.toBe(into);
-    expect(mask).toHaveLength(3);
-  });
-
   it("keeps them pickable when that first column is drawn", () => {
-    const mask = hiddenSomaMask({ palette: ["red", false], columnByCell: new Uint16Array([1]) }, 3);
+    const { mask } = maskOf({ palette: ["red", false], columnByCell: new Uint16Array([1]) }, 3);
 
-    expect(Array.from(mask ?? [])).toEqual([1, 0, 0]);
+    expect(mask).toEqual([1, 0, 0]);
   });
 });
 
@@ -536,6 +536,10 @@ describe("PainterCellInfos frame box", () => {
   let context: TgdContext;
 
   beforeEach(() => {
+    // The painter schedules its occlusion on a timer nothing here waits for,
+    // and a real one landing mid-test would upload over the cloud these
+    // measurements are taken beside.
+    jest.useFakeTimers();
     mockCloud.point = null;
     mockCloud.uv = null;
     mockCloud.setUV.mockClear();
@@ -544,16 +548,19 @@ describe("PainterCellInfos frame box", () => {
   });
 
   afterEach(() => {
+    jest.useRealTimers();
     HTMLCanvasElement.prototype.getContext = realGetContext;
   });
 
   /** The mask a palette hiding exactly `columns` leaves behind. */
-  function maskOf(columns: number[]): Float32Array | null {
+  function maskOf(columns: number[]): Float32Array {
     const colors: MorphoViewerCellColors = {
       palette: ["red", false],
       columnByCell: new Uint16Array(columns),
     };
-    return hiddenSomaMask(colors, columns.length);
+    const mask = new Float32Array(columns.length);
+    fillHiddenSomaMask(colors, mask);
+    return mask;
   }
 
   const HIDE_OUTLIER = maskOf([0, 0, 0, 0, 0, 1]);
