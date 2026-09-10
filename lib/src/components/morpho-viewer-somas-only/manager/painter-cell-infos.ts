@@ -113,9 +113,8 @@ export class PainterCellInfos extends TgdPainterGroup {
    * or all of them. Measured on demand, since only a camera fit reads it.
    */
   bboxOf(hidden: Readonly<Float32Array> | null): TgdBoundingBox {
-    // A mask of the wrong length is one built for other geometry than the somas
-    // standing here, the same mid-change state {@link recolor} refuses. Reading
-    // it would run off the end and quietly count that tail as on screen.
+    // A mask of the wrong length was built for other geometry than the somas
+    // standing here, the same mid-change state {@link recolor} refuses.
     if (!hidden || hidden.length !== this.count) return this.bbox;
 
     const bbox = new TgdBoundingBox();
@@ -409,9 +408,9 @@ function writeColumns(
 /**
  * Whether `colors` marks any column undrawn.
  *
- * One entry per colour rather than per soma, so this is the cheap half of the
- * question {@link fillHiddenSomaMask} answers, and the half that decides
- * whether a mask is worth the tens of megabytes it takes at region scale.
+ * One entry per colour rather than per soma, so it is the cheap half of what
+ * {@link fillHiddenSomaMask} answers, and enough to decide whether a mask is
+ * worth the tens of megabytes it takes at region scale.
  */
 export function paletteHidesColumns(
   colors: MorphoViewerCellColors | null

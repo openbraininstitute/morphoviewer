@@ -353,9 +353,8 @@ export class PainterManager {
     const { target } = cameraManager;
     const framing = this.frameCamera(context.camera, target.orientation);
     if (framing) {
-      // The zoom outlives the framing it was captured with: a host that asked
-      // for one through `cameraReset({ zoom })` keeps it on the resets after,
-      // which is what {@link CameraManager.applyZoom} promises.
+      // The zoom outlives the framing it was captured with: a host that asked for
+      // one through `cameraReset({ zoom })` keeps it on the resets after.
       cameraManager.target = { ...framing.state, zoom: target.zoom ?? framing.state.zoom };
       // Widened rather than set, because the move starts from wherever the
       // camera stands now and has to stay inside the slab the whole way.
@@ -1036,11 +1035,9 @@ export class PainterManager {
       if (!framing) return;
 
       camera.setCurrentState(framing.state);
-      // Set outright rather than widened: the view jumps to the fit, so there
-      // is no move to keep whole and no reason to carry the old scene's slab.
-      // The near plane stays well in front of the circuit rather than on it,
-      // since markers and synapses sit a little outside the box it was
-      // measured from.
+      // Set outright rather than widened: the view jumps to the fit, so there is no
+      // move to keep whole. The near plane stays in front of the circuit rather than
+      // on it, since markers and synapses sit a little outside the box.
       camera.near = 1;
       camera.far = framing.range.far;
       if (!this.cameraManager) {
@@ -1058,14 +1055,14 @@ export class PainterManager {
   /**
    * Where the camera goes when it is fitted or reset, and the depth range it
    * needs there — planes are not part of a camera state, so they come back
-   * beside it for the caller to apply as it sees fit.
+   * beside it.
    *
    * Worked out on a clone, so a reset can decide where it is going without the
    * view jumping there first. `orientation` is where it will be turned by the
-   * time it arrives, which is not where it is turned now: the scene is measured
-   * along the camera's own right and up, and a circuit two thousand microns
-   * deep and two hundred wide is cut off on both sides if it is framed flat and
-   * then viewed from the side.
+   * time it arrives, not where it is turned now: the scene is measured along the
+   * camera's own right and up, and a circuit two thousand microns deep and two
+   * hundred wide is cut off on both sides if it is framed flat and then viewed
+   * from the side.
    */
   private frameCamera(
     camera: TgdCamera,

@@ -46,10 +46,9 @@ export function depthRangeCovering(
  */
 export function widenDepthRange(camera: TgdCamera, { near, far }: DepthRange) {
   if (far > camera.far) camera.far = far;
-  // Only an orthographic slab can start behind the eye. A perspective frustum
-  // cannot, and pulling its near plane down towards zero to gain a little would
-  // cost the depth precision of everything already on screen, so it keeps the
-  // plane the fit gave it.
+  // Only an orthographic slab can start behind the eye. A perspective frustum keeps
+  // the near plane the fit gave it, rather than spend depth precision pulling it
+  // towards zero.
   if (camera instanceof TgdCameraOrthographic && near < camera.near) camera.near = near;
 }
 

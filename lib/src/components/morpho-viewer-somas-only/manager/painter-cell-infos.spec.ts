@@ -461,8 +461,6 @@ describe("paletteHidesColumns", () => {
   });
 
   it("says yes on the column alone, before any soma is looked at", () => {
-    // The caller makes the mask on this answer, so it has to come from the
-    // palette rather than from a walk over the somas it would pay for anyway.
     expect(paletteHidesColumns({ palette: ["red", false], columnByCell: new Uint16Array(2) })).toBe(
       true
     );
@@ -488,8 +486,7 @@ describe("fillHiddenSomaMask", () => {
   });
 
   it("says no soma is hidden when the undrawn column is empty", () => {
-    // A host filtering populations can leave the column in place and empty it,
-    // and the caller has an allocation to skip when that is all it means.
+    // A host filtering populations can leave the column in place and empty it.
     const { hides, mask } = maskOf(
       { palette: ["red", false], columnByCell: new Uint16Array([0, 0]) },
       2
@@ -536,9 +533,8 @@ describe("PainterCellInfos frame box", () => {
   let context: TgdContext;
 
   beforeEach(() => {
-    // The painter schedules its occlusion on a timer nothing here waits for,
-    // and a real one landing mid-test would upload over the cloud these
-    // measurements are taken beside.
+    // The painter schedules its occlusion on a timer nothing here waits for, and a
+    // real one landing mid-test would upload over the cloud measured beside it.
     jest.useFakeTimers();
     mockCloud.point = null;
     mockCloud.uv = null;
@@ -597,7 +593,7 @@ describe("PainterCellInfos frame box", () => {
     const frame = painter.bboxOf(HIDE_OUTLIER);
 
     // Averaging the outlier in would move the centre, and with it the whole
-    // symmetric box, a thousand units off the cluster it frames.
+    // symmetric box.
     expect(Math.abs(frame.min[0] + frame.max[0]) / 2).toBeLessThan(100);
   });
 

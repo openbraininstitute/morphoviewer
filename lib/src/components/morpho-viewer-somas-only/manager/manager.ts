@@ -588,11 +588,10 @@ class PainterManager {
    * Which somas `palette` leaves undrawn, or null when it hides none. Safe to
    * hand to the picker, which uploads it there and then.
    *
-   * Kept from one call to the next, along with the palette it came from: a
-   * reset asks for the mask a recolour has already worked out, and each answer
-   * is a walk over millions of somas into tens of megabytes. Only a recolour
-   * hands over another palette, so the object itself says whether the answer
-   * still stands.
+   * Kept from one call to the next along with the palette it came from: a reset
+   * asks for the mask a recolour has already worked out, and each answer is a
+   * walk over millions of somas into tens of megabytes. Only a recolour hands
+   * over another palette, so identity is enough to tell a stale answer.
    */
   private hiddenMask(palette: MorphoViewerCellColors | null): Float32Array | null {
     const { cellCount } = this;
@@ -601,9 +600,8 @@ class PainterManager {
       return filled.hides ? this.hiddenSomas : null;
     }
 
-    // Asked before the buffer is made, not after: a palette that reserves a
-    // hidden column and leaves it empty would otherwise fill one to throw it
-    // away, and so would the far commoner palette that hides nothing at all.
+    // Asked before the buffer is made, not after: a palette that hides nothing,
+    // which is the common case, would otherwise fill one to throw it away.
     if (!paletteHidesColumns(palette) || cellCount === 0) {
       this.hiddenSomasFrom = { palette, count: cellCount, hides: false };
       return null;
@@ -692,8 +690,8 @@ class PainterManager {
   private fitToFrame(camera: TgdCamera, zoom: number): TgdBoundingBox | null {
     const { painterCellInfos } = this;
     if (!painterCellInfos) return null;
-    // Before measuring, not after: a reset landing on a canvas with no size yet
-    // would otherwise walk every soma to throw the answer away.
+    // Checked before measuring: a reset landing on a canvas with no size yet would
+    // otherwise walk every soma to throw the answer away.
     if (camera.screenWidth < 1 || camera.screenHeight < 1) return null;
 
     const frame = painterCellInfos.bboxOf(this.hiddenMask(this.appliedPalette));
