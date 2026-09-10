@@ -28,11 +28,14 @@ import {
 import React from "react";
 
 import {
-  farPlaneCovering,
+  type DepthRange,
+  depthRangeCovering,
+  extentAlong,
   FRAME_MARGIN,
   TapGuard,
   watchSpacePerPixel,
   watchZoom,
+  widenDepthRange,
 } from "@/behaviors";
 import { computeSectionOffset } from "@/morphology-picking";
 import { OverlayInteractionController } from "@/painters/overlay-interaction";
@@ -347,12 +350,16 @@ export class PainterManager {
     const { cameraManager } = this;
     if (!context || !cameraManager) return;
 
-    const state = this.frameCamera(context.camera);
-    if (state) {
-      cameraManager.target = {
-        ...state,
-        orientation: cameraManager.target.orientation ?? state.orientation,
-      };
+    const { target } = cameraManager;
+    const framing = this.frameCamera(context.camera, target.orientation);
+    if (framing) {
+      // The zoom outlives the framing it was captured with: a host that asked
+      // for one through `cameraReset({ zoom })` keeps it on the resets after,
+      // which is what {@link CameraManager.applyZoom} promises.
+      cameraManager.target = { ...framing.state, zoom: target.zoom ?? framing.state.zoom };
+      // Widened rather than set, because the move starts from wherever the
+      // camera stands now and has to stay inside the slab the whole way.
+      widenDepthRange(context.camera, framing.range);
     }
     cameraManager.resetCamera(options);
   };
@@ -1025,16 +1032,23 @@ export class PainterManager {
         return;
       }
 
-      const state = this.frameCamera(camera);
-      if (!state) return;
+      const framing = this.frameCamera(camera);
+      if (!framing) return;
 
-      camera.setCurrentState(state);
+      camera.setCurrentState(framing.state);
+      // Set outright rather than widened: the view jumps to the fit, so there
+      // is no move to keep whole and no reason to carry the old scene's slab.
+      // The near plane stays well in front of the circuit rather than on it,
+      // since markers and synapses sit a little outside the box it was
+      // measured from.
+      camera.near = 1;
+      camera.far = framing.range.far;
       if (!this.cameraManager) {
         this.cameraManager = new CameraManager(context, this.eventRestingPosition);
         // Created lazily, possibly while already in dendrogram mode.
         this.cameraManager.rotationLocked = this._dendrogramMode;
       }
-      this.cameraManager.target = state;
+      this.cameraManager.target = framing.state;
       context.paint();
     } catch (ex) {
       console.error("Unable to adapt camera to bbox:", ex);
@@ -1042,13 +1056,21 @@ export class PainterManager {
   };
 
   /**
-   * Where the camera goes when it is fitted or reset. The depth range is set on
-   * `camera` on the way, since planes are not part of a camera state.
+   * Where the camera goes when it is fitted or reset, and the depth range it
+   * needs there — planes are not part of a camera state, so they come back
+   * beside it for the caller to apply as it sees fit.
    *
-   * The state itself is worked out on a clone, so a reset can decide where it
-   * is going without the view jumping there first.
+   * Worked out on a clone, so a reset can decide where it is going without the
+   * view jumping there first. `orientation` is where it will be turned by the
+   * time it arrives, which is not where it is turned now: the scene is measured
+   * along the camera's own right and up, and a circuit two thousand microns
+   * deep and two hundred wide is cut off on both sides if it is framed flat and
+   * then viewed from the side.
    */
-  private frameCamera(camera: TgdCamera): Readonly<TgdCameraState> | null {
+  private frameCamera(
+    camera: TgdCamera,
+    orientation?: Readonly<TgdQuat>
+  ): { state: Readonly<TgdCameraState>; range: DepthRange } | null {
     if (camera.screenWidth < 1 || camera.screenHeight < 1) return null;
 
     // A population taken off show is dropped from the circuit rather than drawn
@@ -1058,13 +1080,19 @@ export class PainterManager {
 
     const [width, height, depth] = scene.size;
     const fitted = camera.clone();
-    fitted.transfo.position = scene.center;
-    fitted.fitSpaceAtTarget(width * FRAME_MARGIN, height * FRAME_MARGIN);
-    fitted.transfo.distance = Math.max(width, height, depth) * FRAME_MARGIN;
+    if (orientation) fitted.transfo.setOrientation(orientation);
+    const { transfo } = fitted;
+    transfo.position = scene.center;
+    fitted.fitSpaceAtTarget(
+      extentAlong(scene.size, transfo.axisX) * FRAME_MARGIN,
+      extentAlong(scene.size, transfo.axisY) * FRAME_MARGIN
+    );
+    transfo.distance = Math.max(width, height, depth) * FRAME_MARGIN;
     fitted.zoom = 2;
-    camera.near = 1;
-    camera.far = farPlaneCovering(scene, fitted.transfo.position, fitted.transfo.distance);
-    return fitted.getCurrentState();
+    return {
+      state: fitted.getCurrentState(),
+      range: depthRangeCovering(scene, transfo.position, transfo.distance),
+    };
   }
 
   private combineCellsBBoxes() {

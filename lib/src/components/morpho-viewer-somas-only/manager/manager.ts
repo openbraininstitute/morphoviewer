@@ -1,5 +1,5 @@
 import {
-  TgdBoundingBox,
+  type TgdBoundingBox,
   type TgdCamera,
   TgdCameraOrthographic,
   TgdCameraPerspective,
@@ -10,7 +10,6 @@ import {
   TgdPainterClear,
   type TgdPainterGizmoOptions,
   TgdPainterState,
-  type TgdVec3,
   tgdActionCreateCameraInterpolation,
   webglBlendGet,
   webglBlendSet,
@@ -18,7 +17,13 @@ import {
 } from "@tolokoban/tgd";
 import React from "react";
 
-import { farPlaneCovering, FRAME_MARGIN, TapGuard, watchSpacePerPixel } from "@/behaviors";
+import {
+  depthRangeCovering,
+  FRAME_MARGIN,
+  TapGuard,
+  watchSpacePerPixel,
+  widenDepthRange,
+} from "@/behaviors";
 import { PainterGizmo } from "@/painters/gizmo";
 import { OverlayInteractionController } from "@/painters/overlay-interaction";
 import { OverlaySurface } from "@/painters/overlay-surface";
@@ -597,12 +602,13 @@ class PainterManager {
     // Fitted on a clone, so the reset can work out where it is going without
     // the view jumping there first.
     const resettedCamera = context.camera.clone();
-    if (!this.fitToFrame(resettedCamera, options?.zoom ?? 1)) return;
+    const scene = this.fitToFrame(resettedCamera, options?.zoom ?? 1);
+    if (!scene) return;
 
     const state = resettedCamera.getCurrentState();
     // A camera state holds no planes, so the slab is widened on the live camera
     // before the move interpolates inside it.
-    this.widenDepthRange(context.camera, state.position, state.distance);
+    widenDepthRange(context.camera, depthRangeCovering(scene, state.position, state.distance));
     context.animSchedule({
       duration: 0.5,
       action: tgdActionCreateCameraInterpolation(context.camera, state),
@@ -648,47 +654,35 @@ class PainterManager {
     }
   };
 
-  /** Every soma the scene holds, drawn or not, as the painter measured it. */
-  private get bbox(): TgdBoundingBox {
-    return this.painterCellInfos?.bbox ?? new TgdBoundingBox();
-  }
-
   /**
-   * Point `camera` at the somas on show, with a margin around them. False when
-   * there is nothing measurable to frame yet, and the camera is left alone.
+   * Point `camera` at the somas on show, with a margin around them.
    *
    * Hidden somas keep their place in the geometry, so the palette is the only
    * record of what is on screen. Read from {@link appliedPalette} rather than
    * {@link cellPalette}, which may hold colours the cloud has not taken yet.
+   *
+   * @returns Every soma the scene holds, drawn or not, which is what the depth
+   * slab has to cover. Null when there is nothing measurable to frame yet, and
+   * the camera is left alone.
    */
-  private fitToFrame(camera: TgdCamera, zoom: number): boolean {
+  private fitToFrame(camera: TgdCamera, zoom: number): TgdBoundingBox | null {
     const { painterCellInfos } = this;
-    if (!painterCellInfos) return false;
+    if (!painterCellInfos) return null;
     // Before measuring, not after: a reset landing on a canvas with no size yet
     // would otherwise walk every soma to throw the answer away.
-    if (camera.screenWidth < 1 || camera.screenHeight < 1) return false;
+    if (camera.screenWidth < 1 || camera.screenHeight < 1) return null;
 
     const frame = painterCellInfos.bboxOf(this.hiddenMask(this.appliedPalette));
     const [width, height] = frame.size;
-    if (width < 1 || height < 1) return false;
+    if (width < 1 || height < 1) return null;
 
     camera.fitBoundingBox(frame);
     // Can be NaN if the screen size has not yet been defined.
-    if (Number.isNaN(camera.transfo.distance)) return false;
+    if (Number.isNaN(camera.transfo.distance)) return null;
 
     camera.zoom = zoom;
     camera.spaceHeightAtTarget *= FRAME_MARGIN;
-    return true;
-  }
-
-  /**
-   * Push the far plane out past the whole scene: framing the visible somas
-   * alone would leave the hidden ones behind it, and un-hiding one without a
-   * reset would show nothing.
-   */
-  private widenDepthRange(camera: TgdCamera, position: Readonly<TgdVec3>, distance: number) {
-    const far = farPlaneCovering(this.bbox, position, distance);
-    if (far > camera.far) camera.far = far;
+    return painterCellInfos.bbox;
   }
 
   private applyBBoxToCamera() {
@@ -699,9 +693,11 @@ class PainterManager {
       const { camera } = context;
       camera.screenWidth = context.width;
       camera.screenHeight = context.height;
-      if (!this.fitToFrame(camera, 1)) return;
+      const scene = this.fitToFrame(camera, 1);
+      if (!scene) return;
 
-      this.widenDepthRange(camera, camera.transfo.position, camera.transfo.distance);
+      const { position, distance } = camera.transfo;
+      widenDepthRange(camera, depthRangeCovering(scene, position, distance));
     });
     context.paint();
   }
