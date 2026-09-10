@@ -43,18 +43,36 @@ export default function Page() {
   );
   const cellInfos = useCellInfos(dataId);
   const [pickedCell, setPickedCell] = React.useState<number | null>(null);
-  // Which slab of the cloud is taken off show. The somas arrive sorted along Y,
-  // so a range of them is a region. Hiding one leaves the view where it is; the
-  // reset button re-frames what is left.
+  // Which slab of the cloud is taken off show. Cut by height rather than by
+  // index, so it is a region of the circuit whatever order the cells arrive in.
+  // Hiding one leaves the view where it is; the reset button re-frames what is
+  // left.
   const [hiddenPart, setHiddenPart] = React.useState("none");
+  const yRange = React.useMemo(() => {
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+    for (const { position } of cellInfos ?? []) {
+      min = Math.min(min, position[1]);
+      max = Math.max(max, position[1]);
+    }
+    return [min, max];
+  }, [cellInfos]);
   const cellColors = React.useMemo(() => {
-    const count = cellInfos?.length ?? 0;
-    const third = Math.floor(count / 3);
-    const columnByCell = new Uint16Array(count);
-    if (hiddenPart === "first") columnByCell.fill(1, 0, third);
-    if (hiddenPart === "last") columnByCell.fill(1, count - third);
+    const cells = cellInfos ?? [];
+    const columnByCell = new Uint16Array(cells.length);
+    // Leaving `false` out of the palette is what tells the viewer nothing is
+    // hidden, and spares it a walk over every soma on each reset.
+    if (hiddenPart === "none") return { palette: ["#07f"], columnByCell };
+
+    const [min, max] = yRange;
+    const third = (max - min) / 3;
+    const cut = hiddenPart === "first" ? min + third : max - third;
+    for (let cell = 0; cell < cells.length; cell++) {
+      const y = cells[cell].position[1];
+      columnByCell[cell] = (hiddenPart === "first" ? y <= cut : y >= cut) ? 1 : 0;
+    }
     return { palette: ["#07f", false as const], columnByCell };
-  }, [hiddenPart, cellInfos]);
+  }, [hiddenPart, cellInfos, yRange]);
   const spikes = useRandomSpikes(cellInfos?.length ?? 0, 4);
   const [spikePlaying, setSpikePlaying] = React.useState(false);
   const [spikeSpeed, setSpikeSpeed] = React.useState(DEFAULT_SPIKE_SPEED);
