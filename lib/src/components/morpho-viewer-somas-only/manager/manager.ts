@@ -1,4 +1,5 @@
 import {
+  type TgdAnimation,
   type TgdBoundingBox,
   type TgdCamera,
   TgdCameraOrthographic,
@@ -153,6 +154,7 @@ class PainterManager {
   private scalebarCleanup: (() => void) | null = null;
   private readonly painterGizmo = new PainterGizmo();
   private readonly adaptativeResolution = new AdpatativeResolution();
+  private resetAnimations: TgdAnimation[] = [];
   private _somaRadius = 1;
   private _neuronOpacity = 1;
   private spacePerPixel = 1;
@@ -631,7 +633,10 @@ class PainterManager {
     // A camera state holds no planes, so the slab is widened on the live camera
     // before the move interpolates inside it.
     widenDepthRange(context.camera, depthRangeCovering(scene, state.position, state.distance));
-    context.animSchedule({
+    // Cancelling takes the previous move's `onEnd` with it, so the view goes
+    // back to high resolution once, when the last reset lands.
+    context.animCancelArray(this.resetAnimations);
+    this.resetAnimations = context.animSchedule({
       duration: 0.5,
       action: tgdActionCreateCameraInterpolation(context.camera, state),
       onEnd: this.adaptativeResolution.highRes,
@@ -956,6 +961,8 @@ class PainterManager {
     this.context.eventResize.removeListener(this.handleResize);
     this.context.inputs.pointer.eventTap.removeListener(this.handlePointerTap);
     this.tapGuard.detach();
+    this.context.animCancelArray(this.resetAnimations);
+    this.resetAnimations = [];
     this.somaPicker?.delete();
     this.somaPicker = null;
     this.eventScalebar.removeListener(this.handleSpacePerPixel);

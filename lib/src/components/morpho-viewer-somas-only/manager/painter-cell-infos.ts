@@ -5,6 +5,11 @@ import { PainterSomaCloud } from "./painter-soma-cloud";
 
 import type { MorphoViewerCellColors, MorphoViewerCellInfo } from "../types";
 
+/**
+ * The padding on the whole cloud's box, and a tenth of the reach the occlusion
+ * sums neighbours over. Constant because that box is the occlusion's grid
+ * domain: re-padding it would re-bucket the cloud and move the shading.
+ */
 const RADIUS = 15;
 
 /** number of vertical steps used to bake ambient-occlusion shading into each
@@ -71,7 +76,7 @@ export class PainterCellInfos extends TgdPainterGroup {
     const dataPoint = options.positions
       ? packPositions(options.positions)
       : parsePositions(options.cellInfos ?? []);
-    addSomaBounds(dataPoint, bbox);
+    addSomaBounds(dataPoint, bbox, RADIUS);
     const count = dataPoint.length >> 2;
     const dataUV = new Float32Array(2 * count).fill(0.5);
     const paletteColors = writeColumns(dataUV, options.colors);
@@ -111,6 +116,10 @@ export class PainterCellInfos extends TgdPainterGroup {
   /**
    * The box around the drawn somas, or the whole cloud when the mask hides none
    * or all of them. Measured on demand, since only a camera fit reads it.
+   *
+   * Padded by the radius the somas are drawn at: a mask can leave a handful of
+   * cells standing close together, and at that size a large radius reaches past
+   * the canvas edge.
    */
   bboxOf(hidden: Readonly<Float32Array> | null): TgdBoundingBox {
     // A mask of the wrong length was built for other geometry than the somas
@@ -118,7 +127,7 @@ export class PainterCellInfos extends TgdPainterGroup {
     if (!hidden || hidden.length !== this.count) return this.bbox;
 
     const bbox = new TgdBoundingBox();
-    return addSomaBounds(this.dataPoint, bbox, hidden) ? bbox : this.bbox;
+    return addSomaBounds(this.dataPoint, bbox, this.somaRadius, hidden) ? bbox : this.bbox;
   }
 
   /**
@@ -298,6 +307,7 @@ function parsePositions(cellInfos: MorphoViewerCellInfo[]): Float32Array<ArrayBu
 function addSomaBounds(
   dataPoint: Readonly<Float32Array>,
   bbox: TgdBoundingBox,
+  radius: number,
   hidden?: Readonly<Float32Array>
 ): boolean {
   const somas = dataPoint.length >> 2;
@@ -356,8 +366,8 @@ function addSomaBounds(
   const radiusX = Math.max(Math.abs(maxX - centerX), Math.abs(centerX - minX));
   const radiusY = Math.max(Math.abs(maxY - centerY), Math.abs(centerY - minY));
   const radiusZ = Math.max(Math.abs(maxZ - centerZ), Math.abs(centerZ - minZ));
-  bbox.addSphere(centerX + radiusX, centerY + radiusY, centerZ + radiusZ, RADIUS);
-  bbox.addSphere(centerX - radiusX, centerY - radiusY, centerZ - radiusZ, RADIUS);
+  bbox.addSphere(centerX + radiusX, centerY + radiusY, centerZ + radiusZ, radius);
+  bbox.addSphere(centerX - radiusX, centerY - radiusY, centerZ - radiusZ, radius);
   return true;
 }
 

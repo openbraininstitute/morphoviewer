@@ -606,6 +606,18 @@ describe("PainterCellInfos frame box", () => {
     expect(painter.bboxOf(null)).toBe(painter.bbox);
   });
 
+  it("pads the frame by the radius the somas are drawn at", () => {
+    const painter = build();
+
+    // The outermost soma on show stands at x = 2, and is drawn as a sphere
+    // around it rather than as the point measured there.
+    expect(painter.bboxOf(HIDE_OUTLIER).max[0]).toBeCloseTo(2 + 1);
+
+    painter.somaRadius = 50;
+
+    expect(painter.bboxOf(HIDE_OUTLIER).max[0]).toBeCloseTo(2 + 50);
+  });
+
   it("frames the whole cloud when the palette leaves nothing on screen", () => {
     const painter = build();
 
