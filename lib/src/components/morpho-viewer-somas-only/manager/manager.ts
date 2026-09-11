@@ -1,5 +1,7 @@
 import {
-  TgdBoundingBox,
+  type TgdAnimation,
+  type TgdBoundingBox,
+  type TgdCamera,
   TgdCameraOrthographic,
   TgdCameraPerspective,
   TgdColor,
@@ -16,7 +18,13 @@ import {
 } from "@tolokoban/tgd";
 import React from "react";
 
-import { TapGuard, watchSpacePerPixel } from "@/behaviors";
+import {
+  depthRangeCovering,
+  FRAME_MARGIN,
+  TapGuard,
+  watchSpacePerPixel,
+  widenDepthRange,
+} from "@/behaviors";
 import { PainterGizmo } from "@/painters/gizmo";
 import { OverlayInteractionController } from "@/painters/overlay-interaction";
 import { OverlaySurface } from "@/painters/overlay-surface";
@@ -28,7 +36,12 @@ import {
 } from "@/spikes";
 
 import { AdpatativeResolution } from "./adaptative-resolution";
-import { cellPaletteFromCellInfos, hiddenSomaMask, PainterCellInfos } from "./painter-cell-infos";
+import {
+  cellPaletteFromCellInfos,
+  fillHiddenSomaMask,
+  PainterCellInfos,
+  paletteHidesColumns,
+} from "./painter-cell-infos";
 import { SomaPicker } from "./soma-picker";
 
 import type {
@@ -101,8 +114,14 @@ class PainterManager {
    * for cells behind them.
    */
   private appliedPalette: MorphoViewerCellColors | null = null;
-  /** The last hidden mask handed to the picker, kept to be filled again rather than rebuilt. */
+  /** The mask {@link hiddenMask} last filled, kept to be filled again rather than rebuilt. */
   private hiddenSomas: Float32Array | null = null;
+  /** What {@link hiddenSomas} was filled from, and whether that palette hid anything. */
+  private hiddenSomasFrom: {
+    palette: MorphoViewerCellColors | null;
+    count: number;
+    hides: boolean;
+  } | null = null;
   private _backgroundColor = "black";
   private readonly parsedBackgroundColor = new TgdColor(0, 0, 0, 1);
   private painterCellInfos: PainterCellInfos | null = null;
@@ -132,10 +151,10 @@ class PainterManager {
   private painterClear: TgdPainterClear | null = null;
   private context: TgdContext | null = null;
   private orbit: TgdControllerCameraOrbit | null = null;
-  private bbox = new TgdBoundingBox();
   private scalebarCleanup: (() => void) | null = null;
   private readonly painterGizmo = new PainterGizmo();
   private readonly adaptativeResolution = new AdpatativeResolution();
+  private resetAnimations: TgdAnimation[] = [];
   private _somaRadius = 1;
   private _neuronOpacity = 1;
   private spacePerPixel = 1;
@@ -563,48 +582,61 @@ class PainterManager {
     // A recolour is also how a soma stops being drawn, and the picker has its
     // own cloud to keep in step. Only when one exists — it is built on the
     // first click, and most viewers never build one at all.
-    if (this.somaPicker) this.applyHiddenSomas(this.somaPicker, this.appliedPalette);
+    if (this.somaPicker) this.somaPicker.setHidden(this.hiddenMask(this.appliedPalette));
     context.paint();
   }
 
   /**
-   * Tell the picker which somas the palette leaves undrawn.
+   * Which somas `palette` leaves undrawn, or null when it hides none. Safe to
+   * hand to the picker, which uploads it there and then.
    *
-   * The mask is kept between calls: at region scale it is tens of megabytes, and toggling
-   * populations one checkbox at a time recolours on every click. Safe to hand back because
-   * {@link SomaPicker.setHidden} uploads it there and then.
+   * Kept from one call to the next along with the palette it came from: a reset
+   * asks for the mask a recolour has already worked out, and each answer is a
+   * walk over millions of somas into tens of megabytes. Only a recolour hands
+   * over another palette, so identity is enough to tell a stale answer.
    */
-  private applyHiddenSomas(picker: SomaPicker, palette: MorphoViewerCellColors | null) {
-    const hidden = hiddenSomaMask(palette, this.cellCount, this.hiddenSomas);
-    if (hidden) this.hiddenSomas = hidden;
-    picker.setHidden(hidden);
+  private hiddenMask(palette: MorphoViewerCellColors | null): Float32Array | null {
+    const { cellCount } = this;
+    const filled = this.hiddenSomasFrom;
+    if (filled?.palette === palette && filled.count === cellCount) {
+      return filled.hides ? this.hiddenSomas : null;
+    }
+
+    // Asked before the buffer is made, not after: a palette that hides nothing,
+    // which is the common case, would otherwise fill one to throw it away.
+    if (!paletteHidesColumns(palette) || cellCount === 0) {
+      this.hiddenSomasFrom = { palette, count: cellCount, hides: false };
+      return null;
+    }
+
+    const kept = this.hiddenSomas;
+    const mask = kept?.length === cellCount ? kept : new Float32Array(cellCount);
+    const hides = fillHiddenSomaMask(palette, mask);
+    this.hiddenSomas = mask;
+    this.hiddenSomasFrom = { palette, count: cellCount, hides };
+    return hides ? mask : null;
   }
 
   readonly cameraReset = (options?: MorphoViewerSignalCameraResetOptions) => {
-    const { context, bbox } = this;
+    const { context } = this;
     if (!context) return;
 
     context.camera.screenWidth = context.width;
     context.camera.screenHeight = context.height;
+    // Fitted on a clone, so the reset can work out where it is going without
+    // the view jumping there first.
     const resettedCamera = context.camera.clone();
-    const [width, height] = bbox.size;
-    if (
-      width < 1 ||
-      height < 1 ||
-      resettedCamera.screenWidth < 1 ||
-      resettedCamera.screenHeight < 1
-    ) {
-      return;
-    }
+    const scene = this.fitToFrame(resettedCamera, options?.zoom ?? 1);
+    if (!scene) return;
 
-    resettedCamera.fitBoundingBox(bbox);
-    if (Number.isNaN(resettedCamera.transfo.distance)) {
-      // Can be NaN if the screen size has not yet been defined.
-      return;
-    }
-    resettedCamera.zoom = options?.zoom ?? 1;
     const state = resettedCamera.getCurrentState();
-    context.animSchedule({
+    // A camera state holds no planes, so the slab is widened on the live camera
+    // before the move interpolates inside it.
+    widenDepthRange(context.camera, depthRangeCovering(scene, state.position, state.distance));
+    // Cancelling takes the previous move's `onEnd` with it, so the view goes
+    // back to high resolution once, when the last reset lands.
+    context.animCancelArray(this.resetAnimations);
+    this.resetAnimations = context.animSchedule({
       duration: 0.5,
       action: tgdActionCreateCameraInterpolation(context.camera, state),
       onEnd: this.adaptativeResolution.highRes,
@@ -649,20 +681,59 @@ class PainterManager {
     }
   };
 
+  /**
+   * Point `camera` at the somas on show, with a margin around them.
+   *
+   * Hidden somas keep their place in the geometry, so the palette is the only
+   * record of what is on screen. Read from {@link appliedPalette} rather than
+   * {@link cellPalette}, which may hold colours the cloud has not taken yet.
+   *
+   * @returns Every soma the scene holds, drawn or not, which is what the depth
+   * slab has to cover. Null when there is nothing measurable to frame yet, and
+   * the camera is left alone.
+   */
+  private fitToFrame(camera: TgdCamera, zoom: number): TgdBoundingBox | null {
+    const { painterCellInfos } = this;
+    if (!painterCellInfos) return null;
+    // Checked before measuring: a reset landing on a canvas with no size yet would
+    // otherwise walk every soma to throw the answer away.
+    if (camera.screenWidth < 1 || camera.screenHeight < 1) return null;
+
+    const frame = painterCellInfos.bboxOf(this.hiddenMask(this.appliedPalette));
+    const [width, height] = frame.size;
+    if (width < 1 || height < 1) return null;
+
+    camera.fitBoundingBox(frame);
+    // Can be NaN if the screen size has not yet been defined.
+    if (Number.isNaN(camera.transfo.distance)) return null;
+
+    camera.zoom = zoom;
+    camera.spaceHeightAtTarget *= FRAME_MARGIN;
+    return painterCellInfos.bbox;
+  }
+
   private applyBBoxToCamera() {
-    const { bbox, context } = this;
+    const { context } = this;
     if (!context) return;
 
     context.execBeforeNextPaint(() => {
       const { camera } = context;
       camera.screenWidth = context.width;
       camera.screenHeight = context.height;
-      camera.transfo.position = bbox.center;
-      camera.fitBoundingBox(bbox);
+      const scene = this.fitToFrame(camera, 1);
+      if (!scene) return;
+
+      const { position, distance } = camera.transfo;
+      widenDepthRange(camera, depthRangeCovering(scene, position, distance));
     });
     context.paint();
   }
 
+  /**
+   * Runs twice on mount: the canvas ref calls it during the commit, before any
+   * effect, so the first pass builds an empty scene and the effect that hands
+   * over the geometry rebuilds it.
+   */
   private initialize() {
     if (this.context) {
       // Already initialized.
@@ -736,8 +807,6 @@ class PainterManager {
     });
     this.painterGizmo.context = context;
     context.add(clear, state, this.painterGizmo);
-    const { bbox } = painterCellInfos;
-    this.bbox = bbox;
     const camera = this.cameraType === "orthographic" ? this.cameraOrtho : this.cameraPersp;
     context.camera = camera;
     this.applyBBoxToCamera();
@@ -847,7 +916,7 @@ class PainterManager {
       picker = new SomaPicker(context, this._positions ?? flattenPositions(this._cellInfos));
       // Whatever was already hidden when the first click arrived; every change
       // after this one comes through `recolorInPlace`.
-      this.applyHiddenSomas(picker, this.appliedPalette);
+      picker.setHidden(this.hiddenMask(this.appliedPalette));
       this.somaPicker = picker;
     }
     void picker
@@ -892,6 +961,8 @@ class PainterManager {
     this.context.eventResize.removeListener(this.handleResize);
     this.context.inputs.pointer.eventTap.removeListener(this.handlePointerTap);
     this.tapGuard.detach();
+    this.context.animCancelArray(this.resetAnimations);
+    this.resetAnimations = [];
     this.somaPicker?.delete();
     this.somaPicker = null;
     this.eventScalebar.removeListener(this.handleSpacePerPixel);
@@ -903,6 +974,9 @@ class PainterManager {
     this.painterClear = null;
     this.painterCellInfos = null;
     this.appliedPalette = null;
+    // Tens of megabytes at region scale, and nothing left to hide with it.
+    this.hiddenSomas = null;
+    this.hiddenSomasFrom = null;
     this.painterOverlays = null;
     this.painterGizmo.context = null;
     this.context.delete();

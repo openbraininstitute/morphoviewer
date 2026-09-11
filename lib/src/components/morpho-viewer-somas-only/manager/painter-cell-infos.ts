@@ -5,6 +5,11 @@ import { PainterSomaCloud } from "./painter-soma-cloud";
 
 import type { MorphoViewerCellColors, MorphoViewerCellInfo } from "../types";
 
+/**
+ * The padding on the whole cloud's box, and a tenth of the reach the occlusion
+ * sums neighbours over. Constant because that box is the occlusion's grid
+ * domain: re-padding it would re-bucket the cloud and move the shading.
+ */
 const RADIUS = 15;
 
 /** number of vertical steps used to bake ambient-occlusion shading into each
@@ -41,6 +46,7 @@ export interface PainterCellInfosOptions {
 }
 
 export class PainterCellInfos extends TgdPainterGroup {
+  /** The whole cloud: what the ambient occlusion is computed over. */
   public readonly bbox: TgdBoundingBox;
 
   /** Somas drawn, which is what a set of colours has to have one of each. */
@@ -55,6 +61,8 @@ export class PainterCellInfos extends TgdPainterGroup {
    * rewrites `u` around it.
    */
   private readonly dataUV: Float32Array<ArrayBuffer>;
+  /** Packed `[x, y, z, r]` per soma, kept so the frame can be re-measured without a rebuild. */
+  private readonly dataPoint: Float32Array;
   private paletteColors: (string | null | false)[] | null;
   private _opacity: number;
   /** Stops the pending occlusion slice; null once it has run or been cut. */
@@ -68,7 +76,7 @@ export class PainterCellInfos extends TgdPainterGroup {
     const dataPoint = options.positions
       ? packPositions(options.positions)
       : parsePositions(options.cellInfos ?? []);
-    addSomaBounds(dataPoint, bbox);
+    addSomaBounds(dataPoint, bbox, RADIUS);
     const count = dataPoint.length >> 2;
     const dataUV = new Float32Array(2 * count).fill(0.5);
     const paletteColors = writeColumns(dataUV, options.colors);
@@ -98,10 +106,28 @@ export class PainterCellInfos extends TgdPainterGroup {
     this.dataUV = dataUV;
     this.paletteColors = paletteColors;
     this._opacity = opacity;
+    this.dataPoint = dataPoint;
     this.bbox = bbox;
     // The cloud goes up with the flat shading `dataUV` was filled with; the
     // occlusion is computed behind it and applied when it is ready.
     this.scheduleAmbientOcclusion(new AmbientOcclusionComputation(bbox, 10 * RADIUS, dataPoint));
+  }
+
+  /**
+   * The box around the drawn somas, or the whole cloud when the mask hides none
+   * or all of them. Measured on demand, since only a camera fit reads it.
+   *
+   * Padded by the radius the somas are drawn at: a mask can leave a handful of
+   * cells standing close together, and at that size a large radius reaches past
+   * the canvas edge.
+   */
+  bboxOf(hidden: Readonly<Float32Array> | null): TgdBoundingBox {
+    // A mask of the wrong length was built for other geometry than the somas
+    // standing here, the same mid-change state {@link recolor} refuses.
+    if (!hidden || hidden.length !== this.count) return this.bbox;
+
+    const bbox = new TgdBoundingBox();
+    return addSomaBounds(this.dataPoint, bbox, this.somaRadius, hidden) ? bbox : this.bbox;
   }
 
   /**
@@ -266,11 +292,27 @@ function parsePositions(cellInfos: MorphoViewerCellInfo[]): Float32Array<ArrayBu
  * One pass over the packed array both paths have just written, rather than
  * accumulated inside each of them — the arithmetic has nothing to do with
  * where the floats came from, and two copies of it is where it would drift.
+ *
+ * `hidden` somas are left out of the centre as well as the min/max: the centre
+ * is an average, so one still counted there would offset the box.
+ *
+ * The body below is nonetheless written out twice, once per branch. Testing the
+ * mask inside a single loop costs the unmasked path — the one every scene build
+ * takes — a factor of ten at four million somas. It is the `continue` that stops
+ * V8 optimizing the loop, so the test has to be hoisted out rather than made
+ * cheap inside.
+ *
+ * @returns Whether any soma was measured. If not, `bbox` was left alone.
  */
-function addSomaBounds(dataPoint: Readonly<Float32Array>, bbox: TgdBoundingBox): void {
-  const count = dataPoint.length >> 2;
-  if (count === 0) return;
+function addSomaBounds(
+  dataPoint: Readonly<Float32Array>,
+  bbox: TgdBoundingBox,
+  radius: number,
+  hidden?: Readonly<Float32Array>
+): boolean {
+  const somas = dataPoint.length >> 2;
 
+  let count = 0;
   let centerX = 0;
   let centerY = 0;
   let centerZ = 0;
@@ -280,20 +322,43 @@ function addSomaBounds(dataPoint: Readonly<Float32Array>, bbox: TgdBoundingBox):
   let maxX = Number.NEGATIVE_INFINITY;
   let maxY = Number.NEGATIVE_INFINITY;
   let maxZ = Number.NEGATIVE_INFINITY;
-  for (let soma = 0; soma < count; soma++) {
-    const x = dataPoint[soma * 4];
-    const y = dataPoint[soma * 4 + 1];
-    const z = dataPoint[soma * 4 + 2];
-    centerX += x;
-    centerY += y;
-    centerZ += z;
-    minX = Math.min(minX, x);
-    minY = Math.min(minY, y);
-    minZ = Math.min(minZ, z);
-    maxX = Math.max(maxX, x);
-    maxY = Math.max(maxY, y);
-    maxZ = Math.max(maxZ, z);
+  if (hidden) {
+    for (let soma = 0; soma < somas; soma++) {
+      if (hidden[soma] === 1) continue;
+
+      const x = dataPoint[soma * 4];
+      const y = dataPoint[soma * 4 + 1];
+      const z = dataPoint[soma * 4 + 2];
+      count++;
+      centerX += x;
+      centerY += y;
+      centerZ += z;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      minZ = Math.min(minZ, z);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+      maxZ = Math.max(maxZ, z);
+    }
+  } else {
+    count = somas;
+    for (let soma = 0; soma < somas; soma++) {
+      const x = dataPoint[soma * 4];
+      const y = dataPoint[soma * 4 + 1];
+      const z = dataPoint[soma * 4 + 2];
+      centerX += x;
+      centerY += y;
+      centerZ += z;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      minZ = Math.min(minZ, z);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+      maxZ = Math.max(maxZ, z);
+    }
   }
+  if (count === 0) return false;
+
   const invCount = 1 / count;
   centerX *= invCount;
   centerY *= invCount;
@@ -301,8 +366,9 @@ function addSomaBounds(dataPoint: Readonly<Float32Array>, bbox: TgdBoundingBox):
   const radiusX = Math.max(Math.abs(maxX - centerX), Math.abs(centerX - minX));
   const radiusY = Math.max(Math.abs(maxY - centerY), Math.abs(centerY - minY));
   const radiusZ = Math.max(Math.abs(maxZ - centerZ), Math.abs(centerZ - minZ));
-  bbox.addSphere(centerX + radiusX, centerY + radiusY, centerZ + radiusZ, RADIUS);
-  bbox.addSphere(centerX - radiusX, centerY - radiusY, centerZ - radiusZ, RADIUS);
+  bbox.addSphere(centerX + radiusX, centerY + radiusY, centerZ + radiusZ, radius);
+  bbox.addSphere(centerX - radiusX, centerY - radiusY, centerZ - radiusZ, radius);
+  return true;
 }
 
 /**
@@ -350,9 +416,21 @@ function writeColumns(
 }
 
 /**
- * One entry per soma, `1` where the palette leaves it undrawn and `0` where it
- * is on screen. Null when nothing is hidden, which is the common case and
- * saves a walk over every soma.
+ * Whether `colors` marks any column undrawn.
+ *
+ * One entry per colour rather than per soma, so it is the cheap half of what
+ * {@link fillHiddenSomaMask} answers, and enough to decide whether a mask is
+ * worth the tens of megabytes it takes at region scale.
+ */
+export function paletteHidesColumns(
+  colors: MorphoViewerCellColors | null
+): colors is MorphoViewerCellColors {
+  return colors?.palette.includes(false) ?? false;
+}
+
+/**
+ * Fill `into` with one entry per soma, `1` where `colors` leaves it undrawn and
+ * `0` where it is on screen.
  *
  * The picker paints its own cloud, on its own context, and samples no palette
  * — so it has to be told. Filtering its answer afterwards would not do: it
@@ -360,25 +438,25 @@ function writeColumns(
  * swallows the click meant for whatever stands behind it, and there is nothing
  * left to filter.
  *
- * @param into An array to fill rather than allocate, when it is the right size
- * for the somas there are. At region scale this is tens of megabytes, and a
- * host stepping through populations with a checkbox list recolours on every
- * click; the caller uploads it before the next recolour can rewrite it. Every
- * entry is written, so what it held before does not show through.
+ * The caller owns `into` so that it can hand the same array back on the next
+ * recolour: a host stepping through populations with a checkbox list asks for a
+ * mask on every click. Every entry is written, so what it held before does not
+ * show through.
+ *
+ * @returns Whether any soma landed in an undrawn column. When false, `into`
+ * holds zeros and there is nothing to hide — a palette can reserve a column and
+ * leave it empty.
  */
-export function hiddenSomaMask(
-  colors: MorphoViewerCellColors | null,
-  count: number,
-  into?: Float32Array | null
-): Float32Array | null {
-  if (!colors?.palette.includes(false)) return null;
-
+export function fillHiddenSomaMask(colors: MorphoViewerCellColors, into: Float32Array): boolean {
   const { palette } = colors;
-  const hidden = into?.length === count ? into : new Float32Array(count);
+  const count = into.length;
+  let hides = false;
   for (let cell = 0; cell < count; cell++) {
-    hidden[cell] = palette[columnForCell(colors, cell)] === false ? 1 : 0;
+    const undrawn = palette[columnForCell(colors, cell)] === false;
+    into[cell] = undrawn ? 1 : 0;
+    hides ||= undrawn;
   }
-  return hidden;
+  return hides;
 }
 
 /**

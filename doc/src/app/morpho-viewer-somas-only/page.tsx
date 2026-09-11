@@ -43,6 +43,32 @@ export default function Page() {
   );
   const cellInfos = useCellInfos(dataId);
   const [pickedCell, setPickedCell] = React.useState<number | null>(null);
+  // Which slab of the cloud is taken off show. Cut by height, so it is a region
+  // of the circuit whatever order the cells arrive in. Hiding one leaves the
+  // view where it is; the reset button re-frames what is left.
+  const [hiddenPart, setHiddenPart] = React.useState("none");
+  const cellColors = React.useMemo(() => {
+    const cells = cellInfos ?? [];
+    const columnByCell = new Uint16Array(cells.length);
+    // Leaving `false` out of the palette tells the viewer nothing is hidden,
+    // and spares it a walk over every soma on each reset. The cut is measured
+    // below rather than above so that this path costs nothing either.
+    if (hiddenPart === "none") return { palette: ["#07f"], columnByCell };
+
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+    for (const { position } of cells) {
+      min = Math.min(min, position[1]);
+      max = Math.max(max, position[1]);
+    }
+    const third = (max - min) / 3;
+    const cut = hiddenPart === "first" ? min + third : max - third;
+    for (let cell = 0; cell < cells.length; cell++) {
+      const y = cells[cell].position[1];
+      columnByCell[cell] = (hiddenPart === "first" ? y <= cut : y >= cut) ? 1 : 0;
+    }
+    return { palette: ["#07f", false as const], columnByCell };
+  }, [hiddenPart, cellInfos]);
   const spikes = useRandomSpikes(cellInfos?.length ?? 0, 4);
   const [spikePlaying, setSpikePlaying] = React.useState(false);
   const [spikeSpeed, setSpikeSpeed] = React.useState(DEFAULT_SPIKE_SPEED);
@@ -85,6 +111,7 @@ export default function Page() {
           <MorphoViewerSomasOnly
             somaRadius={SOMAS_RADII[species] ?? 10}
             cellInfos={cellInfos}
+            cellColors={cellColors}
             onMinimize={() => alert("onMinimize()")}
             onClose={() => alert("onClose()")}
             scalebar={scalebar}
@@ -105,6 +132,11 @@ export default function Page() {
                 <div key="rat">Rat</div>
                 <div key="human">Human</div>
                 <div key="alien">Alien</div>
+              </ViewOptions>,
+              <ViewOptions key="hidden-part" value={hiddenPart} onChange={setHiddenPart}>
+                <div key="none">Show all</div>
+                <div key="first">Hide bottom third</div>
+                <div key="last">Hide top third</div>
               </ViewOptions>,
               <ViewOptions key="camera-type" value={cameraType} onChange={setCameraType}>
                 <div key="orthographic">
