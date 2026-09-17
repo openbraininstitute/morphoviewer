@@ -35,7 +35,8 @@ export function paint(
   unitFactor = 1e-6,
   orientation: "horizontal" | "vertical" = "horizontal",
   vertical?: VerticalPaintParams,
-  pixelRatio = 1
+  pixelRatio = 1,
+  color?: string
 ) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -46,8 +47,8 @@ export function paint(
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
   const css = globalThis.getComputedStyle(canvas);
-  ctx.fillStyle = css.color;
-  ctx.strokeStyle = css.color;
+  ctx.fillStyle = color ?? css.color;
+  ctx.strokeStyle = color ?? css.color;
   ctx.font = `${css.fontSize} ${css.fontFamily}`;
 
   if (orientation === "vertical" && vertical) {

@@ -9,6 +9,7 @@ import {
     tgdFullscreenToggle,
 } from "@tolokoban/tgd"
 
+import { watchSpacePerPixel } from "./behaviors"
 import { computeScalebarAttributes, type ScalebarOptions } from "./scalebar"
 
 export interface CanvasOptions extends WebGLContextAttributes {
@@ -30,15 +31,7 @@ export abstract class AbstractCanvas {
 
     private _camera: TgdCamera
 
-    /**
-     * `pixelScale` depends on the camera height, the zoom and
-     * the viewport height.
-     * We memorize these values to send the `eventPixelScaleChange` when
-     * needed.
-     */
-    private previousCameraHeight = -1;
-    private previousCameraZoom = -1;
-    private previousViewportHeight = -1;
+    private unwatchPixelScale: (() => void) | null = null;
 
     protected readonly options: CanvasOptions
     public orbiter: TgdControllerCameraOrbit | null = null;
@@ -98,15 +91,14 @@ export abstract class AbstractCanvas {
     }
 
     /**
-     * @returns The real space dimension of a screen pixel.
+     * @returns The real space dimension of a CSS pixel.
      * This can be used to draw a scalebar.
      */
     get pixelScale() {
         const { context } = this
         if (!context) return 1
 
-        const { camera } = context
-        return camera.spaceHeightAtTarget / (camera.zoom * camera.screenHeight)
+        return context.camera.spacePerPixel * context.resolution
     }
 
     computeScalebar(options: Partial<ScalebarOptions> = {}) {
@@ -125,7 +117,7 @@ export abstract class AbstractCanvas {
         }
 
         if (this.context) {
-            this.context.eventPaint.removeListener(this.handlePixelScaleDispatch)
+            this.unwatchPixelScale?.()
             this.context.delete()
         }
         this._canvas = canvas
@@ -133,6 +125,7 @@ export abstract class AbstractCanvas {
             this.context = new TgdContext(canvas, {
                 antialias: true,
                 alpha: false,
+                resolution: Math.max(1, Math.min(globalThis.devicePixelRatio || 1, 3)),
                 ...this.options,
                 depth: true,
                 preserveDrawingBuffer: true,
@@ -146,7 +139,7 @@ export abstract class AbstractCanvas {
             })
             const camera = this._camera
             this.context.camera = camera
-            this.context.eventPaint.addListener(this.handlePixelScaleDispatch)
+            this.unwatchPixelScale = watchSpacePerPixel(this.context, this.eventPixelScaleChange)
             const { cameraController } = this.options
             if (cameraController) {
                 const orbiter = new TgdControllerCameraOrbit(this.context, cameraController)
@@ -169,27 +162,5 @@ export abstract class AbstractCanvas {
         if (tgdFullscreenTest(this._canvas)) return true
         this.eventMouseWheelWithoutCtrl.dispatch()
         return false
-    };
-
-    private readonly handlePixelScaleDispatch = () => {
-        const { context } = this
-        if (!context) return
-
-        const { camera } = context
-        const spaceHeight = camera.spaceHeightAtTarget
-        const cameraZoom = camera.zoom
-        const screenHeight = camera.screenHeight
-        if (
-            spaceHeight === this.previousCameraHeight &&
-            cameraZoom === this.previousCameraZoom &&
-            screenHeight === this.previousViewportHeight
-        ) {
-            return
-        }
-
-        this.previousCameraHeight = spaceHeight
-        this.previousCameraZoom = cameraZoom
-        this.previousViewportHeight = screenHeight
-        this.eventPixelScaleChange.dispatch(this.pixelScale)
     };
 }

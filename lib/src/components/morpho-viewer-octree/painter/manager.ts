@@ -179,7 +179,11 @@ export class OctreeManager {
     const info = await promisedInfo;
     if (!info) return;
 
-    const { camera, width, height } = makeCamera(info.bbox);
+    const { camera, width, height } = makeCamera(
+      info.bbox,
+      this._canvas?.clientWidth ?? 1,
+      this._canvas?.clientHeight ?? 1
+    );
     context.camera = camera;
     this.initialCameraState = {
       width,

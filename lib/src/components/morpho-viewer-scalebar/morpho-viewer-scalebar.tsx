@@ -116,11 +116,20 @@ function VerticalScalebar({ config, unit, pixelRatio, spacePerPixel }: SubProps)
 function HorizontalScalebar({ config, unit, pixelRatio, spacePerPixel }: SubProps) {
   const resolved = React.useMemo(() => resolveHorizontalScalebar(config), [config]);
   const ref = React.useRef<HTMLCanvasElement | null>(null);
+  const { color } = config;
   const repaint = React.useCallback(() => {
     const canvas = ref.current;
     if (!canvas) return;
-    paint(canvas, spacePerPixel, unit, ScalebarOrientation.Horizontal, undefined, pixelRatio);
-  }, [spacePerPixel, unit, pixelRatio]);
+    paint(
+      canvas,
+      spacePerPixel,
+      unit,
+      ScalebarOrientation.Horizontal,
+      undefined,
+      pixelRatio,
+      color
+    );
+  }, [spacePerPixel, unit, pixelRatio, color]);
 
   useCanvasRepaint(ref, repaint, pixelRatio);
 

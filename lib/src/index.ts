@@ -11,6 +11,7 @@ export {
 export { colorContrast, colorLuminance, colorToRGBA } from "./colors";
 export * from "./components/icons";
 export * from "./components/morpho-viewer-octree";
+export { default as MorphoViewerScalebar } from "./components/morpho-viewer-scalebar";
 export * from "./components/morpho-viewer-simul";
 export * from "./components/morpho-viewer-small-circuit";
 export * from "./components/morpho-viewer-somas-only";
