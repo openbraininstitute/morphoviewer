@@ -20,6 +20,7 @@ import {
 import { type MorphoViewerTree, MorphoViewerTreeItemType } from "@/components/morpho-viewer-simul";
 import { encodePickColor, MaterialSegmentIndex } from "@/morphology-picking";
 
+import { isSameColor } from "../same-cell";
 import { createCellFromTree } from "./factory/tree";
 import { MaterialDiffuseAlpha } from "./material-diffuse-alpha";
 import { MaterialFlatTextureIntensity } from "./material-flat-texture-intensity";
@@ -69,6 +70,8 @@ export class PainterCell extends TgdPainterGroup {
 
   private readonly material: TgdMaterial;
   private readonly texturePalette: TgdTexture2D;
+  /** Whether the material draws from the palette: the pick passes draw ids instead. */
+  private readonly drawsPalette: boolean;
   private _isDeleted = false;
   private _isLoaded = false;
   private _bbox = new TgdBoundingBox();
@@ -91,6 +94,7 @@ export class PainterCell extends TgdPainterGroup {
     const texture = createPaletteTexture(context, cell.color);
     this.texturePalette = texture;
     const materialType = options.material ?? "full";
+    this.drawsPalette = materialType === "full" || materialType === "flat";
     switch (materialType) {
       // What the user will actually see.
       case "full":
@@ -153,6 +157,22 @@ export class PainterCell extends TgdPainterGroup {
    */
   get cell(): MorphoViewerSmallCircuitCell {
     return this.options.cell;
+  }
+
+  /**
+   * Take over a cell standing where this one does, whatever its colour.
+   *
+   * A new colour goes into the palette this painter already draws from. Building the painter
+   * again would compile its program and lay its morphology out anew, which a host recolouring
+   * its cells many times a second - a recording played over the circuit - cannot afford. The
+   * caller repaints once it has updated every painter.
+   */
+  update(cell: MorphoViewerSmallCircuitCell): void {
+    const previous = this.options.cell;
+    this.options.cell = cell;
+    if (this.drawsPalette && !isSameColor(previous.color, cell.color)) {
+      this.texturePalette.loadBitmap(createPaletteCanvas(cell.color));
+    }
   }
 
   /**
@@ -318,8 +338,19 @@ function createPaletteTexture(
   context: TgdContext,
   color: MorphoViewerSmallCircuitCell["color"]
 ): TgdTexture2D {
+  const texture = new TgdTexture2D(context, {
+    params: {
+      minFilter: "NEAREST",
+      magFilter: "NEAREST",
+    },
+  }).loadBitmap(createPaletteCanvas(color));
+  return texture;
+}
+
+/** One pixel per section type, in the order the morphology's vertices index them. */
+function createPaletteCanvas(color: MorphoViewerSmallCircuitCell["color"]) {
   const colors = resolveColorsPerSection(color);
-  const canvas = tgdCanvasCreatePalette([
+  return tgdCanvasCreatePalette([
     colors.soma,
     colors.axon,
     colors.basalDendrite,
@@ -327,13 +358,6 @@ function createPaletteTexture(
     colors.myelin,
     colors.unknown,
   ]);
-  const texture = new TgdTexture2D(context, {
-    params: {
-      minFilter: "NEAREST",
-      magFilter: "NEAREST",
-    },
-  }).loadBitmap(canvas);
-  return texture;
 }
 
 function resolveColorsPerSection(color: MorphoViewerSmallCircuitCell["color"]): SectionColors {

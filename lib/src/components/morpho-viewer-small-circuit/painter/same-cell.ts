@@ -17,16 +17,29 @@ export function isSameCell(
   a: MorphoViewerSmallCircuitCell,
   b: MorphoViewerSmallCircuitCell
 ): boolean {
+  return isSamePlacement(a, b) && isSameColor(a.color, b.color);
+}
+
+/**
+ * Whether two cells stand in the same place, at the same size, however they are coloured.
+ *
+ * That is all a painter's geometry is built from. A painter kept for a recoloured cell takes
+ * the new colour in place ({@link PainterCell.update}), and the pick buffers, which draw ids
+ * rather than colours, keep theirs as they are.
+ */
+export function isSamePlacement(
+  a: MorphoViewerSmallCircuitCell,
+  b: MorphoViewerSmallCircuitCell
+): boolean {
   return (
     a.somaRadius === b.somaRadius &&
     a.center.every((value, index) => value === b.center[index]) &&
-    a.orientation.every((value, index) => value === b.orientation[index]) &&
-    isSameColor(a.color, b.color)
+    a.orientation.every((value, index) => value === b.orientation[index])
   );
 }
 
 /** One CSS colour for the whole cell, or one per section type. */
-function isSameColor(
+export function isSameColor(
   a: MorphoViewerSmallCircuitCell["color"],
   b: MorphoViewerSmallCircuitCell["color"]
 ): boolean {

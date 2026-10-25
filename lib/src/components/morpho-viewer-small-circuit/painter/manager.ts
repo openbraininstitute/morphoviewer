@@ -47,10 +47,10 @@ import { CameraManager, clampZoom } from "./camera";
 import { dedupeById } from "./dedupe-by-id";
 import { OffscreenPainter, SegmentOffscreenPainter } from "./offscreen-painter";
 import { PainterCell, PainterCellFlat } from "./painter-cell";
-import { buildSomaCloudData, PainterCellSomas } from "./painter-cell-somas";
+import { buildSomaCloudData, PainterCellSomas, type SomaCloudData } from "./painter-cell-somas";
 import { PainterLocationMarkers } from "./painter-location-markers";
 import { PainterSynapses } from "./painter-synapses";
-import { isSameCell } from "./same-cell";
+import { isSameColor, isSamePlacement } from "./same-cell";
 
 import {
   DEFAULT_SPIKE_AFTERGLOW_IN_SECONDS,
@@ -877,6 +877,17 @@ export class PainterManager {
     }
 
     const cells = dedupeById(circuit);
+    // The scene already drawn, cell for cell and place for place, only coloured anew: a
+    // recording played over the circuit does this many times a second. The painters take the
+    // colours in place, and the scene neither rebuilds nor reports itself loading again.
+    const recolouring = this.recolouring(cells);
+    if (recolouring) {
+      this.circuit = cells;
+      this.loadCell = cachedCellLoader(this.loadedCellsCache, loadCell);
+      this.context.waitUntiDefined().then(() => this.recolourCircuit(recolouring.somas));
+      return;
+    }
+
     // A cell id's query part (after `?`) is a reload key: changing it reloads morphologies
     // (hosts use it for filters like the axon toggle) but says nothing about where the cells
     // are. The camera only refits when the cells themselves change, so a reload does not
@@ -888,6 +899,49 @@ export class PainterManager {
     this.loadCell = cachedCellLoader(this.loadedCellsCache, loadCell);
     this.onLoadProgress?.(0);
     this.context.waitUntiDefined().then(this.updateCircuit);
+  }
+
+  /**
+   * Whether `cells` are the scene already drawn with only their colours changed, and if so
+   * whether any cell drawn as a soma alone changed colour; null if anything else changed, or if
+   * no scene has been drawn yet.
+   */
+  private recolouring(cells: readonly MorphoViewerSmallCircuitCell[]): { somas: boolean } | null {
+    const previous = this.circuit;
+    if (previous.length === 0 || previous.length !== cells.length) return null;
+    if (this.paintedSomaAsSphere !== this._somaAsSphere) return null;
+
+    let somas = false;
+    for (let index = 0; index < cells.length; index++) {
+      const was = previous[index];
+      const cell = cells[index];
+      if (was.id !== cell.id || Boolean(was.somaOnly) !== Boolean(cell.somaOnly)) return null;
+      if (!isSamePlacement(was, cell)) return null;
+      if (cell.somaOnly && !isSameColor(was.color, cell.color)) somas = true;
+    }
+    return { somas };
+  }
+
+  /**
+   * Hand the painters already drawing the scene their cells' new colours. A scene still being
+   * built has no painters to hand them to, and builds from the latest circuit when it runs.
+   */
+  private recolourCircuit(somas: boolean) {
+    const context = this.context.value;
+    if (!context) return;
+
+    const cellById = new Map(this.circuit.map((cell) => [cell.id, cell]));
+    const recolour = (painter: PainterCell | null) => {
+      const cell = painter && cellById.get(painter.cell.id);
+      if (cell) painter.update(cell);
+    };
+    for (const painter of this.cellPainters) recolour(painter);
+    for (const painter of this.cellsForHighlights) recolour(painter);
+    // Ids, not colours: nothing they draw changes, but a pick hands out the latest cells.
+    this.offscreen?.adopt(this.circuit);
+    this.segmentOffscreen?.adopt(this.circuit);
+    if (somas) this.replaceSomaCloud(context, buildSomaCloudData(this.circuit));
+    context.paint();
   }
 
   private readonly updateCircuit = () => {
@@ -977,22 +1031,7 @@ export class PainterManager {
       // What no cell claimed has left the scene.
       for (const painter of keptCells.values()) painter.delete();
       for (const painter of keptHighlights.values()) painter.delete();
-      // One buffer, one program and one draw call for every cell the host has no morphology
-      // for — which, beside the population on show, is nearly all of them. Rebuilt whole
-      // rather than reused: that is one program, against the three each of these cells cost
-      // when it had painters of its own.
-      this.painterCellSomas?.delete();
-      this.painterCellSomas = null;
-      if (somas.cells.length > 0) {
-        const painterCellSomas = new PainterCellSomas(context, {
-          dataPoint: somas.dataPoint,
-          dataUV: somas.dataUV,
-          palette: somas.palette,
-          opacity: this._neuronOpacity,
-        });
-        this.painterCellSomas = painterCellSomas;
-        this.groupCells.add(painterCellSomas);
-      }
+      this.replaceSomaCloud(context, somas);
       // Reported once the scene stands, and as the fraction it really is: a toggle that keeps
       // every morphology it had is finished the moment it is drawn, and a scene of somas alone
       // is as loaded as it will ever get.
@@ -1009,6 +1048,28 @@ export class PainterManager {
       console.error("Unable ton update circuit:", ex);
     }
   };
+
+  /**
+   * One buffer, one program and one draw call for every cell the host has no morphology for —
+   * which, beside the population on show, is nearly all of them. Rebuilt whole rather than
+   * reused: that is one program, against the three each of these cells cost when it had
+   * painters of its own.
+   */
+  private replaceSomaCloud(context: TgdContext, somas: SomaCloudData) {
+    if (this.painterCellSomas) this.groupCells.removeWithoutDeleting(this.painterCellSomas);
+    this.painterCellSomas?.delete();
+    this.painterCellSomas = null;
+    if (somas.cells.length === 0) return;
+
+    const painterCellSomas = new PainterCellSomas(context, {
+      dataPoint: somas.dataPoint,
+      dataUV: somas.dataUV,
+      palette: somas.palette,
+      opacity: this._neuronOpacity,
+    });
+    this.painterCellSomas = painterCellSomas;
+    this.groupCells.add(painterCellSomas);
+  }
 
   private readonly adaptCameraFromBBox = () => {
     try {
@@ -2026,7 +2087,8 @@ function takeById<T extends PainterCell>(painters: readonly (T | null)[]): Map<s
 }
 
 /**
- * The painter already drawing this cell, if it was built from exactly these values.
+ * The painter already drawing this cell, if it was built for the same place; a new colour it
+ * takes over in place.
  *
  * Taken out of the map on a hit, so that what is left when the scene has been walked is what
  * the scene no longer holds.
@@ -2036,9 +2098,10 @@ function reusePainterFor<T extends PainterCell>(
   cell: MorphoViewerSmallCircuitCell
 ): T | undefined {
   const painter = kept.get(cell.id);
-  if (!painter || !isSameCell(painter.cell, cell)) return undefined;
+  if (!painter || !isSamePlacement(painter.cell, cell)) return undefined;
 
   kept.delete(cell.id);
+  painter.update(cell);
   return painter;
 }
 
