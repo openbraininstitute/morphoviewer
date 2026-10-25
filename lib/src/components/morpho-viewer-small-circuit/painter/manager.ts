@@ -1618,14 +1618,15 @@ export class PainterManager {
     // orbit arrives here as a tap like any other press.
     if (!this.tapGuard.isClick(evt)) return;
 
-    const cell = offscreen.getItemAt(evt.x, evt.y);
+    // Forgiving: an exact-pixel miss is common on a thin neurite, and it is the difference between
+    // a click that works and one that quietly does nothing until the pointer is nudged.
+    const cell =
+      offscreen.getItemAt(evt.x, evt.y) ??
+      offscreen.getItemNear(evt.x, evt.y, LOCATION_PICK_SEARCH_IN_PIXELS);
     if (cell) this.eventCellClick.dispatch(cell);
 
     if (!this._locationPickingEnabled) return;
 
-    // Deliberately re-resolved rather than reusing `cell`: an exact-pixel miss is common on a
-    // thin neurite, and it is the difference between a click that works and one that quietly
-    // does nothing until the pointer is nudged.
     // A click on an existing marker is a request to remove it, so it is resolved first and
     // reported as-is: re-deriving which stored location was meant from a rounded offset would
     // be guesswork.
@@ -1646,8 +1647,7 @@ export class PainterManager {
       }
     }
 
-    const nearCell = cell ?? offscreen.getItemNear(evt.x, evt.y, LOCATION_PICK_SEARCH_IN_PIXELS);
-    if (nearCell) this.dispatchLocationPick(nearCell, evt.x, evt.y);
+    if (cell) this.dispatchLocationPick(cell, evt.x, evt.y);
   };
 
   /**
