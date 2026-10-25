@@ -47,7 +47,12 @@ import { CameraManager, clampZoom } from "./camera";
 import { dedupeById } from "./dedupe-by-id";
 import { OffscreenPainter, SegmentOffscreenPainter } from "./offscreen-painter";
 import { PainterCell, PainterCellFlat } from "./painter-cell";
-import { buildSomaCloudData, PainterCellSomas, type SomaCloudData } from "./painter-cell-somas";
+import {
+  buildSomaCloudData,
+  drawsInCloud,
+  PainterCellSomas,
+  type SomaCloudData,
+} from "./painter-cell-somas";
 import { PainterLocationMarkers } from "./painter-location-markers";
 import { PainterSynapses } from "./painter-synapses";
 import { isSameColor, isSamePlacement } from "./same-cell";
@@ -884,7 +889,7 @@ export class PainterManager {
     if (recolouring) {
       this.circuit = cells;
       this.loadCell = cachedCellLoader(this.loadedCellsCache, loadCell);
-      this.context.waitUntiDefined().then(() => this.recolourCircuit(recolouring.somas));
+      this.context.waitUntiDefined().then(() => this.recolourCircuit(recolouring));
       return;
     }
 
@@ -902,31 +907,38 @@ export class PainterManager {
   }
 
   /**
-   * Whether `cells` are the scene already drawn with only their colours changed, and if so
-   * whether any cell drawn as a soma alone changed colour; null if anything else changed, or if
-   * no scene has been drawn yet.
+   * Whether `cells` are the scene already drawn with only their colours changed, or cells hidden
+   * or shown again, and if so whether the soma cloud changed with them: `somas` for its colours
+   * or its cells, `cloud` for its cells, which the pick buffer's silhouettes follow. Null if
+   * anything else changed, or if no scene has been drawn yet.
    */
-  private recolouring(cells: readonly MorphoViewerSmallCircuitCell[]): { somas: boolean } | null {
+  private recolouring(
+    cells: readonly MorphoViewerSmallCircuitCell[]
+  ): { somas: boolean; cloud: boolean } | null {
     const previous = this.circuit;
     if (previous.length === 0 || previous.length !== cells.length) return null;
     if (this.paintedSomaAsSphere !== this._somaAsSphere) return null;
 
     let somas = false;
+    let cloud = false;
     for (let index = 0; index < cells.length; index++) {
       const was = previous[index];
       const cell = cells[index];
       if (was.id !== cell.id || Boolean(was.somaOnly) !== Boolean(cell.somaOnly)) return null;
       if (!isSamePlacement(was, cell)) return null;
-      if (cell.somaOnly && !isSameColor(was.color, cell.color)) somas = true;
+      if (!cell.somaOnly) continue;
+      if (drawsInCloud(was) !== drawsInCloud(cell)) cloud = true;
+      else if (!isSameColor(was.color, cell.color)) somas = true;
     }
-    return { somas };
+    return { somas: somas || cloud, cloud };
   }
 
   /**
-   * Hand the painters already drawing the scene their cells' new colours. A scene still being
-   * built has no painters to hand them to, and builds from the latest circuit when it runs.
+   * Hand the painters already drawing the scene their cells' new colours, and whether they are
+   * hidden. A scene still being built has no painters to hand them to, and builds from the
+   * latest circuit when it runs.
    */
-  private recolourCircuit(somas: boolean) {
+  private recolourCircuit({ somas, cloud }: { somas: boolean; cloud: boolean }) {
     const context = this.context.value;
     if (!context) return;
 
@@ -937,10 +949,12 @@ export class PainterManager {
     };
     for (const painter of this.cellPainters) recolour(painter);
     for (const painter of this.cellsForHighlights) recolour(painter);
-    // Ids, not colours: nothing they draw changes, but a pick hands out the latest cells.
-    this.offscreen?.adopt(this.circuit);
+    // One build for both clouds, so instance `i` is one cell in each: see `updateCircuit`.
+    const data = somas ? buildSomaCloudData(this.circuit) : undefined;
+    // Ids, not colours: a pick hands out the latest cells, and the somas hidden or shown.
+    this.offscreen?.adopt(this.circuit, cloud ? data : undefined);
     this.segmentOffscreen?.adopt(this.circuit);
-    if (somas) this.replaceSomaCloud(context, buildSomaCloudData(this.circuit));
+    if (data) this.replaceSomaCloud(context, data);
     context.paint();
   }
 

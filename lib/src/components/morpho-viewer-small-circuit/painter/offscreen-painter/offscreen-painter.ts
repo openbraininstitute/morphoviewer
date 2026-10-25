@@ -10,7 +10,7 @@ import {
 import { decodePickColor, spiralPixelOffsets } from "@/morphology-picking";
 
 import { PainterCellId } from "../painter-cell";
-import { CLOUD_FIRST_INDEX, PainterCellSomasId } from "../painter-cell-somas";
+import { CLOUD_FIRST_INDEX, drawsInCloud, PainterCellSomasId } from "../painter-cell-somas";
 import { isSamePlacement } from "../same-cell";
 
 import type { MorphoViewerSmallCircuitCell, MorphoViewerSmallCircuitCellData } from "../../types";
@@ -155,21 +155,18 @@ export class OffscreenPainter {
     }
     this.cloud?.delete();
     this.cloud = null;
-    this.cloudCells = somas.cells;
-    if (somas.cells.length > 0) {
-      const cloud = new PainterCellSomasId(this.context, somas.dataPoint);
-      this.cloud = cloud;
-      this.group.add(cloud);
-    }
+    this.replaceCloud(somas);
     this.paint();
   }
 
   /**
    * Answer with these cells: the ones drawn, in the same places, only coloured anew. Nothing
-   * this buffer draws changes, but a pick should hand the host a cell out of its latest
-   * circuit rather than the one before.
+   * this buffer draws changes for a colour, but a pick should hand the host a cell out of its
+   * latest circuit rather than the one before. A cell hidden or shown again changes what it
+   * draws: its mesh reads that for itself, and a soma's is in `somas`, the visible cloud's
+   * data, passed whenever the cloud has changed.
    */
-  adopt(circuit: readonly MorphoViewerSmallCircuitCell[]) {
+  adopt(circuit: readonly MorphoViewerSmallCircuitCell[], somas?: SomaCloudData) {
     for (const cell of circuit) {
       if (cell.somaOnly) continue;
 
@@ -179,8 +176,27 @@ export class OffscreenPainter {
       entry.mesh.update(cell);
       this.cellByIndex[entry.index - FIRST_INDEX] = cell;
     }
+    if (somas) {
+      if (this.cloud) {
+        this.group.removeWithoutDeleting(this.cloud);
+        this.cloud.delete();
+        this.cloud = null;
+      }
+      this.replaceCloud(somas);
+      return;
+    }
     // In the cloud's own order, which is the circuit's: see `buildSomaCloudData`.
-    this.cloudCells = circuit.filter((cell) => Boolean(cell.somaOnly));
+    this.cloudCells = circuit.filter(drawsInCloud);
+  }
+
+  /** Draw these somas' silhouettes, the instances numbered as the visible cloud numbers them. */
+  private replaceCloud(somas: SomaCloudData) {
+    this.cloudCells = somas.cells;
+    if (somas.cells.length > 0) {
+      const cloud = new PainterCellSomasId(this.context, somas.dataPoint);
+      this.cloud = cloud;
+      this.group.add(cloud);
+    }
   }
 
   /**

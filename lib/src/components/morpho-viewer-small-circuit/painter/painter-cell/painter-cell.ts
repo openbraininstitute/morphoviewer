@@ -251,7 +251,8 @@ export class PainterCell extends TgdPainterGroup {
   }
 
   paint(time: number, delta: number): void {
-    if (this.context.isDeleted) return;
+    // Every variant: the cell seen, its highlight, and its silhouettes in the pick buffers.
+    if (this.context.isDeleted || this.options.cell.hidden) return;
 
     super.paint(time, delta);
   }

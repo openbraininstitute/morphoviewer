@@ -27,6 +27,17 @@ describe("buildSomaCloudData", () => {
     expect(dataPoint).toHaveLength(8);
   });
 
+  it("leaves hidden somas out, so neither the cloud nor its silhouette has them", () => {
+    const { cells, dataPoint } = buildSomaCloudData([
+      cell({ id: "a" }),
+      cell({ id: "b", hidden: true }),
+      cell({ id: "c", hidden: false }),
+    ]);
+
+    expect(cells.map((c) => c.id)).toEqual(["a", "c"]);
+    expect(dataPoint).toHaveLength(8);
+  });
+
   it("reads `somaOnly` the way the passes that skip those cells read it", () => {
     // A host outside TypeScript, or a value straight out of JSON. Every other
     // pass tests it for truth, so a cell this one turned down for not being
