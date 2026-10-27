@@ -10,8 +10,8 @@ import {
 import { decodePickColor, spiralPixelOffsets } from "@/morphology-picking";
 
 import { PainterCellId } from "../painter-cell";
-import { CLOUD_FIRST_INDEX, PainterCellSomasId } from "../painter-cell-somas";
-import { isSameCell } from "../same-cell";
+import { CLOUD_FIRST_INDEX, drawsInCloud, PainterCellSomasId } from "../painter-cell-somas";
+import { isSamePlacement } from "../same-cell";
 
 import type { MorphoViewerSmallCircuitCell, MorphoViewerSmallCircuitCellData } from "../../types";
 import type { SomaCloudData } from "../painter-cell-somas";
@@ -124,10 +124,12 @@ export class OffscreenPainter {
 
       const previous = kept.get(cell.id);
       kept.delete(cell.id);
-      if (previous && isSameCell(previous.mesh.cell, cell)) {
-        // The mesh stands, but the cell it answers with is this scene's. `isSameCell` compares
-        // values, and a host that resolves a click by identity — an `indexOf`, a `WeakMap` —
-        // would be handed an object out of the circuit before this one.
+      // Ids, not colours: a cell coloured anew keeps its mesh.
+      if (previous && isSamePlacement(previous.mesh.cell, cell)) {
+        // The mesh stands, but the cell it answers with is this scene's. `isSamePlacement`
+        // compares values, and a host that resolves a click by identity — an `indexOf`, a
+        // `WeakMap` — would be handed an object out of the circuit before this one.
+        previous.mesh.update(cell);
         this.cellByIndex[previous.index - FIRST_INDEX] = cell;
         this.meshes.set(cell.id, previous);
         this.group.add(previous.mesh);
@@ -153,13 +155,48 @@ export class OffscreenPainter {
     }
     this.cloud?.delete();
     this.cloud = null;
+    this.replaceCloud(somas);
+    this.paint();
+  }
+
+  /**
+   * Answer with these cells: the ones drawn, in the same places, only coloured anew. Nothing
+   * this buffer draws changes for a colour, but a pick should hand the host a cell out of its
+   * latest circuit rather than the one before. A cell hidden or shown again changes what it
+   * draws: its mesh reads that for itself, and a soma's is in `somas`, the visible cloud's
+   * data, passed whenever the cloud has changed.
+   */
+  adopt(circuit: readonly MorphoViewerSmallCircuitCell[], somas?: SomaCloudData) {
+    for (const cell of circuit) {
+      if (cell.somaOnly) continue;
+
+      const entry = this.meshes.get(cell.id);
+      if (!entry) continue;
+
+      entry.mesh.update(cell);
+      this.cellByIndex[entry.index - FIRST_INDEX] = cell;
+    }
+    if (somas) {
+      if (this.cloud) {
+        this.group.removeWithoutDeleting(this.cloud);
+        this.cloud.delete();
+        this.cloud = null;
+      }
+      this.replaceCloud(somas);
+      return;
+    }
+    // In the cloud's own order, which is the circuit's: see `buildSomaCloudData`.
+    this.cloudCells = circuit.filter(drawsInCloud);
+  }
+
+  /** Draw these somas' silhouettes, the instances numbered as the visible cloud numbers them. */
+  private replaceCloud(somas: SomaCloudData) {
     this.cloudCells = somas.cells;
     if (somas.cells.length > 0) {
       const cloud = new PainterCellSomasId(this.context, somas.dataPoint);
       this.cloud = cloud;
       this.group.add(cloud);
     }
-    this.paint();
   }
 
   /**

@@ -1,4 +1,4 @@
-import { isSameCell } from "./same-cell";
+import { isSameCell, isSamePlacement } from "./same-cell";
 
 import type { MorphoViewerSmallCircuitCell } from "../types";
 
@@ -51,5 +51,19 @@ describe("isSameCell", () => {
       false
     );
     expect(isSameCell(cell({ color: colors }), cell({ color: "#111" }))).toBe(false);
+  });
+});
+
+describe("isSamePlacement", () => {
+  it("keeps a cell coloured anew, which its painter takes in place", () => {
+    // A recording played over the circuit recolours its cells many times a second.
+    expect(isSamePlacement(cell(), cell({ color: "#0f0" }))).toBe(true);
+    expect(isSamePlacement(cell(), cell({ color: undefined }))).toBe(true);
+  });
+
+  it("sees a cell that moved, turned or grew", () => {
+    expect(isSamePlacement(cell(), cell({ orientation: [0, 1, 0, 0] }))).toBe(false);
+    expect(isSamePlacement(cell(), cell({ center: [1, 2, 4] }))).toBe(false);
+    expect(isSamePlacement(cell(), cell({ somaRadius: 8 }))).toBe(false);
   });
 });

@@ -22,6 +22,17 @@ export interface SomaCloudData {
 }
 
 /**
+ * Whether a cell is drawn by the cloud: a soma alone, and not hidden.
+ *
+ * Truthy, not `=== true`: `updateCircuit` and both pick buffers decide the same thing the
+ * same way, and a cell they agree to leave to the cloud has to end up in it — one left out of
+ * every pass is drawn nowhere, picked nowhere, and counted as loading nowhere either.
+ */
+export function drawsInCloud(cell: MorphoViewerSmallCircuitCell): boolean {
+  return Boolean(cell.somaOnly) && !cell.hidden;
+}
+
+/**
  * Gather the cells that draw as a soma and nothing else into one instanced cloud.
  *
  * Both passes that draw them — the visible cloud and its silhouette in the pick buffer — build
@@ -31,10 +42,7 @@ export interface SomaCloudData {
 export function buildSomaCloudData(
   circuit: readonly MorphoViewerSmallCircuitCell[]
 ): SomaCloudData {
-  // Truthy, not `=== true`: `updateCircuit` and both pick buffers decide the same thing the
-  // same way, and a cell they agree to leave to the cloud has to end up in it — one left out
-  // of every pass is drawn nowhere, picked nowhere, and counted as loading nowhere either.
-  const cells = circuit.filter((cell) => Boolean(cell.somaOnly));
+  const cells = circuit.filter(drawsInCloud);
   const palette: string[] = [];
   const columnByColor = new Map<string, number>();
   const columns = cells.map((cell) => {

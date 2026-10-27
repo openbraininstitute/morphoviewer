@@ -35,6 +35,12 @@ export interface MorphoViewerSmallCircuitCell {
    * Not `somaAsSphere`, which is about how a loaded soma is drawn.
    */
   somaOnly?: boolean;
+  /**
+   * Left undrawn and out of reach of a click, but kept in its place in the circuit: a spike or
+   * a highlight names a cell by its index there. Hiding a cell or showing it again costs what a
+   * recolour does, so a host can single one cell out as often as the pointer moves.
+   */
+  hidden?: boolean;
 }
 
 /** One point on one neurite, as resolved from a click in the 3D view. */

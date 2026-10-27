@@ -9,7 +9,7 @@ import {
 import { decodeSegmentIndex, spiralPixelOffsets } from "@/morphology-picking";
 
 import { PainterCell } from "../painter-cell";
-import { isSameCell } from "../same-cell";
+import { isSamePlacement } from "../same-cell";
 
 import type { MorphoViewerSmallCircuitCell, MorphoViewerSmallCircuitCellData } from "../../types";
 import type { CellSectionIndex, CellSegment } from "../painter-cell/factory/section-index";
@@ -104,7 +104,9 @@ export class SegmentOffscreenPainter {
 
       const previous = kept.get(cell.id);
       kept.delete(cell.id);
-      if (previous && isSameCell(previous.cell, cell)) {
+      // Segment ids, not colours: a cell coloured anew keeps its painter.
+      if (previous && isSamePlacement(previous.cell, cell)) {
+        previous.update(cell);
         this.cellPainters.set(cell.id, previous);
         this.group.add(previous);
         continue;
@@ -124,6 +126,13 @@ export class SegmentOffscreenPainter {
     // What no cell claimed has left the scene, and takes its program with it.
     for (const painter of kept.values()) painter.delete();
     this.paint();
+  }
+
+  /** Answer with these cells: the ones drawn, in the same places, only coloured anew. */
+  adopt(circuit: readonly MorphoViewerSmallCircuitCell[]) {
+    for (const cell of circuit) {
+      if (!cell.somaOnly) this.cellPainters.get(cell.id)?.update(cell);
+    }
   }
 
   /**

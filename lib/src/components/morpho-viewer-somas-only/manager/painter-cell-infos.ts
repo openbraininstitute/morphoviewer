@@ -64,6 +64,8 @@ export class PainterCellInfos extends TgdPainterGroup {
   /** Packed `[x, y, z, r]` per soma, kept so the frame can be re-measured without a rebuild. */
   private readonly dataPoint: Float32Array;
   private paletteColors: (string | null | false)[] | null;
+  /** The palette's columns drawn without the occlusion shade. */
+  private flatColumns: ReadonlySet<number>;
   private _opacity: number;
   /** Stops the pending occlusion slice; null once it has run or been cut. */
   private cancelAmbientOcclusion: (() => void) | null = null;
@@ -80,6 +82,7 @@ export class PainterCellInfos extends TgdPainterGroup {
     const count = dataPoint.length >> 2;
     const dataUV = new Float32Array(2 * count).fill(0.5);
     const paletteColors = writeColumns(dataUV, options.colors);
+    const flatColumns = new Set(options.colors?.flatColumns);
     const opacity = clamp01(options.opacity ?? 1);
     const texturePalette = new TgdTexture2D(context, {
       params: {
@@ -89,7 +92,7 @@ export class PainterCellInfos extends TgdPainterGroup {
         wrapS: "CLAMP_TO_EDGE",
         wrapT: "CLAMP_TO_EDGE",
       },
-    }).loadBitmap(createPaletteBitmap(paletteColors, opacity));
+    }).loadBitmap(createPaletteBitmap(paletteColors, opacity, flatColumns));
     const painterPointsCloud = new PainterSomaCloud(context, {
       dataPoint,
       dataUV,
@@ -105,6 +108,7 @@ export class PainterCellInfos extends TgdPainterGroup {
     this.count = count;
     this.dataUV = dataUV;
     this.paletteColors = paletteColors;
+    this.flatColumns = flatColumns;
     this._opacity = opacity;
     this.dataPoint = dataPoint;
     this.bbox = bbox;
@@ -153,7 +157,10 @@ export class PainterCellInfos extends TgdPainterGroup {
     }
 
     this.paletteColors = writeColumns(this.dataUV, colors);
-    this.texturePalette.loadBitmap(createPaletteBitmap(this.paletteColors, this._opacity));
+    this.flatColumns = new Set(colors?.flatColumns);
+    this.texturePalette.loadBitmap(
+      createPaletteBitmap(this.paletteColors, this._opacity, this.flatColumns)
+    );
     this.painterPointsCloud.setUV(this.dataUV);
     return true;
   }
@@ -181,7 +188,7 @@ export class PainterCellInfos extends TgdPainterGroup {
     if (this._opacity === next) return;
 
     this._opacity = next;
-    this.texturePalette.loadBitmap(createPaletteBitmap(this.paletteColors, next));
+    this.texturePalette.loadBitmap(createPaletteBitmap(this.paletteColors, next, this.flatColumns));
     this.context.paint();
   }
 
@@ -511,8 +518,14 @@ export function cellPaletteFromCellInfos(
  * culls whatever samples an alpha of zero. It is the only way — a colour of
  * its own carrying zero alpha still takes the occlusion shade composited over
  * it, and comes out a dark soma rather than no soma.
+ *
+ * A column in `flat` keeps its colour all the way down, unshaded.
  */
-function createPalette(colors: (string | null | false)[], rows: number): HTMLCanvasElement {
+function createPalette(
+  colors: (string | null | false)[],
+  rows: number,
+  flat: ReadonlySet<number>
+): HTMLCanvasElement {
   const width = colors.length;
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -539,7 +552,7 @@ function createPalette(colors: (string | null | false)[], rows: number): HTMLCan
 
     ctx.fillStyle = color ?? ramp;
     ctx.fillRect(x, 0, 1, rows);
-    if (color === null) continue;
+    if (color === null || flat.has(x)) continue;
 
     ctx.fillStyle = shade;
     ctx.fillRect(x, 0, 1, rows);
@@ -549,11 +562,15 @@ function createPalette(colors: (string | null | false)[], rows: number): HTMLCan
 
 function createPaletteBitmap(
   paletteColors: (string | null | false)[] | null,
-  opacity: number
+  opacity: number,
+  flatColumns: ReadonlySet<number>
 ): HTMLCanvasElement {
   // No palette at all is the one-column palette holding the ramp: every soma
   // leaves `u` at the middle of it, so they all sample that column.
-  return applyCanvasOpacity(createPalette(paletteColors ?? [null], PALETTE_AO_ROWS), opacity);
+  return applyCanvasOpacity(
+    createPalette(paletteColors ?? [null], PALETTE_AO_ROWS, flatColumns),
+    opacity
+  );
 }
 
 /**
