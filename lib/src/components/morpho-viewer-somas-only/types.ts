@@ -69,6 +69,13 @@ export interface MorphoViewerCellColors {
    * Out-of-range entries sample the nearest column.
    */
   columnByCell: Uint16Array;
+  /**
+   * Columns drawn in their colour alone, without the occlusion shade the
+   * others take: one even colour however buried a soma is. For somas a host
+   * draws as a backdrop, such as cells it has nothing to show for, whose
+   * shading would read as saying something about them.
+   */
+  flatColumns?: readonly number[];
 }
 
 export type MorphoViewerSomasOnlyProps = PropsForGizmo &
