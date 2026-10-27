@@ -52,8 +52,14 @@ export class PainterGizmo extends TgdPainterGroup {
   /**
    * Inset the gizmo from its corner.
    *
-   * The package builds its overlay later, with a margin of zero, and only its `margin`
-   * setter reaches it. So the margin has to wait for that overlay to exist.
+   * The package builds its overlay later, once the texture it draws from an SVG has loaded,
+   * with a margin of zero, and only its `margin` setter reaches it. So the margin waits for
+   * that overlay, looked for as each frame begins.
+   *
+   * Not by queueing a retry with `execBeforeNextPaint`: tgd runs that queue live, so a retry
+   * queued from inside it runs again at once, in the same frame, before anything can build
+   * the overlay. A page busy enough for its first frame to beat the texture never finished
+   * that frame: the canvas stayed black while the queue grew by millions a second.
    */
   private applyMargin(painter: TgdPainterGizmo, margin: number): void {
     if (hasOverlay(painter)) {
@@ -61,9 +67,20 @@ export class PainterGizmo extends TgdPainterGroup {
       return;
     }
 
-    this._context?.execBeforeNextPaint(() => {
-      if (this._painter === painter) this.applyMargin(painter, margin);
-    });
+    const context = this._context;
+    if (!context) return;
+
+    const apply = () => {
+      if (this._painter !== painter) {
+        context.eventPaintEnter.removeListener(apply);
+        return;
+      }
+      if (!hasOverlay(painter)) return;
+
+      context.eventPaintEnter.removeListener(apply);
+      painter.margin = margin;
+    };
+    context.eventPaintEnter.addListener(apply);
   }
 
   private createPainter() {
