@@ -24,7 +24,7 @@ export type MaterialDiffuseAlphaOptions = Partial<{
 
 /**
  * Like `TgdMaterialDiffuse`, but writes a controllable fragment alpha
- * (`TgdMaterialDiffuse` hardcodes alpha to `1.0`).
+ * (`TgdMaterialDiffuse` hardcodes alpha to `1.0`): the colour's alpha times `opacity`.
  */
 export class MaterialDiffuseAlpha extends TgdMaterial {
   light: TgdLight;
@@ -69,7 +69,8 @@ export class MaterialDiffuseAlpha extends TgdMaterial {
       "  color.rgb * (",
       "    uniAmbient + uniLight * light",
       "  ) + vec3(spec),",
-      "  uniOpacity",
+      // The colour's own alpha, for a cell drawn see-through, under the neurons' opacity.
+      "  color.a * uniOpacity",
       ");",
       "return color;",
     ];

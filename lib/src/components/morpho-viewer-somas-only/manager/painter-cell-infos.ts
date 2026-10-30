@@ -84,6 +84,7 @@ export class PainterCellInfos extends TgdPainterGroup {
     const paletteColors = writeColumns(dataUV, options.colors);
     const flatColumns = new Set(options.colors?.flatColumns);
     const opacity = clamp01(options.opacity ?? 1);
+    const { canvas: bitmap, twoPasses } = createPaletteBitmap(paletteColors, opacity, flatColumns);
     const texturePalette = new TgdTexture2D(context, {
       params: {
         magFilter: "LINEAR",
@@ -92,13 +93,14 @@ export class PainterCellInfos extends TgdPainterGroup {
         wrapS: "CLAMP_TO_EDGE",
         wrapT: "CLAMP_TO_EDGE",
       },
-    }).loadBitmap(createPaletteBitmap(paletteColors, opacity, flatColumns));
+    }).loadBitmap(bitmap);
     const painterPointsCloud = new PainterSomaCloud(context, {
       dataPoint,
       dataUV,
       texture: texturePalette,
       radiusMultiplier: options.somaRadius,
     });
+    painterPointsCloud.twoPasses = twoPasses;
     super({
       name: "PainterCellInfos",
       children: [painterPointsCloud],
@@ -158,9 +160,7 @@ export class PainterCellInfos extends TgdPainterGroup {
 
     this.paletteColors = writeColumns(this.dataUV, colors);
     this.flatColumns = new Set(colors?.flatColumns);
-    this.texturePalette.loadBitmap(
-      createPaletteBitmap(this.paletteColors, this._opacity, this.flatColumns)
-    );
+    this.loadPalette();
     this.painterPointsCloud.setUV(this.dataUV);
     return true;
   }
@@ -188,8 +188,19 @@ export class PainterCellInfos extends TgdPainterGroup {
     if (this._opacity === next) return;
 
     this._opacity = next;
-    this.texturePalette.loadBitmap(createPaletteBitmap(this.paletteColors, next, this.flatColumns));
+    this.loadPalette();
     this.context.paint();
+  }
+
+  /** The palette as the colours and the opacity now make it, and the passes it is drawn in. */
+  private loadPalette() {
+    const { canvas, twoPasses } = createPaletteBitmap(
+      this.paletteColors,
+      this._opacity,
+      this.flatColumns
+    );
+    this.texturePalette.loadBitmap(canvas);
+    this.painterPointsCloud.twoPasses = twoPasses;
   }
 
   /**
@@ -525,13 +536,13 @@ function createPalette(
   colors: (string | null | false)[],
   rows: number,
   flat: ReadonlySet<number>
-): HTMLCanvasElement {
+): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D | null } {
   const width = colors.length;
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = rows;
   const ctx = canvas.getContext("2d");
-  if (!ctx) return canvas;
+  if (!ctx) return { canvas, ctx };
 
   const shade = ctx.createLinearGradient(0, 0, 0, rows);
   shade.addColorStop(0, "rgba(0, 0, 0, 0)");
@@ -554,29 +565,55 @@ function createPalette(
     ctx.fillRect(x, 0, 1, rows);
     if (color === null || flat.has(x)) continue;
 
+    // Over the colour's own alpha rather than onto it: a see-through soma darkens down the
+    // column like any other, and stays as see-through as its colour says.
+    ctx.globalCompositeOperation = "source-atop";
     ctx.fillStyle = shade;
     ctx.fillRect(x, 0, 1, rows);
+    ctx.globalCompositeOperation = "source-over";
   }
-  return canvas;
+  return { canvas, ctx };
 }
 
+/**
+ * Whether a palette holds see-through columns beside opaque ones. Such a cloud is
+ * drawn in two passes, the opaque somas first, so a faint one hides nothing.
+ */
+function mixesOpacity(ctx: CanvasRenderingContext2D, width: number): boolean {
+  // The first row is enough: the shade below it leaves each column's alpha as it is.
+  const { data } = ctx.getImageData(0, 0, width, 1);
+  let opaque = false;
+  let translucent = false;
+  for (let x = 0; x < width; x++) {
+    const alpha = data[x * 4 + 3];
+    if (alpha === 255) opaque = true;
+    else if (alpha > 0) translucent = true;
+  }
+  return opaque && translucent;
+}
+
+/**
+ * The palette, and whether it is drawn in two passes: where colours of their own leave
+ * some somas see-through beside opaque ones. The opacity setting, short of 1, leaves
+ * none opaque, and the cloud is drawn in one blended pass as it always was.
+ */
 function createPaletteBitmap(
   paletteColors: (string | null | false)[] | null,
   opacity: number,
   flatColumns: ReadonlySet<number>
-): HTMLCanvasElement {
+): { canvas: HTMLCanvasElement; twoPasses: boolean } {
   // No palette at all is the one-column palette holding the ramp: every soma
   // leaves `u` at the middle of it, so they all sample that column.
-  return applyCanvasOpacity(
-    createPalette(paletteColors ?? [null], PALETTE_AO_ROWS, flatColumns),
-    opacity
-  );
+  const { canvas, ctx } = createPalette(paletteColors ?? [null], PALETTE_AO_ROWS, flatColumns);
+  const twoPasses = opacity >= 1 && ctx !== null && mixesOpacity(ctx, canvas.width);
+  return { canvas: applyCanvasOpacity(canvas, opacity), twoPasses };
 }
 
 /**
- * Force every pixel's alpha channel to `opacity` (keeps RGB shading intact),
- * except the columns left clear for somas that are not drawn — the opacity
- * setting is about the somas on screen and must not bring those back.
+ * Scale every pixel's alpha channel by `opacity` (keeps RGB shading intact), so a
+ * colour see-through of its own stays fainter than the rest; except the columns
+ * left clear for somas that are not drawn — the opacity setting is about the
+ * somas on screen and must not bring those back.
  *
  * Which is also why the floor is one step rather than zero: at `opacity: 0` a
  * soma stays drawn and invisible, as it always has, instead of falling into
@@ -589,11 +626,11 @@ function applyCanvasOpacity(canvas: HTMLCanvasElement, opacity: number): HTMLCan
   if (!ctx) return canvas;
 
   const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const alpha = Math.max(1, Math.round(clamp01(opacity) * 255));
+  const scale = clamp01(opacity);
   for (let i = 3; i < image.data.length; i += 4) {
     if (image.data[i] === 0) continue;
 
-    image.data[i] = alpha;
+    image.data[i] = Math.max(1, Math.round(image.data[i] * scale));
   }
   ctx.putImageData(image, 0, 0);
   return canvas;

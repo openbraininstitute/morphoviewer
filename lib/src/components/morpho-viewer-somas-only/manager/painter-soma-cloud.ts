@@ -2,6 +2,7 @@ import {
   TgdDataset,
   TgdPainter,
   TgdPainterPointsCloud,
+  TgdPainterState,
   TgdProgram,
   TgdShaderFragment,
   TgdShaderVertex,
@@ -46,6 +47,13 @@ const DEFAULT_GLOW_SWELL = 0.7;
  * setting, the lowest of which is a whole step.
  */
 const HIDDEN_ALPHA = 0.5 / 255;
+/** Alpha at and above which a soma counts as opaque: the palette's top 8-bit step. */
+const OPAQUE_ALPHA = 1 - 0.5 / 255;
+
+/** Which somas a draw takes: all of them, the opaque ones, or the see-through ones. */
+const PASS_ALL = 0;
+const PASS_OPAQUE = 1;
+const PASS_TRANSLUCENT = 2;
 
 export interface PainterSomaCloudOptions {
   /**
@@ -83,6 +91,13 @@ export interface PainterSomaCloudOptions {
 export class PainterSomaCloud extends TgdPainter {
   public readonly count: number;
   public radiusMultiplier: number;
+  /**
+   * Whether see-through somas stand among opaque ones, by colours of their own. Then the
+   * opaque ones are drawn first, and the others after them, blended and writing no depth,
+   * so that a faint soma never hides a coloured one behind it. A cloud the opacity setting
+   * turned see-through as a whole is drawn in one pass, blended as it always was.
+   */
+  public twoPasses = false;
 
   private readonly texture: TgdTexture2D;
   private readonly glowColor: [number, number, number];
@@ -199,7 +214,20 @@ export class PainterSomaCloud extends TgdPainter {
     program.uniformMatrix4fv("uniModelViewMatrix", camera.matrixModelView);
     program.uniformMatrix4fv("uniProjectionMatrix", camera.matrixProjection);
     vao.bind();
-    gl.drawArraysInstanced(gl.TRIANGLE_FAN, 0, 4, count);
+    const draw = (pass: number) => {
+      program.uniform1f("uniPass", pass);
+      gl.drawArraysInstanced(gl.TRIANGLE_FAN, 0, 4, count);
+    };
+    if (this.twoPasses) {
+      draw(PASS_OPAQUE);
+      TgdPainterState.do(context, {
+        depth: "lessReadOnly",
+        blend: "alpha",
+        action: () => draw(PASS_TRANSLUCENT),
+      });
+    } else {
+      draw(PASS_ALL);
+    }
     vao.unbind();
   }
 
@@ -222,6 +250,7 @@ function createProgram(
       uniRadiusMultiplier: "float",
       uniModelViewMatrix: "mat4",
       uniProjectionMatrix: "mat4",
+      uniPass: "float",
     },
     attributes: {
       attPoint: "vec4",
@@ -244,6 +273,9 @@ function createProgram(
       // reliable. `attUV` is per instance, so all four corners of the sprite
       // agree and the whole billboard is clipped rather than half of it.
       `if (varColor.a < ${HIDDEN_ALPHA.toFixed(8)}) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }`,
+      // Left out of the pass it does not belong to, the same way, whole.
+      `bool opaque = varColor.a >= ${OPAQUE_ALPHA.toFixed(8)};`,
+      `if ((uniPass == ${PASS_OPAQUE.toFixed(1)} && !opaque) || (uniPass == ${PASS_TRANSLUCENT.toFixed(1)} && opaque)) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }`,
       // Shaped once here: a sprite is one vertex and many fragments, and the
       // swell below wants the same value the colour fades on.
       `float glow = pow(attGlow, ${GLOW_BIAS.toFixed(6)});`,

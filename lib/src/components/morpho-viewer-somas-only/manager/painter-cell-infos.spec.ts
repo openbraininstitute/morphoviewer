@@ -36,17 +36,25 @@ jest.mock("@tolokoban/tgd", () => ({
 
 // The cloud painter owns the GPU side; here it only has to remember the
 // arrays it was built around and record what `setUV` pushes.
-const mockCloud: { point: Float32Array | null; uv: Float32Array | null; setUV: jest.Mock } = {
+const mockCloud: {
+  point: Float32Array | null;
+  uv: Float32Array | null;
+  setUV: jest.Mock;
+  instance: { twoPasses: boolean } | null;
+} = {
   point: null,
   uv: null,
   setUV: jest.fn(),
+  instance: null,
 };
 jest.mock("./painter-soma-cloud", () => ({
   PainterSomaCloud: class {
     radiusMultiplier = 1;
+    twoPasses = false;
     constructor(_context: unknown, options: { dataPoint: Float32Array; dataUV: Float32Array }) {
       mockCloud.point = options.dataPoint;
       mockCloud.uv = options.dataUV;
+      mockCloud.instance = this;
     }
     setUV(dataUV: Float32Array) {
       mockCloud.setUV(dataUV.slice());
@@ -278,12 +286,13 @@ class FakeGradient {
 
 /**
  * Enough of a 2D context to paint the palette, since jsdom ships none and the
- * palette is where a soma that is not drawn is decided. Source-over
- * compositing over an RGBA grid, plus linear gradients read down `y`, which is
- * all `createPalette` asks for.
+ * palette is where a soma that is not drawn is decided. Source-over and
+ * source-atop compositing over an RGBA grid, plus linear gradients read down
+ * `y`, which is all `createPalette` asks for.
  */
 class FakeContext {
   fillStyle: string | FakeGradient = "#000000";
+  globalCompositeOperation = "source-over";
   readonly data: Uint8ClampedArray;
 
   constructor(
@@ -318,6 +327,14 @@ class FakeContext {
   private composite(x: number, y: number, [red, green, blue, alpha]: RGBA) {
     const at = (y * this.width + x) * 4;
     const behind = this.data[at + 3] / 255;
+    // Painted only where there is paint already, and leaving its alpha as it was.
+    if (this.globalCompositeOperation === "source-atop") {
+      if (behind === 0) return;
+      this.data[at] = red * alpha + this.data[at] * (1 - alpha);
+      this.data[at + 1] = green * alpha + this.data[at + 1] * (1 - alpha);
+      this.data[at + 2] = blue * alpha + this.data[at + 2] * (1 - alpha);
+      return;
+    }
     const result = alpha + behind * (1 - alpha);
     if (result === 0) return;
 
@@ -422,6 +439,55 @@ describe("PainterCellInfos palette", () => {
     // a spike can still light it, which is what zero opacity has always meant.
     expectDown(0, ALPHA, 1);
     expectDown(1, ALPHA, 0);
+  });
+
+  /** A see-through red in column 0 and an opaque red in column 1. */
+  function paintSeeThrough(opacity?: number, second = "red"): PainterCellInfos {
+    return new PainterCellInfos(context, {
+      positions: new Float32Array([0, 0, 0, 100, 0, 0]),
+      colors: { palette: ["rgba(255, 0, 0, 0.05)", second], columnByCell: new Uint16Array([0, 1]) },
+      somaRadius: 1,
+      opacity,
+    });
+  }
+
+  it("keeps a see-through colour as faint down its column, while the shade darkens it", () => {
+    paintSeeThrough();
+
+    expectDown(0, ALPHA, 13);
+    expectDown(1, ALPHA, 255);
+    const red = channelDown(0, RED);
+    expect(red[red.length - 1]).toBeLessThan(red[0]);
+  });
+
+  it("scales a see-through colour by the opacity rather than replacing it", () => {
+    paintSeeThrough(0.5);
+
+    expectDown(0, ALPHA, 7);
+    expectDown(1, ALPHA, 128);
+  });
+
+  it("draws see-through somas among opaque ones in a pass of their own", () => {
+    paintSeeThrough();
+    expect(mockCloud.instance?.twoPasses).toBe(true);
+
+    // The opacity setting leaves none opaque: one blended pass, as it always was.
+    paintSeeThrough(0.5);
+    expect(mockCloud.instance?.twoPasses).toBe(false);
+
+    paint();
+    expect(mockCloud.instance?.twoPasses).toBe(false);
+  });
+
+  it("takes up the passes again on a recolour", () => {
+    const painter = paint();
+
+    painter.recolor({
+      palette: ["rgba(255, 0, 0, 0.05)", "red"],
+      columnByCell: new Uint16Array([0, 1]),
+    });
+
+    expect(mockCloud.instance?.twoPasses).toBe(true);
   });
 
   it("refuses colours whose columns describe other geometry, and says so", () => {
