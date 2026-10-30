@@ -57,11 +57,7 @@ import { PainterLocationMarkers } from "./painter-location-markers";
 import { PainterSynapses } from "./painter-synapses";
 import { isSameColor, isSamePlacement } from "./same-cell";
 
-import {
-  DEFAULT_SPIKE_AFTERGLOW_IN_SECONDS,
-  DEFAULT_SPIKE_SPEED,
-  SpikingCircuit,
-} from "@/spikes";
+import { DEFAULT_SPIKE_AFTERGLOW_IN_SECONDS, DEFAULT_SPIKE_SPEED, SpikingCircuit } from "@/spikes";
 
 import type { PainterWorldOverlays } from "@/painters/world-overlays";
 import type { MorphoViewerSpikes } from "@/spikes";
@@ -167,6 +163,11 @@ export class PainterManager {
   private nudgeStart: number | null = null;
 
   private readonly groupCells = new TgdPainterGroup({ name: "GroupCell" });
+  /**
+   * Cells whose own colour is see-through (`PainterCell.translucent`): drawn after every opaque
+   * one, as a single blended layer, so an opaque cell behind them still shows through.
+   */
+  private readonly groupTranslucentCells = new TgdPainterGroup({ name: "GroupTranslucentCell" });
   private circuit: MorphoViewerSmallCircuitCell[] = [];
   /**
    * The additive highlight pass, in `circuit` order rather than keyed by cell
@@ -333,11 +334,7 @@ export class PainterManager {
     if (this._neuronOpacity === opacity) return;
 
     this._neuronOpacity = opacity;
-    this.groupCells.forEachChild((painter) => {
-      if (painter instanceof PainterCell) {
-        painter.opacity = opacity;
-      }
-    });
+    for (const painter of this.cellPainters) painter.opacity = opacity;
     if (this.painterCellSomas) this.painterCellSomas.opacity = opacity;
     this.context.value?.paint();
   }
@@ -949,6 +946,8 @@ export class PainterManager {
     };
     for (const painter of this.cellPainters) recolour(painter);
     for (const painter of this.cellsForHighlights) recolour(painter);
+    // A colour turned see-through, or back, moves its cell to the other pass.
+    this.placeCells();
     // One build for both clouds, so instance `i` is one cell in each: see `updateCircuit`.
     const data = somas ? buildSomaCloudData(this.circuit) : undefined;
     // Ids, not colours: a pick hands out the latest cells, and the somas hidden or shown.
@@ -956,6 +955,16 @@ export class PainterManager {
     this.segmentOffscreen?.adopt(this.circuit);
     if (data) this.replaceSomaCloud(context, data);
     context.paint();
+  }
+
+  /** Each cell in the pass its colour asks for, the soma cloud with the opaque ones. */
+  private placeCells() {
+    this.groupCells.removeAll(false);
+    this.groupTranslucentCells.removeAll(false);
+    for (const painter of this.cellPainters) {
+      (painter.translucent ? this.groupTranslucentCells : this.groupCells).add(painter);
+    }
+    if (this.painterCellSomas) this.groupCells.add(this.painterCellSomas);
   }
 
   private readonly updateCircuit = () => {
@@ -977,6 +986,7 @@ export class PainterManager {
       const keepable = this.paintedSomaAsSphere === this._somaAsSphere;
       this.paintedSomaAsSphere = this._somaAsSphere;
       this.groupCells.removeAll(false);
+      this.groupTranslucentCells.removeAll(false);
       this.groupHighlightedCells.removeAll(false);
       this.cellPainters.splice(0);
       this.cellsForHighlights.splice(0);
@@ -1035,7 +1045,7 @@ export class PainterManager {
         if (painterCell.isLoaded) this.cellCountLoaded++;
         this.cellPainters.push(painterCell);
         painterCell.dendrogramMix = this.dendrogramMix;
-        this.groupCells.add(painterCell);
+        (painterCell.translucent ? this.groupTranslucentCells : this.groupCells).add(painterCell);
         const highlightedCell =
           (keepable ? reusePainterFor(keptHighlights, cell) : undefined) ??
           new PainterCellFlat(context, { cell, loadCell });
@@ -1467,6 +1477,22 @@ export class PainterManager {
           savedNeuronBlend = undefined;
         },
       }),
+      // See-through cells, after every opaque one and as a single layer: the first pass keeps
+      // only the nearest see-through surface in the depth buffer, the second blends that surface
+      // alone. A neurite is thousands of overlapping capsules, so blending every fragment would
+      // stack its own alpha up to a solid colour.
+      new TgdPainterState(context, {
+        depth: "less",
+        color: false,
+        cull: "back",
+        children: [this.groupTranslucentCells],
+      }),
+      new TgdPainterState(context, {
+        depth: "lessOrEqualReadOnly",
+        blend: "alpha",
+        cull: "back",
+        children: [this.groupTranslucentCells],
+      }),
       new TgdPainterClear(context, {
         name: "Clear depth",
         depth: 1,
@@ -1476,7 +1502,7 @@ export class PainterManager {
         blend: "add",
         cull: "back",
         children: [this.groupHighlightedCells],
-      }),
+      })
     );
     this.bindOverlaySurface();
   }
@@ -1839,6 +1865,7 @@ export class PainterManager {
     this.cameraManager?.delete();
     this.cameraManager = null;
     this.groupCells.removeAll();
+    this.groupTranslucentCells.removeAll();
     this.painterClear?.delete();
     this.painterClear = null;
     this.overlayInteraction?.detach();

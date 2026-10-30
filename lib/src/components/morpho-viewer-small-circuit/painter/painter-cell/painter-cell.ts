@@ -72,6 +72,7 @@ export class PainterCell extends TgdPainterGroup {
   private readonly texturePalette: TgdTexture2D;
   /** Whether the material draws from the palette: the pick passes draw ids instead. */
   private readonly drawsPalette: boolean;
+  private _translucent: boolean;
   private _isDeleted = false;
   private _isLoaded = false;
   private _bbox = new TgdBoundingBox();
@@ -93,6 +94,7 @@ export class PainterCell extends TgdPainterGroup {
     this.bbox.addSphere(x, y, z, cell.somaRadius * 5);
     const texture = createPaletteTexture(context, cell.color);
     this.texturePalette = texture;
+    this._translucent = isTranslucent(cell.color);
     const materialType = options.material ?? "full";
     this.drawsPalette = materialType === "full" || materialType === "flat";
     switch (materialType) {
@@ -172,7 +174,16 @@ export class PainterCell extends TgdPainterGroup {
     this.options.cell = cell;
     if (this.drawsPalette && !isSameColor(previous.color, cell.color)) {
       this.texturePalette.loadBitmap(createPaletteCanvas(cell.color));
+      this._translucent = isTranslucent(cell.color);
     }
+  }
+
+  /**
+   * Whether a colour of the cell's own is see-through: an alpha under 1. Such a cell is drawn
+   * after the opaque ones, blended over them.
+   */
+  get translucent(): boolean {
+    return this._translucent;
   }
 
   /**
@@ -346,6 +357,14 @@ function createPaletteTexture(
     },
   }).loadBitmap(createPaletteCanvas(color));
   return texture;
+}
+
+/** Whether any of a cell's colours has an alpha under 1. */
+function isTranslucent(color: MorphoViewerSmallCircuitCell["color"]): boolean {
+  if (!color) return false;
+  return Object.values(resolveColorsPerSection(color)).some(
+    (section) => TgdColor.fromString(section).A < 1
+  );
 }
 
 /** One pixel per section type, in the order the morphology's vertices index them. */
